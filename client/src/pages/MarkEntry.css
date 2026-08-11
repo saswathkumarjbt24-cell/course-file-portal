@@ -1,0 +1,250 @@
+/* ---------------------------------------------------------------
+   Mark Entry - dense data-entry screen.
+   All values come from ../styles/tokens.css.
+   --------------------------------------------------------------- */
+
+.mark-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.mark-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.mark-field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.mark-field__select {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.mark-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.mark-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.mark-summary__label {
+  color: var(--color-text-muted);
+}
+
+.mark-summary__value {
+  font-weight: 600;
+}
+
+.mark-summary__allocation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mark-summary__alloc-chip {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------------- Table ---------------- */
+
+.mark-table-wrap {
+  max-height: 62vh;
+  overflow: auto;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.mark-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-sm);
+}
+
+.mark-table th,
+.mark-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.mark-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mark-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mark-table tbody tr:hover td {
+  background-color: var(--color-primary-soft);
+}
+
+.mark-table__num {
+  text-align: right;
+  width: 3.5rem;
+  color: var(--color-text-muted);
+}
+
+.mark-table__reg {
+  font-variant-numeric: tabular-nums;
+}
+
+.mark-table__co {
+  text-align: right;
+  width: 4.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mark-table__co--empty {
+  color: var(--color-text-muted);
+}
+
+.mark-table__center {
+  text-align: center;
+  width: 4.5rem;
+}
+
+.mark-row--absent td {
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Total input ---------------- */
+
+.mark-input {
+  width: 4.5rem;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.mark-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.mark-input:disabled {
+  background-color: var(--color-background);
+  color: var(--color-text-muted);
+}
+
+.mark-input--invalid {
+  border-color: var(--color-danger);
+  border-width: 2px;
+  background-color: #fdf2f1;
+}
+
+.mark-input--invalid:focus {
+  outline-color: var(--color-danger);
+}
+
+/* ---------------- Footer ---------------- */
+
+.mark-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.mark-button {
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.mark-button:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+.mark-button:disabled {
+  background-color: var(--color-border);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.mark-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.mark-status--error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.mark-status--saved {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.mark-hint {
+  margin-top: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+  .mark-table-wrap {
+    max-height: none;
+  }
+
+  .mark-summary {
+    gap: var(--space-3);
+  }
+}

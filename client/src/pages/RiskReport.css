@@ -1,0 +1,223 @@
+/* ---------------------------------------------------------------
+   Reports - institution-wide internal-mark risk analysis.
+   All values come from ../styles/tokens.css. No charting library:
+   the distribution bars are plain divs sized by percentage width.
+   --------------------------------------------------------------- */
+
+.risk-section {
+  margin-bottom: var(--space-6);
+}
+
+.risk-section__title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-1);
+}
+
+.risk-section__note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Summary cards ---------------- */
+
+.risk-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+.risk-card {
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.risk-card--danger {
+  border-left-color: var(--color-danger);
+}
+
+.risk-card--success {
+  border-left-color: var(--color-success);
+}
+
+.risk-card--warning {
+  border-left-color: var(--color-warning);
+}
+
+.risk-card__label {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.risk-card__value {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-card__sub {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Tables ---------------- */
+
+.risk-table-wrap {
+  overflow-x: auto;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.risk-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-sm);
+}
+
+.risk-table th,
+.risk-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.risk-table thead th {
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.risk-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.risk-table tbody tr:hover td {
+  background-color: var(--color-primary-soft);
+}
+
+.risk-table__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-table__muted {
+  color: var(--color-text-muted);
+}
+
+/* Low IM % colouring: red above 30, amber 15-30, green below 15 */
+.risk-pct {
+  display: inline-block;
+  min-width: 4.5rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-pct--high {
+  background-color: #fdecea;
+  color: var(--color-danger);
+}
+
+.risk-pct--medium {
+  background-color: #fdf3e2;
+  color: var(--color-warning);
+}
+
+.risk-pct--low {
+  background-color: #e9f4ef;
+  color: var(--color-success);
+}
+
+/* ---------------- Distribution bars ---------------- */
+
+.risk-nature {
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.risk-nature__title {
+  font-size: var(--font-size-base);
+  margin-bottom: var(--space-1);
+}
+
+.risk-nature__note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.risk-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.risk-bar-row {
+  display: grid;
+  grid-template-columns: 11rem 1fr 4rem;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: var(--font-size-sm);
+}
+
+.risk-bar-label {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.risk-bar-track {
+  height: 1.1rem;
+  background-color: var(--color-background);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.risk-bar-fill {
+  height: 100%;
+  min-width: 2px;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+
+.risk-bar-fill--low {
+  background-color: var(--color-danger);
+}
+
+.risk-bar-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.risk-empty {
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .risk-bar-row {
+    grid-template-columns: 8rem 1fr 3rem;
+  }
+}

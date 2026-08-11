@@ -1,0 +1,359 @@
+/* ---------------------------------------------------------------
+   Shared styling for the read-only course-file document sheets:
+   Cover, VisionMission, Outcomes, NameList, Attendance,
+   InternalMarks and FullCourseFile.
+   All values come from ../styles/tokens.css.
+   --------------------------------------------------------------- */
+
+.doc-card {
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.doc-sheet {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  line-height: 1.7;
+}
+
+.doc-head {
+  text-align: center;
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.doc-head__name {
+  font-size: var(--font-size-xl);
+  letter-spacing: 0.02em;
+}
+
+.doc-head__line {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.doc-title {
+  margin: var(--space-5) 0;
+  text-align: center;
+  font-size: var(--font-size-xl);
+  letter-spacing: 0.18em;
+}
+
+.doc-subtitle {
+  margin-bottom: var(--space-4);
+  text-align: center;
+  text-decoration: underline;
+}
+
+.doc-section {
+  margin-bottom: var(--space-6);
+}
+
+.doc-section__title {
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-dark);
+}
+
+.doc-statement {
+  margin: 0 0 var(--space-4);
+  text-align: justify;
+}
+
+/* Definition rows used on the cover sheet */
+.doc-fields {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.doc-field {
+  display: grid;
+  grid-template-columns: 14rem 1fr;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.doc-field__term {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.doc-field__value {
+  margin: 0;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px dotted var(--color-border);
+}
+
+/* Numbered lists (missions, POs, PEOs) */
+.doc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.doc-list__item {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.doc-list__code {
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.doc-list__text {
+  text-align: justify;
+}
+
+/* ---------------- Tables ---------------- */
+
+.doc-table-wrap {
+  overflow-x: auto;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.doc-table th,
+.doc-table td {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.doc-table thead th {
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.doc-table__num {
+  width: 3.5rem;
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+.doc-table__reg {
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-table__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-table__center {
+  text-align: center;
+}
+
+.doc-table__missing {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.doc-table__below {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.doc-row--total td {
+  background-color: var(--color-primary-soft);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+/* ---------------- Signatures and actions ---------------- */
+
+.doc-sign {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
+}
+
+.doc-sign__block {
+  min-width: 12rem;
+  text-align: center;
+}
+
+.doc-sign__line {
+  border-top: 1px solid var(--color-text);
+  padding-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.doc-button {
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.doc-button:hover {
+  background-color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.doc-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.doc-note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.doc-footnote {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.doc-table__sub {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ---------------- Full course file ---------------- */
+
+.doc-part {
+  margin-bottom: var(--space-7);
+}
+
+.doc-part__title {
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--color-primary);
+  font-size: var(--font-size-lg);
+  color: var(--color-primary-dark);
+}
+
+.doc-empty {
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.doc-blank-line {
+  display: block;
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  height: 1.4rem;
+}
+
+.doc-page-break {
+  margin: var(--space-7) 0;
+  border: none;
+  border-top: 1px dashed var(--color-border);
+}
+
+/* ---------------- Print ---------------- */
+
+@media print {
+  .doc-actions,
+  .doc-note,
+  .doc-noprint {
+    display: none !important;
+  }
+
+  .doc-card {
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .doc-sheet {
+    max-width: none;
+    padding: 0;
+    border: none;
+  }
+
+  .doc-table th,
+  .doc-table td {
+    border-color: #000 !important;
+  }
+
+  .doc-table thead th,
+  .doc-row--total td {
+    background: none !important;
+    color: #000 !important;
+  }
+
+  .doc-table-wrap {
+    overflow: visible !important;
+  }
+
+  .doc-page-break {
+    border: none;
+    break-after: page;
+    margin: 0;
+  }
+
+  .doc-part {
+    break-before: page;
+    margin-bottom: 0;
+  }
+
+  .doc-part:first-of-type {
+    break-before: auto;
+  }
+
+  .doc-part__title {
+    border-bottom: 1px solid #000 !important;
+    color: #000 !important;
+  }
+
+  .doc-empty {
+    border: none;
+    padding: 0;
+  }
+
+  tr,
+  .doc-sign,
+  .doc-list__item {
+    break-inside: avoid;
+  }
+}

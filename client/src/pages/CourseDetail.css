@@ -1,0 +1,255 @@
+/* ---------------------------------------------------------------
+   Course Setup - details, CO statements, CO-PO/PSO matrix.
+   All values come from ../styles/tokens.css.
+   --------------------------------------------------------------- */
+
+.cd-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.cd-nav__sep {
+  color: var(--color-border);
+}
+
+.cd-card {
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.cd-section__title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-1);
+}
+
+.cd-section__note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.cd-subheading {
+  margin: var(--space-5) 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Section A: details ---------------- */
+
+.cd-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.cd-details__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cd-details__term {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.cd-details__value {
+  margin: 0;
+  font-weight: 600;
+}
+
+.cd-details__value--muted {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* ---------------- Section B: CO statements ---------------- */
+
+.cd-co-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cd-co-row {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.cd-co-label {
+  padding-top: var(--space-2);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.cd-textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  line-height: var(--line-height-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.cd-textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+/* ---------------- Section C: matrix ---------------- */
+
+.cd-matrix-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.cd-matrix {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-sm);
+}
+
+.cd-matrix th,
+.cd-matrix td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cd-matrix thead th {
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
+.cd-matrix thead th.cd-matrix__pso {
+  color: var(--color-primary-dark);
+}
+
+.cd-matrix tbody tr:last-child td,
+.cd-matrix tbody tr:last-child th {
+  border-bottom: none;
+}
+
+/* Sticky CO label column */
+.cd-matrix__co {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 4.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.cd-matrix thead .cd-matrix__co {
+  z-index: 3;
+  background-color: var(--color-background);
+  cursor: default;
+}
+
+.cd-matrix__select {
+  width: 3.25rem;
+  padding: 2px var(--space-1);
+  font: inherit;
+  text-align: center;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.cd-matrix__select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.cd-matrix__select--set {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-soft);
+  font-weight: 600;
+}
+
+/* ---------------- Mapping counts ---------------- */
+
+.cd-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.cd-count-chip {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.cd-count-chip--zero {
+  background-color: var(--color-background);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Save row ---------------- */
+
+.cd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.cd-button {
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.cd-button:hover {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+.cd-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.cd-status--saved {
+  color: var(--color-success);
+  font-weight: 600;
+}

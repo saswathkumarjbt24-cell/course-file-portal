@@ -1,0 +1,219 @@
+/* ---------------------------------------------------------------
+   CO Attainment - reporting tables.
+   All values come from ../styles/tokens.css.
+   --------------------------------------------------------------- */
+
+.att-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.att-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.att-field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.att-field__select {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.att-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-5);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.att-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.att-summary__label {
+  color: var(--color-text-muted);
+}
+
+.att-summary__value {
+  font-weight: 600;
+}
+
+.att-section {
+  margin-bottom: var(--space-6);
+}
+
+.att-section__title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-1);
+}
+
+.att-section__note {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Tables ---------------- */
+
+.att-table-wrap {
+  overflow-x: auto;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.att-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-sm);
+}
+
+.att-table th,
+.att-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.att-table thead th {
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  vertical-align: bottom;
+}
+
+.att-table thead th.att-table__group {
+  text-align: center;
+  color: var(--color-primary-dark);
+  border-left: 1px solid var(--color-border);
+}
+
+.att-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.att-table tbody tr:hover td {
+  background-color: var(--color-primary-soft);
+}
+
+.att-table__num {
+  text-align: right;
+  width: 3.5rem;
+  color: var(--color-text-muted);
+}
+
+.att-table__reg {
+  font-variant-numeric: tabular-nums;
+}
+
+.att-table__co {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.att-table__co-percent {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.att-table__flag {
+  text-align: center;
+  width: 4rem;
+}
+
+.att-table__flag--yes {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.att-table__flag--no {
+  color: var(--color-success);
+}
+
+.att-row--excluded td {
+  color: var(--color-text-muted);
+  background-color: var(--color-background);
+}
+
+.att-row--excluded:hover td {
+  background-color: var(--color-background);
+}
+
+.att-table__excluded-cell {
+  font-style: italic;
+}
+
+/* ---------------- Level badge ---------------- */
+
+.att-badge {
+  display: inline-block;
+  min-width: 1.75rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+}
+
+.att-badge--3 {
+  background-color: var(--color-success);
+}
+
+.att-badge--2 {
+  background-color: var(--color-primary);
+}
+
+.att-badge--1 {
+  background-color: var(--color-warning);
+}
+
+.att-badge--0 {
+  background-color: var(--color-danger);
+}
+
+.att-badge--none {
+  background-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Empty state ---------------- */
+
+.att-empty {
+  padding: var(--space-6);
+  background-color: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+}
+
+.att-empty__title {
+  margin-bottom: var(--space-2);
+  color: var(--color-text);
+  font-weight: 600;
+}

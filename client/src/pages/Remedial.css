@@ -1,0 +1,437 @@
+/* ---------------------------------------------------------------
+   Remedial class screen - name list, circular, attendance, report.
+   All values come from ../styles/tokens.css.
+   --------------------------------------------------------------- */
+
+.rem-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.rem-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rem-field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.rem-field__select {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+/* ---------------- Tabs ---------------- */
+
+.rem-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rem-tab {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  cursor: pointer;
+}
+
+.rem-tab:hover {
+  color: var(--color-text);
+  background-color: var(--color-primary-soft);
+}
+
+.rem-tab--active {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  margin-bottom: -1px;
+}
+
+/* ---------------- Document panel ---------------- */
+
+.rem-panel {
+  padding: var(--space-5);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.rem-panel__title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-1);
+}
+
+.rem-panel__note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.rem-nil {
+  padding: var(--space-6);
+  text-align: center;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--color-success);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.rem-nil__note {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Tables ---------------- */
+
+.rem-table-wrap {
+  overflow-x: auto;
+}
+
+.rem-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.rem-table th,
+.rem-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.rem-table thead th {
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.rem-table__num {
+  text-align: right;
+  width: 3.5rem;
+  color: var(--color-text-muted);
+}
+
+.rem-table__reg {
+  font-variant-numeric: tabular-nums;
+}
+
+.rem-table__center {
+  text-align: center;
+}
+
+.rem-table__flag--yes {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.rem-table__flag--no {
+  color: var(--color-success);
+}
+
+.rem-table__muted {
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Circular ---------------- */
+
+.rem-doc {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  line-height: 1.7;
+}
+
+.rem-doc__head {
+  text-align: center;
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.rem-doc__institution {
+  font-size: var(--font-size-xl);
+  letter-spacing: 0.02em;
+}
+
+.rem-doc__dept {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.rem-doc__ref {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-5);
+}
+
+.rem-doc__subject {
+  text-align: center;
+  margin-bottom: var(--space-4);
+  text-decoration: underline;
+}
+
+.rem-doc__body p {
+  margin: 0 0 var(--space-4);
+  text-align: justify;
+}
+
+.rem-doc__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--space-5);
+  font-size: var(--font-size-sm);
+}
+
+.rem-doc__table th,
+.rem-doc__table td {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-text-muted);
+  text-align: left;
+}
+
+.rem-doc__table thead th {
+  text-align: center;
+  background-color: var(--color-background);
+}
+
+.rem-sign {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
+}
+
+.rem-sign__block {
+  min-width: 12rem;
+  text-align: center;
+}
+
+.rem-sign__line {
+  margin-bottom: var(--space-1);
+  border-top: 1px solid var(--color-text);
+  padding-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* ---------------- Inputs ---------------- */
+
+.rem-select {
+  width: 4rem;
+  padding: 2px var(--space-1);
+  font: inherit;
+  text-align: center;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rem-select--pr {
+  border-color: var(--color-success);
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.rem-select--ab {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.rem-input {
+  width: 4rem;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rem-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.rem-input--invalid {
+  border-color: var(--color-danger);
+  border-width: 2px;
+  background-color: #fdf2f1;
+}
+
+/* ---------------- Actions ---------------- */
+
+.rem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.rem-button {
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.rem-button:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+.rem-button:disabled {
+  background-color: var(--color-border);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.rem-button--ghost {
+  color: var(--color-primary-dark);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.rem-button--ghost:hover {
+  background-color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.rem-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.rem-status--saved {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.rem-status--error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* ---------------- Print ---------------------------------------
+   Only the active tab's document content is printed: app chrome,
+   tabs, selectors and buttons are all hidden.
+   --------------------------------------------------------------- */
+
+@media print {
+  .topbar,
+  .sidebar,
+  .back-link,
+  .page-header__subtitle,
+  .rem-toolbar,
+  .rem-tabs,
+  .rem-actions,
+  .rem-panel__note,
+  .rem-noprint {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block !important;
+  }
+
+  .main {
+    padding: 0 !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  .rem-panel {
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .rem-doc {
+    max-width: none;
+    border: none;
+    padding: 0;
+  }
+
+  .rem-table th,
+  .rem-table td,
+  .rem-doc__table th,
+  .rem-doc__table td {
+    border-color: #000 !important;
+  }
+
+  .rem-table thead th,
+  .rem-doc__table thead th {
+    background: none !important;
+    color: #000 !important;
+  }
+
+  .rem-select,
+  .rem-input {
+    border: none !important;
+    background: none !important;
+    color: #000 !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .rem-table-wrap {
+    overflow: visible !important;
+  }
+
+  tr,
+  .rem-sign {
+    break-inside: avoid;
+  }
+}

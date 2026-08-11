@@ -1,0 +1,295 @@
+/* ---------------------------------------------------------------
+   Shared styling for the end-of-course reports:
+   FinalAttainment.jsx and ClosingReport.jsx.
+   All values come from ../styles/tokens.css.
+   --------------------------------------------------------------- */
+
+.rep-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.rep-nav__sep {
+  color: var(--color-border);
+}
+
+.rep-card {
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.rep-card__title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-1);
+}
+
+.rep-card__note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Tables ---------------- */
+
+.rep-table-wrap {
+  overflow-x: auto;
+}
+
+.rep-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.rep-table th,
+.rep-table td {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.rep-table thead th {
+  background-color: var(--color-background);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.rep-table__label {
+  text-align: left;
+  font-weight: 600;
+}
+
+.rep-table__weight {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.rep-table__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.rep-table__missing {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.rep-row--total td,
+.rep-row--total th {
+  background-color: var(--color-primary-soft);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.rep-row--sub td,
+.rep-row--sub th {
+  background-color: var(--color-background);
+  font-weight: 600;
+}
+
+.rep-matrix-head {
+  cursor: help;
+}
+
+.rep-pso {
+  color: var(--color-primary-dark);
+}
+
+/* ---------------- Document ---------------- */
+
+.rep-doc {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  line-height: 1.7;
+}
+
+.rep-doc__head {
+  text-align: center;
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.rep-doc__institution {
+  font-size: var(--font-size-xl);
+  letter-spacing: 0.02em;
+}
+
+.rep-doc__dept {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.rep-doc__subject {
+  text-align: center;
+  margin-bottom: var(--space-5);
+  text-decoration: underline;
+}
+
+.rep-doc__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  margin-bottom: var(--space-5);
+  font-size: var(--font-size-sm);
+}
+
+.rep-doc__section {
+  margin-bottom: var(--space-6);
+}
+
+.rep-doc__section-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+.rep-actions-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rep-action-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.rep-action-num {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.rep-action-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background-color: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rep-action-input:focus {
+  outline: none;
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.rep-sign {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
+}
+
+.rep-sign__block {
+  min-width: 12rem;
+  text-align: center;
+}
+
+.rep-sign__line {
+  border-top: 1px solid var(--color-text);
+  padding-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* ---------------- Actions ---------------- */
+
+.rep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.rep-button {
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.rep-button:hover {
+  background-color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.rep-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------------- Print ---------------------------------------
+   Leave only the document: app chrome, nav and buttons go away.
+   --------------------------------------------------------------- */
+
+@media print {
+  .rep-nav,
+  .rep-actions,
+  .rep-card__note,
+  .rep-noprint {
+    display: none !important;
+  }
+
+  .rep-card {
+    padding: 0 !important;
+    margin-bottom: var(--space-5) !important;
+    border: none !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .rep-doc {
+    max-width: none;
+    padding: 0;
+    border: none;
+  }
+
+  .rep-table th,
+  .rep-table td {
+    border-color: #000 !important;
+  }
+
+  .rep-table thead th,
+  .rep-row--total td,
+  .rep-row--total th,
+  .rep-row--sub td,
+  .rep-row--sub th {
+    background: none !important;
+    color: #000 !important;
+  }
+
+  .rep-table-wrap {
+    overflow: visible !important;
+  }
+
+  .rep-action-input {
+    border-bottom: 1px solid #000 !important;
+  }
+
+  tr,
+  .rep-sign {
+    break-inside: avoid;
+  }
+}
