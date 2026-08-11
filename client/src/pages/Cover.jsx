@@ -7,8 +7,8 @@ import './Documents.css'
 const PROGRAMME = 'B.E. Computer Science and Engineering'
 const BATCH = '2022 - 2026'
 const ACADEMIC_YEAR = '2025 - 2026 (Odd Semester)'
-const HANDLED_BY = 'Dr. S. Meenakshi, Assistant Professor / CSE'
-const FILE_INCHARGE = 'Dr. R. Vasanthakumar, Associate Professor / CSE'
+const HANDLED_BY = 'Balakrishnaraja, Assistant Professor / CSE'
+const FILE_INCHARGE = 'Tamilselvi prof, Associate Professor / CSE'
 
 const ROMAN = ['-', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 
