@@ -1,15 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  assessments,
-  coAllocations,
-  courses,
-  students,
-  studentAssessments,
-} from '../data/mockData'
-import { mapSplitToCOs, splitTotal } from '../utils/coSplit'
+  fetchAssessments,
+  fetchCoAllocations,
+  fetchCoSplitValues,
+  fetchCourses,
+  fetchStudentAssessments,
+  fetchStudentCoMarks,
+  fetchStudents,
+  isApiMode,
+  saveAssessmentMarks,
+} from '../data/api'
+import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
+import { useSave } from '../data/useSave'
+import { mapSplitToCOs, splitIndex, splitTotal } from '../utils/coSplit'
 import { manualCoMarks } from '../utils/finalAttainment'
 import './MarkEntry.css'
+
+const LOADERS = {
+  assessments: fetchAssessments,
+  coAllocations: fetchCoAllocations,
+  coSplitValues: fetchCoSplitValues,
+  courses: fetchCourses,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  studentCoMarks: fetchStudentCoMarks,
+}
 
 const EMPTY_ROW = { total: '', isAbsent: false }
 
@@ -25,7 +41,7 @@ const NO_ROWS = {}
 
 // Seed one assessment's rows from the saved marks in mock data.
 // Students with no saved row start blank and present.
-function seedRows(assessmentId) {
+function seedRows(assessmentId, students, studentAssessments) {
   const seeded = {}
   for (const student of students) {
     const saved = studentAssessments.find(
@@ -50,14 +66,32 @@ function rowError(row, maxTotal) {
 }
 
 export default function MarkEntry() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <MarkEntryView {...data} />
+}
+
+function MarkEntryView({
+  assessments,
+  coAllocations,
+  coSplitValues,
+  courses,
+  students,
+  studentAssessments,
+  studentCoMarks,
+}) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
 
   const courseAssessments = useMemo(
     () => assessments.filter((a) => a.courseId === courseId),
-    [courseId],
+    [assessments, courseId],
   )
+
+  // Built once per data load so mapping every student does not rebuild it.
+  const splits = useMemo(() => splitIndex(coSplitValues), [coSplitValues])
 
   // ?assessment=PT2 preselects that assessment; otherwise default to PT1.
   const [searchParams] = useSearchParams()
@@ -77,6 +111,7 @@ export default function MarkEntry() {
     defaultAssessmentId ? { [defaultAssessmentId]: seedRows(defaultAssessmentId) } : {},
   )
   const [saveNonce, setSaveNonce] = useState(0)
+  const [saveState, runSave] = useSave()
 
   const inputRefs = useRef([])
 
@@ -89,9 +124,11 @@ export default function MarkEntry() {
   useEffect(() => {
     if (assessmentId == null) return
     setEntries((prev) =>
-      prev[assessmentId] ? prev : { ...prev, [assessmentId]: seedRows(assessmentId) },
+      prev[assessmentId]
+        ? prev
+        : { ...prev, [assessmentId]: seedRows(assessmentId, students, studentAssessments) },
     )
-  }, [assessmentId])
+  }, [assessmentId, students, studentAssessments])
 
   // Clear the "Saved (mock)" message a few seconds after each save.
   useEffect(() => {
@@ -110,7 +147,7 @@ export default function MarkEntry() {
       coAllocations
         .filter((a) => a.assessmentId === assessmentId)
         .sort((a, b) => a.coNumber - b.coNumber),
-    [assessmentId],
+    [coAllocations, assessmentId],
   )
 
   const rows = entries[assessmentId] ?? NO_ROWS
@@ -126,13 +163,27 @@ export default function MarkEntry() {
       if (message) found[student.id] = message
     }
     return found
-  }, [rows, maxTotal])
+  }, [rows, maxTotal, students])
 
   const invalidCount = Object.keys(errors).length
 
+  // In MOCK mode the wording stays exactly as it was, so the public demo is
+  // unchanged. In API mode it says what actually happened.
+  const savedLabel = isApiMode() ? 'Saved' : 'Saved (mock)'
+  const idleLabel = isApiMode()
+    ? 'Saving writes to the database and recalculates the internal marks.'
+    : 'Nothing is sent to a server yet.'
+
+  // A rejected save comes back with one issue per offending row, keyed by
+  // student, so it can be shown against that row's input.
+  const serverIssues = {}
+  for (const issue of saveState.issues ?? []) {
+    if (issue.studentId !== undefined) serverIssues[issue.studentId] = issue.message
+  }
+
   function updateRow(studentId, patch) {
     setEntries((prev) => {
-      const base = prev[assessmentId] ?? seedRows(assessmentId)
+      const base = prev[assessmentId] ?? seedRows(assessmentId, students, studentAssessments)
       const current = base[studentId] ?? EMPTY_ROW
       return {
         ...prev,
@@ -171,30 +222,41 @@ export default function MarkEntry() {
   }
 
   function handleSave() {
-    const payload = {
-      courseId,
-      assessmentId,
-      kind,
-      entries: students.map((student) => {
-        const row = rows[student.id] ?? EMPTY_ROW
-        const raw = row.total.trim()
-        const totalObtained = row.isAbsent || raw === '' ? null : Number(raw)
-        return {
-          studentId: student.id,
-          totalObtained,
-          isAbsent: row.isAbsent,
-          coMarks:
-            totalObtained === null
-              ? null
-              : splitMode === 'manual'
-                ? manualCoMarks(assessmentId, student.id)
-                : mapSplitToCOs(splitTotal(totalObtained), kind),
-        }
-      }),
-    }
-    // No backend yet - this is the only place the payload goes.
-    console.log('[MarkEntry] mock save payload', payload)
-    setSaveNonce((n) => n + 1)
+    // The API takes a flat array of rows. coMarks is [{coNumber, marksObtained}].
+    //
+    // For a 'lookup' assessment the server IGNORES whatever is sent here and
+    // re-derives the split itself, so the database stays authoritative. The
+    // marks are still included so the payload is the same shape either way.
+    //
+    // For a 'manual' assessment this screen only edits the TOTAL, so the
+    // existing per-CO marks are sent back unchanged rather than being wiped.
+    const entries = students.map((student) => {
+      const row = rows[student.id] ?? EMPTY_ROW
+      const raw = row.total.trim()
+      const totalObtained = row.isAbsent || raw === '' ? null : Number(raw)
+      const byCo =
+        totalObtained === null
+          ? null
+          : splitMode === 'manual'
+            ? manualCoMarks(assessmentId, student.id, studentCoMarks)
+            : mapSplitToCOs(splitTotal(totalObtained, splits), kind)
+      return {
+        studentId: student.id,
+        totalObtained,
+        isAbsent: row.isAbsent,
+        coMarks: byCo
+          ? Object.keys(byCo).map((co) => ({
+              coNumber: Number(co),
+              marksObtained: byCo[co],
+            }))
+          : [],
+      }
+    })
+
+    runSave(
+      () => saveAssessmentMarks(assessmentId, entries),
+      () => setSaveNonce((n) => n + 1),
+    )
   }
 
   if (!course) {
@@ -306,7 +368,9 @@ export default function MarkEntry() {
               <tbody>
                 {students.map((student, index) => {
                   const row = rows[student.id] ?? EMPTY_ROW
-                  const error = errors[student.id]
+                  // Local validation first; otherwise whatever the server
+                  // rejected this row for.
+                  const error = errors[student.id] ?? serverIssues[student.id]
                   const raw = row.total.trim()
                   // For 'manual' assessments (IP1/IP2/SEE) the per-CO marks
                   // are the entered data, so they are read from
@@ -315,8 +379,8 @@ export default function MarkEntry() {
                     row.isAbsent || error || raw === ''
                       ? null
                       : splitMode === 'manual'
-                        ? manualCoMarks(assessmentId, student.id)
-                        : mapSplitToCOs(splitTotal(Number(raw)), kind)
+                        ? manualCoMarks(assessmentId, student.id, studentCoMarks)
+                        : mapSplitToCOs(splitTotal(Number(raw), splits), kind)
 
                   return (
                     <tr key={student.id} className={row.isAbsent ? 'mark-row--absent' : undefined}>
@@ -389,10 +453,10 @@ export default function MarkEntry() {
             <button
               type="button"
               className="mark-button"
-              disabled={invalidCount > 0}
+              disabled={invalidCount > 0 || saveState.saving}
               onClick={handleSave}
             >
-              Save
+              {saveState.saving ? 'Saving…' : 'Save'}
             </button>
 
             {invalidCount > 0 && (
@@ -403,13 +467,16 @@ export default function MarkEntry() {
             )}
 
             {invalidCount === 0 && saveNonce > 0 && (
-              <span className="mark-status mark-status--saved">Saved (mock)</span>
+              <span className="mark-status mark-status--saved">{savedLabel}</span>
             )}
 
-            {invalidCount === 0 && saveNonce === 0 && (
-              <span className="mark-status">Nothing is sent to a server yet.</span>
+            {invalidCount === 0 && saveNonce === 0 && !saveState.saving && !saveState.error && (
+              <span className="mark-status">{idleLabel}</span>
             )}
           </div>
+
+          {/* A rejected save wrote nothing; the entered totals stay on screen. */}
+          <SaveFeedback state={saveState} />
         </>
       )}
     </>

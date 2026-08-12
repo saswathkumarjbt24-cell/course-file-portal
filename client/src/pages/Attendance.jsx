@@ -1,11 +1,31 @@
 import { useParams } from 'react-router-dom'
-import { attendance, courses, institution, students } from '../data/mockData'
+import {
+  fetchAttendance,
+  fetchCourses,
+  fetchInstitution,
+  fetchStudents,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Documents.css'
 
 // Institutional minimum attendance for exam eligibility.
 const MINIMUM_PERCENT = 75
 
+const LOADERS = {
+  attendance: fetchAttendance,
+  courses: fetchCourses,
+  institution: fetchInstitution,
+  students: fetchStudents,
+}
+
 export default function Attendance({ embedded = false }) {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <AttendanceView embedded={embedded} {...data} />
+}
+
+function AttendanceView({ embedded, attendance, courses, institution, students }) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)

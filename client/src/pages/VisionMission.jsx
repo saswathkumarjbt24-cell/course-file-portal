@@ -1,5 +1,16 @@
-import { departmentVisionMission, institution, institutionVisionMission } from '../data/mockData'
+import {
+  fetchDepartmentVisionMission,
+  fetchInstitution,
+  fetchInstitutionVisionMission,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Documents.css'
+
+const LOADERS = {
+  departmentVisionMission: fetchDepartmentVisionMission,
+  institution: fetchInstitution,
+  institutionVisionMission: fetchInstitutionVisionMission,
+}
 
 function MissionList({ missions }) {
   return (
@@ -15,6 +26,18 @@ function MissionList({ missions }) {
 }
 
 export default function VisionMission({ embedded = false }) {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <VisionMissionView embedded={embedded} {...data} />
+}
+
+function VisionMissionView({
+  embedded,
+  departmentVisionMission,
+  institution,
+  institutionVisionMission,
+}) {
   return (
     <section className="doc-card">
       <article className="doc-sheet">

@@ -3,21 +3,36 @@
 //
 // A periodical test is entered as a single total mark. The three
 // question marks that make up that total are NOT calculated - they
-// are read from the hand-authored lookup table in mockData
-// (coSplitValues). See the warning on that export.
+// are read from the hand-authored lookup table. See the warning on
+// that data.
+//
+// The lookup rows are now PASSED IN by the caller rather than imported,
+// so this file works against whichever source the app is running on -
+// MySQL through data/api.js, or the mock fixtures. Nothing about the
+// rules below changed: the same exact-match lookup, the same null when
+// there is no row, the same deliberately reversed PT2 mapping.
 // ---------------------------------------------------------------
 
-import { coSplitValues } from '../data/mockData'
-
-const SPLIT_BY_TOTAL = new Map(coSplitValues.map((row) => [row.totalMark, row]))
+/**
+ * Build the total -> row index once, so a screen mapping many students
+ * does not rebuild it per call. Optional: splitTotal accepts either the
+ * index or the raw array.
+ */
+export function splitIndex(splitValues) {
+  return new Map((splitValues ?? []).map((row) => [row.totalMark, row]))
+}
 
 /**
  * Look up the q1/q2/q3 split for a total mark.
  * Returns null when the total has no row in the table (out of range,
  * fractional, or not a number) - never a guessed or interpolated split.
+ *
+ * `splitValues` is the lookup: either the array of rows, or the Map that
+ * splitIndex() returns.
  */
-export function splitTotal(totalMark) {
-  const row = SPLIT_BY_TOTAL.get(totalMark)
+export function splitTotal(totalMark, splitValues) {
+  const index = splitValues instanceof Map ? splitValues : splitIndex(splitValues)
+  const row = index.get(totalMark)
   if (!row) return null
   return { q1: row.q1, q2: row.q2, q3: row.q3 }
 }

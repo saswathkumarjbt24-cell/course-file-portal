@@ -1,22 +1,26 @@
+import { createContext, useContext } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  assessments,
-  attainmentBands,
-  attainmentConstants,
-  coAllocations,
-  coPoMatrix,
-  courseExitSurvey,
-  courseNatures,
-  courseOutcomes,
-  courses,
-  institution,
-  programOutcomes,
-  programSpecificOutcomes,
-  remedialSchedule,
-  students,
-  studentAssessments,
-} from '../data/mockData'
-import { mapSplitToCOs, splitTotal } from '../utils/coSplit'
+  fetchAssessments,
+  fetchAttainmentBands,
+  fetchAttainmentConstants,
+  fetchCoAllocations,
+  fetchCoPoMatrix,
+  fetchCoSplitValues,
+  fetchCourseExitSurvey,
+  fetchCourseNatures,
+  fetchCourseOutcomes,
+  fetchCourses,
+  fetchInstitution,
+  fetchProgramOutcomes,
+  fetchProgramSpecificOutcomes,
+  fetchRemedialSchedule,
+  fetchStudentAssessments,
+  fetchStudentCoMarks,
+  fetchStudents,
+} from '../data/api'
+import { coMarksToShow } from '../data/coMarks'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import {
   attainmentLevel,
   coPercent,
@@ -30,7 +34,6 @@ import {
   componentWeights,
   directLevel,
   finalLevel,
-  manualCoMarks,
   overallOutcomeLevel,
   poLevelFromCO,
 } from '../utils/finalAttainment'
@@ -48,19 +51,46 @@ const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
 // Kinds that feed the internal mark but not CO attainment - see MarkEntry.
 const NON_ATTAINMENT_KINDS = ['OT']
 
+const LOADERS = {
+  assessments: fetchAssessments,
+  attainmentBands: fetchAttainmentBands,
+  attainmentConstants: fetchAttainmentConstants,
+  coAllocations: fetchCoAllocations,
+  coPoMatrix: fetchCoPoMatrix,
+  coSplitValues: fetchCoSplitValues,
+  courseExitSurvey: fetchCourseExitSurvey,
+  courseNatures: fetchCourseNatures,
+  courseOutcomes: fetchCourseOutcomes,
+  courses: fetchCourses,
+  institution: fetchInstitution,
+  programOutcomes: fetchProgramOutcomes,
+  programSpecificOutcomes: fetchProgramSpecificOutcomes,
+  remedialSchedule: fetchRemedialSchedule,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  studentCoMarks: fetchStudentCoMarks,
+}
+
+// This page renders eighteen sections from one data load. Rather than thread
+// eighteen props through every section, the loaded bundle is put on a context
+// that only this file reads. The plain (non-component) helpers below take it
+// as their first argument, since they cannot use a hook.
+const FileData = createContext(null)
+const useFileData = () => useContext(FileData)
+
 // ---------------------------------------------------------------
 // Shared lookups. This page deliberately duplicates the table markup
 // of the individual screens instead of sharing components with them -
 // everything here must render read-only, with no inputs at all.
 // ---------------------------------------------------------------
 
-function assessmentOf(courseId, kind) {
-  return assessments.find((a) => a.courseId === courseId && a.kind === kind) ?? null
+function assessmentOf(D, courseId, kind) {
+  return D.assessments.find((a) => a.courseId === courseId && a.kind === kind) ?? null
 }
 
-function allocationOf(assessment) {
+function allocationOf(D, assessment) {
   return assessment
-    ? coAllocations
+    ? D.coAllocations
         .filter((x) => x.assessmentId === assessment.id)
         .sort((a, b) => a.coNumber - b.coNumber)
     : []
@@ -68,17 +98,23 @@ function allocationOf(assessment) {
 
 // Per-CO marks: 'manual' assessments store them directly, 'lookup' ones
 // derive them from the total through the hand-authored split table.
-function coMarksFor(assessment, record) {
+function coMarksFor(D, assessment, record) {
   if (!assessment || !record || record.isAbsent || record.totalObtained === null) return null
-  return assessment.splitMode === 'manual'
-    ? manualCoMarks(assessment.id, record.studentId)
-    : mapSplitToCOs(splitTotal(record.totalObtained), assessment.kind)
+  // Prefer what the API stored; fall back to deriving. Branch on splitMode,
+  // never on whether coMarks came back empty.
+  return coMarksToShow({
+    assessment,
+    studentId: record.studentId,
+    totalObtained: record.totalObtained,
+    studentCoMarks: D.studentCoMarks,
+    splits: D.coSplitValues,
+  })
 }
 
-function rowsFor(assessment) {
+function rowsFor(D, assessment) {
   if (!assessment) return []
-  return students.map((student) => {
-    const record = studentAssessments.find(
+  return D.students.map((student) => {
+    const record = D.studentAssessments.find(
       (r) => r.assessmentId === assessment.id && r.studentId === student.id,
     )
     const excluded = !record || record.isAbsent || record.totalObtained === null
@@ -87,7 +123,7 @@ function rowsFor(assessment) {
       record: record ?? null,
       excluded,
       reason: record && record.isAbsent ? 'Absent' : 'No mark entered',
-      coMarks: coMarksFor(assessment, record),
+      coMarks: coMarksFor(D, assessment, record),
     }
   })
 }
@@ -138,14 +174,15 @@ function Signatures({ blocks = ['Course Faculty', 'HOD'] }) {
 // ---------------------------------------------------------------
 
 function SetupSection({ course, nature }) {
+  const D = useFileData()
   const coNumbers = Array.from({ length: course.coCount }, (_, i) => i + 1)
   const columns = [
-    ...programOutcomes.map((o) => ({ ...o, type: 'PO' })),
-    ...programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
+    ...D.programOutcomes.map((o) => ({ ...o, type: 'PO' })),
+    ...D.programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
   ]
 
   const matrix = {}
-  for (const row of coPoMatrix) {
+  for (const row of D.coPoMatrix) {
     if (row.courseId !== course.id) continue
     if (!matrix[row.outcomeCode]) matrix[row.outcomeCode] = {}
     matrix[row.outcomeCode][row.coNumber] = row.value
@@ -197,7 +234,7 @@ function SetupSection({ course, nature }) {
       </h3>
       <ul className="doc-list">
         {coNumbers.map((co) => {
-          const outcome = courseOutcomes.find((o) => o.courseId === course.id && o.coNumber === co)
+          const outcome = D.courseOutcomes.find((o) => o.courseId === course.id && o.coNumber === co)
           return (
             <li className="doc-list__item" key={co}>
               <span className="doc-list__code">CO{co}</span>
@@ -249,12 +286,13 @@ function SetupSection({ course, nature }) {
 // ---------------------------------------------------------------
 
 function MarkSheetSection({ courseId, kind }) {
-  const assessment = assessmentOf(courseId, kind)
-  const rows = rowsFor(assessment)
+  const D = useFileData()
+  const assessment = assessmentOf(D, courseId, kind)
+  const rows = rowsFor(D, assessment)
   // The optional test feeds the internal mark only, so it prints without
   // CO columns - it has no CO attainment sheet in the source workbook.
   const contributesToAttainment = !NON_ATTAINMENT_KINDS.includes(kind)
-  const allocation = contributesToAttainment ? allocationOf(assessment) : []
+  const allocation = contributesToAttainment ? allocationOf(D, assessment) : []
 
   if (!assessment || !hasMarks(rows)) return <Empty />
 
@@ -325,9 +363,10 @@ function MarkSheetSection({ courseId, kind }) {
 // ---------------------------------------------------------------
 
 function AttainmentSection({ courseId, kind, targetPercent }) {
-  const assessment = assessmentOf(courseId, kind)
-  const allocation = allocationOf(assessment)
-  const rows = rowsFor(assessment)
+  const D = useFileData()
+  const assessment = assessmentOf(D, courseId, kind)
+  const allocation = allocationOf(D, assessment)
+  const rows = rowsFor(D, assessment)
   const attended = rows.filter((r) => !r.excluded)
 
   if (!assessment || attended.length === 0) return <Empty />
@@ -348,14 +387,14 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
       achieved,
       remedial,
       percent,
-      level: attainmentLevel(percent, attainmentBands),
+      level: attainmentLevel(percent, D.attainmentBands),
     }
   })
 
   return (
     <>
       <p className="doc-statement">
-        Target {targetPercent.toFixed(2)}%. {attended.length} of {students.length} students
+        Target {targetPercent.toFixed(2)}%. {attended.length} of {D.students.length} students
         attended; absent students are excluded from every count.
       </p>
 
@@ -451,9 +490,10 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
 // ---------------------------------------------------------------
 
 function RemedialSection({ course, kind, targetPercent }) {
-  const assessment = assessmentOf(course.id, kind)
-  const allocation = allocationOf(assessment)
-  const rows = rowsFor(assessment)
+  const D = useFileData()
+  const assessment = assessmentOf(D, course.id, kind)
+  const allocation = allocationOf(D, assessment)
+  const rows = rowsFor(D, assessment)
   const attended = rows.filter((r) => !r.excluded)
 
   if (!assessment || attended.length === 0) return <Empty />
@@ -478,7 +518,7 @@ function RemedialSection({ course, kind, targetPercent }) {
 
   const list = evaluated.filter((e) => e.anyRemedial)
   const schedule =
-    remedialSchedule.find((r) => r.courseId === course.id && r.assessmentKind === kind) ?? null
+    D.remedialSchedule.find((r) => r.courseId === course.id && r.assessmentKind === kind) ?? null
   const classes = schedule ? schedule.classes : []
 
   return (
@@ -661,25 +701,28 @@ function RemedialSection({ course, kind, targetPercent }) {
 // ---------------------------------------------------------------
 
 function FinalSection({ course, nature, targetPercent }) {
+  const D = useFileData()
   const coNumbers = Array.from({ length: course.coCount }, (_, i) => i + 1)
   const weights = componentWeights(nature)
   const columns = [
-    ...programOutcomes.map((o) => ({ ...o, type: 'PO' })),
-    ...programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
+    ...D.programOutcomes.map((o) => ({ ...o, type: 'PO' })),
+    ...D.programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
   ]
 
   const levelsByKind = {}
   for (const kind of [...CIE_COMPONENTS, 'SEE']) {
-    const assessment = assessmentOf(course.id, kind)
+    const assessment = assessmentOf(D, course.id, kind)
     levelsByKind[kind] = assessmentCoLevels({
       assessment,
-      allocation: allocationOf(assessment),
+      allocation: allocationOf(D, assessment),
       records: assessment
-        ? studentAssessments.filter((r) => r.assessmentId === assessment.id)
+        ? D.studentAssessments.filter((r) => r.assessmentId === assessment.id)
         : [],
-      students,
+      students: D.students,
       targetPercent,
-      bands: attainmentBands,
+      bands: D.attainmentBands,
+      studentCoMarks: D.studentCoMarks,
+      splitValues: D.coSplitValues,
     })
   }
 
@@ -689,21 +732,21 @@ function FinalSection({ course, nature, targetPercent }) {
     for (const kind of CIE_COMPONENTS) componentLevels[kind] = levelsByKind[kind]?.[co] ?? null
     const cie = cieLevel(componentLevels, weights)
     const see = levelsByKind.SEE?.[co] ?? null
-    const direct = directLevel(cie, see, attainmentConstants)
+    const direct = directLevel(cie, see, D.attainmentConstants)
     const survey =
-      courseExitSurvey.find((s) => s.courseId === course.id && s.coNumber === co)?.value ?? null
+      D.courseExitSurvey.find((s) => s.courseId === course.id && s.coNumber === co)?.value ?? null
     perCo[co] = {
       componentLevels,
       cie,
       see,
       direct,
       survey,
-      final: finalLevel(direct, survey, attainmentConstants),
+      final: finalLevel(direct, survey, D.attainmentConstants),
     }
   }
 
   const matrix = {}
-  for (const row of coPoMatrix) {
+  for (const row of D.coPoMatrix) {
     if (row.courseId !== course.id) continue
     if (!matrix[row.outcomeCode]) matrix[row.outcomeCode] = {}
     matrix[row.outcomeCode][row.coNumber] = row.value
@@ -760,8 +803,8 @@ function FinalSection({ course, nature, targetPercent }) {
             </tr>
             <tr className="doc-row--total">
               <th scope="row">
-                CO attainment ({(attainmentConstants.cieWeight * 100).toFixed(0)}% CIE +{' '}
-                {(attainmentConstants.seeWeight * 100).toFixed(0)}% SEE)
+                CO attainment ({(D.attainmentConstants.cieWeight * 100).toFixed(0)}% CIE +{' '}
+                {(D.attainmentConstants.seeWeight * 100).toFixed(0)}% SEE)
               </th>
               <td className="doc-table__value">—</td>
               {coNumbers.map((co) => (
@@ -798,8 +841,8 @@ function FinalSection({ course, nature, targetPercent }) {
             </tr>
             <tr className="doc-row--total">
               <th scope="row">
-                Final CO attainment ({(attainmentConstants.directWeight * 100).toFixed(0)}% direct +{' '}
-                {(attainmentConstants.surveyWeight * 100).toFixed(0)}% survey)
+                Final CO attainment ({(D.attainmentConstants.directWeight * 100).toFixed(0)}% direct +{' '}
+                {(D.attainmentConstants.surveyWeight * 100).toFixed(0)}% survey)
               </th>
               {coNumbers.map((co) => (
                 <td key={co} className="doc-table__value">
@@ -898,21 +941,24 @@ function FinalSection({ course, nature, targetPercent }) {
 // ---------------------------------------------------------------
 
 function ClosingSection({ course, nature, targetPercent }) {
+  const D = useFileData()
   const coNumbers = Array.from({ length: course.coCount }, (_, i) => i + 1)
   const weights = componentWeights(nature)
 
   const levelsByKind = {}
   for (const kind of [...CIE_COMPONENTS, 'SEE']) {
-    const assessment = assessmentOf(course.id, kind)
+    const assessment = assessmentOf(D, course.id, kind)
     levelsByKind[kind] = assessmentCoLevels({
       assessment,
-      allocation: allocationOf(assessment),
+      allocation: allocationOf(D, assessment),
       records: assessment
-        ? studentAssessments.filter((r) => r.assessmentId === assessment.id)
+        ? D.studentAssessments.filter((r) => r.assessmentId === assessment.id)
         : [],
-      students,
+      students: D.students,
       targetPercent,
-      bands: attainmentBands,
+      bands: D.attainmentBands,
+      studentCoMarks: D.studentCoMarks,
+      splitValues: D.coSplitValues,
     })
   }
 
@@ -923,11 +969,11 @@ function ClosingSection({ course, nature, targetPercent }) {
     const direct = directLevel(
       cieLevel(componentLevels, weights),
       levelsByKind.SEE?.[co] ?? null,
-      attainmentConstants,
+      D.attainmentConstants,
     )
     const survey =
-      courseExitSurvey.find((s) => s.courseId === course.id && s.coNumber === co)?.value ?? null
-    finalByCo[co] = finalLevel(direct, survey, attainmentConstants)
+      D.courseExitSurvey.find((s) => s.courseId === course.id && s.coNumber === co)?.value ?? null
+    finalByCo[co] = finalLevel(direct, survey, D.attainmentConstants)
   }
 
   const stages = [
@@ -998,10 +1044,22 @@ function ClosingSection({ course, nature, targetPercent }) {
 // ---------------------------------------------------------------
 
 export default function FullCourseFile() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return (
+    <FileData.Provider value={data}>
+      <FullCourseFileView />
+    </FileData.Provider>
+  )
+}
+
+function FullCourseFileView() {
+  const D = useFileData()
   const { id } = useParams()
   const courseId = Number(id)
-  const course = courses.find((c) => c.id === courseId)
-  const nature = course ? courseNatures.find((n) => n.id === course.natureId) : null
+  const course = D.courses.find((c) => c.id === courseId)
+  const nature = course ? D.courseNatures.find((n) => n.id === course.natureId) : null
 
   if (!course) {
     return <div className="placeholder">No such course in the current data.</div>
@@ -1016,7 +1074,7 @@ export default function FullCourseFile() {
           Print full course file
         </button>
         <span className="doc-status">
-          {institution.name} — {course.code} course file, 18 sections, read-only.
+          {D.institution.name} — {course.code} course file, 18 sections, read-only.
         </span>
       </div>
 

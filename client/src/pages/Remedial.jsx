@@ -1,16 +1,22 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  assessments,
-  coAllocations,
-  courses,
-  remedialSchedule,
-  students,
-  studentAssessments,
-} from '../data/mockData'
-import { mapSplitToCOs, splitTotal } from '../utils/coSplit'
+  fetchAssessments,
+  fetchCoAllocations,
+  fetchCoSplitValues,
+  fetchCourses,
+  fetchRemedialSchedule,
+  fetchStudentAssessments,
+  fetchStudentCoMarks,
+  fetchStudents,
+  isApiMode,
+  saveRemedial,
+} from '../data/api'
+import { coMarksToShow } from '../data/coMarks'
+import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
+import { useSave } from '../data/useSave'
+import { splitIndex } from '../utils/coSplit'
 import { coPercent, needsRemedial } from '../utils/attainment'
-import { manualCoMarks } from '../utils/finalAttainment'
 import './Remedial.css'
 
 const TABS = [
@@ -21,6 +27,17 @@ const TABS = [
 ]
 
 const ATTENDANCE_OPTIONS = ['--', 'PR', 'AB']
+
+const LOADERS = {
+  assessments: fetchAssessments,
+  coAllocations: fetchCoAllocations,
+  coSplitValues: fetchCoSplitValues,
+  courses: fetchCourses,
+  remedialSchedule: fetchRemedialSchedule,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  studentCoMarks: fetchStudentCoMarks,
+}
 
 // Institution heading for the printed circular. Placeholder text only -
 // swap for the official letterhead wording when that is confirmed.
@@ -38,6 +55,22 @@ function formatDate(iso) {
 }
 
 export default function Remedial() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <RemedialView {...data} />
+}
+
+function RemedialView({
+  assessments,
+  coAllocations,
+  coSplitValues,
+  courses,
+  remedialSchedule,
+  students,
+  studentAssessments,
+  studentCoMarks,
+}) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
@@ -46,7 +79,7 @@ export default function Remedial() {
   // Remedial follows CO attainment, and the optional test has none.
   const courseAssessments = useMemo(
     () => assessments.filter((a) => a.courseId === courseId && a.kind !== 'OT'),
-    [courseId],
+    [assessments, courseId],
   )
 
   // ?assessment=PT2 preselects that assessment; otherwise default to PT1.
@@ -69,6 +102,14 @@ export default function Remedial() {
   const [attendanceEdits, setAttendanceEdits] = useState({})
   const [afterMarks, setAfterMarks] = useState({})
   const [savedTab, setSavedTab] = useState('')
+  const [attendanceSave, runAttendanceSave] = useSave()
+  const [reportSave, runReportSave] = useSave()
+
+  // MOCK mode keeps the original wording so the public demo is unchanged.
+  const savedLabel = isApiMode() ? 'Saved' : 'Saved (mock)'
+  const idleLabel = isApiMode()
+    ? 'Saving writes to the database.'
+    : 'Nothing is sent to a server yet.'
 
   useEffect(() => {
     setAssessmentId(defaultAssessmentId)
@@ -82,19 +123,21 @@ export default function Remedial() {
 
   const assessment = courseAssessments.find((a) => a.id === assessmentId) ?? null
   const kind = assessment ? assessment.kind : ''
-  const splitMode = assessment ? assessment.splitMode : ''
 
   const allocation = useMemo(
     () =>
       coAllocations
         .filter((a) => a.assessmentId === assessmentId)
         .sort((a, b) => a.coNumber - b.coNumber),
-    [assessmentId],
+    [coAllocations, assessmentId],
   )
+
+  // Built once per data load so mapping every student does not rebuild it.
+  const splits = useMemo(() => splitIndex(coSplitValues), [coSplitValues])
 
   const schedule = useMemo(
     () => remedialSchedule.find((r) => r.courseId === courseId && r.assessmentKind === kind) ?? null,
-    [courseId, kind],
+    [remedialSchedule, courseId, kind],
   )
 
   // Same derivation as the Attainment screen: total -> split -> CO marks.
@@ -109,15 +152,19 @@ export default function Remedial() {
       derived.push({
         student,
         totalObtained: record.totalObtained,
-        // 'manual' assessments store per-CO marks directly.
-        coMarks:
-          splitMode === 'manual'
-            ? manualCoMarks(assessmentId, student.id)
-            : mapSplitToCOs(splitTotal(record.totalObtained), kind),
+        // Prefer what the API stored; fall back to deriving from the split
+        // table. Behaviour still branches on splitMode.
+        coMarks: coMarksToShow({
+          assessment,
+          studentId: student.id,
+          totalObtained: record.totalObtained,
+          studentCoMarks,
+          splits,
+        }),
       })
     }
     return derived
-  }, [assessmentId, kind, splitMode])
+  }, [assessment, assessmentId, students, studentAssessments, studentCoMarks, splits])
 
   // Per-CO remedial flags for every attended student.
   const evaluated = useMemo(() => {
@@ -178,46 +225,61 @@ export default function Remedial() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remedialStudents, allocation, afterMarks, assessmentId])
 
-  function handleSaveAttendance() {
-    const payload = {
-      courseId,
-      assessmentId,
-      kind,
+  // The plan's venue and classes go with EVERY save. The endpoint upserts the
+  // schedule row, so omitting the venue would overwrite it with null, and the
+  // register cannot be stored until its classes exist.
+  function planFields() {
+    return {
       venue: schedule ? schedule.venue : null,
-      attendance: remedialStudents.map((row) => ({
-        studentId: row.student.id,
-        marks: scheduleClasses.map((cls) => ({
-          coNumber: cls.coNumber,
-          status: attendanceValue(row, cls.coNumber),
-        })),
+      classes: scheduleClasses.map((cls) => ({
+        coNumber: cls.coNumber,
+        date: cls.date,
+        timing: cls.timing,
       })),
     }
-    console.log('[Remedial] mock save attendance', payload)
-    setSavedTab('attendance')
+  }
+
+  function handleSaveAttendance() {
+    // The register is flat on the wire: one row per (class, student).
+    // The UI's blank option means "not recorded", which is NA in the
+    // database and is deliberately distinct from AB.
+    const attendance = []
+    for (const row of remedialStudents) {
+      for (const cls of scheduleClasses) {
+        const value = attendanceValue(row, cls.coNumber)
+        attendance.push({
+          coNumber: cls.coNumber,
+          studentId: row.student.id,
+          status: value === ATTENDANCE_OPTIONS[0] ? 'NA' : value,
+        })
+      }
+    }
+
+    runAttendanceSave(
+      () => saveRemedial(courseId, kind, { ...planFields(), attendance }),
+      () => setSavedTab('attendance'),
+    )
   }
 
   function handleSaveReport() {
-    const payload = {
-      courseId,
-      assessmentId,
-      kind,
-      results: remedialStudents.map((row) => ({
-        studentId: row.student.id,
-        cos: allocation
-          .filter((alloc) => row.cos[alloc.coNumber].remedial)
-          .map((alloc) => {
-            const raw = afterMarkValue(row, alloc.coNumber).trim()
-            return {
-              coNumber: alloc.coNumber,
-              marksAllocated: alloc.marksAllocated,
-              originalMark: row.cos[alloc.coNumber].obtained,
-              afterRemedialMark: raw === '' ? null : Number(raw),
-            }
-          }),
-      })),
+    // One row per (student, CO) that actually needed remedial work.
+    const results = []
+    for (const row of remedialStudents) {
+      for (const alloc of allocation) {
+        if (!row.cos[alloc.coNumber].remedial) continue
+        const raw = afterMarkValue(row, alloc.coNumber).trim()
+        results.push({
+          studentId: row.student.id,
+          coNumber: alloc.coNumber,
+          afterRemedialMark: raw === '' ? null : Number(raw),
+        })
+      }
     }
-    console.log('[Remedial] mock save after-remedial assessment', payload)
-    setSavedTab('report')
+
+    runReportSave(
+      () => saveRemedial(courseId, kind, { ...planFields(), results }),
+      () => setSavedTab('report'),
+    )
   }
 
   if (!course) {
@@ -548,16 +610,24 @@ export default function Remedial() {
                   )}
 
                   <div className="rem-actions">
-                    <button type="button" className="rem-button" onClick={handleSaveAttendance}>
-                      Save attendance
+                    <button
+                      type="button"
+                      className="rem-button"
+                      disabled={attendanceSave.saving}
+                      onClick={handleSaveAttendance}
+                    >
+                      {attendanceSave.saving ? 'Saving...' : 'Save attendance'}
                     </button>
                     {printButton}
                     {savedTab === 'attendance' ? (
-                      <span className="rem-status rem-status--saved">Saved (mock)</span>
+                      <span className="rem-status rem-status--saved">{savedLabel}</span>
                     ) : (
-                      <span className="rem-status">Nothing is sent to a server yet.</span>
+                      <span className="rem-status">{idleLabel}</span>
                     )}
                   </div>
+
+                  {/* A rejected save wrote nothing; the register stays as set. */}
+                  <SaveFeedback state={attendanceSave} />
                 </section>
               )}
 
@@ -672,10 +742,10 @@ export default function Remedial() {
                     <button
                       type="button"
                       className="rem-button"
-                      disabled={invalidCount > 0}
+                      disabled={invalidCount > 0 || reportSave.saving}
                       onClick={handleSaveReport}
                     >
-                      Save report
+                      {reportSave.saving ? 'Saving...' : 'Save report'}
                     </button>
                     {printButton}
                     {invalidCount > 0 ? (
@@ -683,11 +753,14 @@ export default function Remedial() {
                         {invalidCount} {invalidCount === 1 ? 'mark is' : 'marks are'} invalid.
                       </span>
                     ) : savedTab === 'report' ? (
-                      <span className="rem-status rem-status--saved">Saved (mock)</span>
+                      <span className="rem-status rem-status--saved">{savedLabel}</span>
                     ) : (
-                      <span className="rem-status">Nothing is sent to a server yet.</span>
+                      <span className="rem-status">{idleLabel}</span>
                     )}
                   </div>
+
+                  {/* A rejected save wrote nothing; the marks stay on screen. */}
+                  <SaveFeedback state={reportSave} />
                 </section>
               )}
             </>

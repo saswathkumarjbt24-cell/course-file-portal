@@ -1,23 +1,36 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  coPoMatrix,
-  courseNatures,
-  courseOutcomes,
-  courses,
-  programOutcomes,
-  programSpecificOutcomes,
-} from '../data/mockData'
+  fetchCoPoMatrix,
+  fetchCourseNatures,
+  fetchCourseOutcomes,
+  fetchCourses,
+  fetchProgramOutcomes,
+  fetchProgramSpecificOutcomes,
+  isApiMode,
+  saveCourseOutcomes,
+} from '../data/api'
+import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
+import { useSave } from '../data/useSave'
 import './CourseDetail.css'
 
 const MATRIX_VALUES = ['1', '2', '3']
+
+const LOADERS = {
+  coPoMatrix: fetchCoPoMatrix,
+  courseNatures: fetchCourseNatures,
+  courseOutcomes: fetchCourseOutcomes,
+  courses: fetchCourses,
+  programOutcomes: fetchProgramOutcomes,
+  programSpecificOutcomes: fetchProgramSpecificOutcomes,
+}
 
 // One key per matrix cell.
 function cellKey(coNumber, outcomeCode) {
   return `${coNumber}|${outcomeCode}`
 }
 
-function seedStatements(courseId, coCount) {
+function seedStatements(courseOutcomes, courseId, coCount) {
   const seeded = {}
   for (let co = 1; co <= coCount; co += 1) {
     const existing = courseOutcomes.find((o) => o.courseId === courseId && o.coNumber === co)
@@ -27,7 +40,7 @@ function seedStatements(courseId, coCount) {
 }
 
 // Only correlated cells are stored, so everything else stays blank.
-function seedMatrix(courseId) {
+function seedMatrix(coPoMatrix, courseId) {
   const seeded = {}
   for (const row of coPoMatrix) {
     if (row.courseId === courseId) {
@@ -42,6 +55,20 @@ function orNone(value, suffix = '') {
 }
 
 export default function CourseDetail() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <CourseDetailView {...data} />
+}
+
+function CourseDetailView({
+  coPoMatrix,
+  courseNatures,
+  courseOutcomes,
+  courses,
+  programOutcomes,
+  programSpecificOutcomes,
+}) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
@@ -59,19 +86,29 @@ export default function CourseDetail() {
       ...programOutcomes.map((o) => ({ ...o, type: 'PO' })),
       ...programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
     ],
-    [],
+    [programOutcomes, programSpecificOutcomes],
   )
 
-  const [statements, setStatements] = useState(() => seedStatements(courseId, coCount))
-  const [matrix, setMatrix] = useState(() => seedMatrix(courseId))
+  const [statements, setStatements] = useState(() =>
+    seedStatements(courseOutcomes, courseId, coCount),
+  )
+  const [matrix, setMatrix] = useState(() => seedMatrix(coPoMatrix, courseId))
   const [savedOutcomes, setSavedOutcomes] = useState(0)
   const [savedMatrix, setSavedMatrix] = useState(0)
+  const [outcomeSave, runOutcomeSave] = useSave()
+  const [matrixSave, runMatrixSave] = useSave()
+
+  // MOCK mode keeps the original wording so the public demo is unchanged.
+  const savedLabel = isApiMode() ? 'Saved' : 'Saved (mock)'
+  const idleLabel = isApiMode()
+    ? 'Saving writes to the database.'
+    : 'Nothing is sent to a server yet.'
 
   // Reseed when the route points at a different course.
   useEffect(() => {
-    setStatements(seedStatements(courseId, coCount))
-    setMatrix(seedMatrix(courseId))
-  }, [courseId, coCount])
+    setStatements(seedStatements(courseOutcomes, courseId, coCount))
+    setMatrix(seedMatrix(coPoMatrix, courseId))
+  }, [courseId, coCount, courseOutcomes, coPoMatrix])
 
   useEffect(() => {
     if (savedOutcomes === 0) return undefined
@@ -95,37 +132,39 @@ export default function CourseDetail() {
   }, [coNumbers, outcomeColumns, matrix])
 
   function handleSaveOutcomes() {
-    const payload = {
-      courseId,
-      outcomes: coNumbers.map((co) => ({
-        coNumber: co,
-        statement: statements[co] ?? '',
-      })),
-    }
-    // No backend yet - this is the only place the payload goes.
-    console.log('[CourseDetail] mock save course outcomes', payload)
-    setSavedOutcomes((n) => n + 1)
+    runOutcomeSave(
+      () =>
+        saveCourseOutcomes(courseId, {
+          courseOutcomes: coNumbers.map((co) => ({
+            coNumber: co,
+            statement: statements[co] ?? '',
+          })),
+        }),
+      () => setSavedOutcomes((n) => n + 1),
+    )
   }
 
   function handleSaveMatrix() {
+    // EVERY cell is sent, including the blank ones as null. A blank cell has
+    // to be sent explicitly, because on the server a null value DELETES the
+    // cell -- send only the filled ones and clearing a correlation would
+    // silently do nothing.
     const entries = []
     for (const co of coNumbers) {
       for (const col of outcomeColumns) {
         const value = matrix[cellKey(co, col.code)]
-        if (value) {
-          entries.push({
-            courseId,
-            coNumber: co,
-            outcomeType: col.type,
-            outcomeCode: col.code,
-            value: Number(value),
-          })
-        }
+        entries.push({
+          coNumber: co,
+          outcomeType: col.type,
+          outcomeCode: col.code,
+          value: value ? Number(value) : null,
+        })
       }
     }
-    // No backend yet - this is the only place the payload goes.
-    console.log('[CourseDetail] mock save CO-PO/PSO matrix', { courseId, entries })
-    setSavedMatrix((n) => n + 1)
+    runMatrixSave(
+      () => saveCourseOutcomes(courseId, { coPoMatrix: entries }),
+      () => setSavedMatrix((n) => n + 1),
+    )
   }
 
   if (!course) {
@@ -253,15 +292,23 @@ export default function CourseDetail() {
         </div>
 
         <div className="cd-actions">
-          <button type="button" className="cd-button" onClick={handleSaveOutcomes}>
-            Save outcomes
+          <button
+            type="button"
+            className="cd-button"
+            disabled={outcomeSave.saving}
+            onClick={handleSaveOutcomes}
+          >
+            {outcomeSave.saving ? 'Saving…' : 'Save outcomes'}
           </button>
           {savedOutcomes > 0 ? (
-            <span className="cd-status cd-status--saved">Saved (mock)</span>
+            <span className="cd-status cd-status--saved">{savedLabel}</span>
           ) : (
-            <span className="cd-status">Nothing is sent to a server yet.</span>
+            <span className="cd-status">{idleLabel}</span>
           )}
         </div>
+
+        {/* A rejected save wrote nothing; the typed statements stay put. */}
+        <SaveFeedback state={outcomeSave} />
       </section>
 
       {/* ---------------- Section C ---------------- */}
@@ -339,15 +386,23 @@ export default function CourseDetail() {
         </div>
 
         <div className="cd-actions">
-          <button type="button" className="cd-button" onClick={handleSaveMatrix}>
-            Save matrix
+          <button
+            type="button"
+            className="cd-button"
+            disabled={matrixSave.saving}
+            onClick={handleSaveMatrix}
+          >
+            {matrixSave.saving ? 'Saving…' : 'Save matrix'}
           </button>
           {savedMatrix > 0 ? (
-            <span className="cd-status cd-status--saved">Saved (mock)</span>
+            <span className="cd-status cd-status--saved">{savedLabel}</span>
           ) : (
-            <span className="cd-status">Nothing is sent to a server yet.</span>
+            <span className="cd-status">{idleLabel}</span>
           )}
         </div>
+
+        {/* A rejected save wrote nothing; the chosen values stay put. */}
+        <SaveFeedback state={matrixSave} />
       </section>
     </>
   )

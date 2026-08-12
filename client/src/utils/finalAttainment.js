@@ -6,9 +6,10 @@
 // and ./coSplit.js - see assessmentCoLevels() at the bottom, which
 // composes those helpers rather than repeating their maths.
 //
-// The one data import is studentCoMarks, needed because 'manual'
-// assessments (IP1, IP2, SEE) store per-CO marks directly instead of a
-// total to be split. Everything else is passed in by the caller.
+// There are NO data imports. The per-CO marks of 'manual' assessments and
+// the CO split lookup are both PASSED IN by the caller, so this file works
+// against whichever source the app is running on - MySQL through
+// data/api.js, or the mock fixtures. None of the rules below changed.
 //
 // A MISSING COMPONENT IS NEVER TREATED AS ZERO. Anything with no marks
 // entered contributes null and is dropped from the weighting entirely.
@@ -16,16 +17,18 @@
 
 import { attainmentLevel, coPercent, isAchieved, percentAchieved } from './attainment'
 import { mapSplitToCOs, splitTotal } from './coSplit'
-import { studentCoMarks } from '../data/mockData'
 
 /**
  * Per-CO marks for one student in a 'manual' assessment (IP1, IP2, SEE),
  * read straight from student_co_marks. In manual mode the per-CO marks are
  * the entered data; there is no total to split. Returns an object keyed by
  * CO number, or null when the student has no rows.
+ *
+ * `studentCoMarks` is the full set of per-CO mark rows, supplied by the
+ * caller.
  */
-export function manualCoMarks(assessmentId, studentId) {
-  const rows = studentCoMarks.filter(
+export function manualCoMarks(assessmentId, studentId, studentCoMarks) {
+  const rows = (studentCoMarks ?? []).filter(
     (m) => m.assessmentId === assessmentId && m.studentId === studentId,
   )
   if (rows.length === 0) return null
@@ -152,6 +155,8 @@ export function assessmentCoLevels({
   students: roster,
   targetPercent,
   bands,
+  studentCoMarks,
+  splitValues,
 }) {
   if (!assessment) return {}
 
@@ -161,10 +166,12 @@ export function assessmentCoLevels({
     if (!record || record.isAbsent || record.totalObtained === null) continue
     // 'manual' assessments carry their own per-CO marks; 'lookup' ones
     // (PT1/PT2) go through the hand-authored split table exactly as before.
+    // The branch is on splitMode, never on whether coMarks happens to be
+    // empty -- a lookup assessment legitimately has none.
     attended.push(
       assessment.splitMode === 'manual'
-        ? manualCoMarks(assessment.id, student.id)
-        : mapSplitToCOs(splitTotal(record.totalObtained), assessment.kind),
+        ? manualCoMarks(assessment.id, student.id, studentCoMarks)
+        : mapSplitToCOs(splitTotal(record.totalObtained, splitValues), assessment.kind),
     )
   }
 

@@ -1,12 +1,21 @@
 import { useParams } from 'react-router-dom'
 import {
-  courses,
-  institution,
-  peos,
-  programOutcomeStatements,
-  psoStatements,
-} from '../data/mockData'
+  fetchCourses,
+  fetchInstitution,
+  fetchPeos,
+  fetchProgramOutcomeStatements,
+  fetchPsoStatements,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Documents.css'
+
+const LOADERS = {
+  courses: fetchCourses,
+  institution: fetchInstitution,
+  peos: fetchPeos,
+  programOutcomeStatements: fetchProgramOutcomeStatements,
+  psoStatements: fetchPsoStatements,
+}
 
 function StatementList({ items }) {
   return (
@@ -22,6 +31,20 @@ function StatementList({ items }) {
 }
 
 export default function Outcomes({ embedded = false }) {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <OutcomesView embedded={embedded} {...data} />
+}
+
+function OutcomesView({
+  embedded,
+  courses,
+  institution,
+  peos,
+  programOutcomeStatements,
+  psoStatements,
+}) {
   const { id } = useParams()
   const course = courses.find((c) => c.id === Number(id))
   const department = course ? course.department : null

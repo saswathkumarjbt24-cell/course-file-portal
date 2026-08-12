@@ -1,6 +1,13 @@
 import { useParams } from 'react-router-dom'
-import { courses, institution, students } from '../data/mockData'
+import { fetchCourses, fetchInstitution, fetchStudents } from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Documents.css'
+
+const LOADERS = {
+  courses: fetchCourses,
+  institution: fetchInstitution,
+  students: fetchStudents,
+}
 
 // Placeholders: these fields have no table yet. Replace with real values
 // when the batch / academic-year / staff records exist.
@@ -19,6 +26,13 @@ function yearOfStudy(semester) {
 }
 
 export default function Cover({ embedded = false }) {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <CoverView embedded={embedded} {...data} />
+}
+
+function CoverView({ embedded, courses, institution, students }) {
   const { id } = useParams()
   const course = courses.find((c) => c.id === Number(id))
   const semester = students[0]?.currentSem ?? null

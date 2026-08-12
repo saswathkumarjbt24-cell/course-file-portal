@@ -1,10 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { facultyList, institution } from '../data/mockData'
+import { fetchFacultyList, fetchInstitution } from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import { useSession } from '../context/sessionStore'
 import './Login.css'
 
+const LOADERS = { facultyList: fetchFacultyList, institution: fetchInstitution }
+
 export default function Login() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <LoginView {...data} />
+}
+
+function LoginView({ facultyList, institution }) {
   const { signIn } = useSession()
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState(facultyList[0]?.id ?? null)

@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  assessments,
-  attainmentBands,
-  attainmentConstants,
-  coAllocations,
-  courseExitSurvey,
-  courseNatures,
-  courses,
-  studentAssessments,
-  students,
-} from '../data/mockData'
+  fetchAssessments,
+  fetchAttainmentBands,
+  fetchAttainmentConstants,
+  fetchCoAllocations,
+  fetchCoSplitValues,
+  fetchCourseExitSurvey,
+  fetchCourseNatures,
+  fetchCourses,
+  fetchStudentAssessments,
+  fetchStudentCoMarks,
+  fetchStudents,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import {
   assessmentCoLevels,
   cieLevel,
@@ -21,6 +24,20 @@ import {
 import './Reports.css'
 
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
+
+const LOADERS = {
+  assessments: fetchAssessments,
+  attainmentBands: fetchAttainmentBands,
+  attainmentConstants: fetchAttainmentConstants,
+  coAllocations: fetchCoAllocations,
+  coSplitValues: fetchCoSplitValues,
+  courseExitSurvey: fetchCourseExitSurvey,
+  courseNatures: fetchCourseNatures,
+  courses: fetchCourses,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  studentCoMarks: fetchStudentCoMarks,
+}
 const ACTION_LINES = [0, 1, 2]
 
 // Placeholder letterhead - swap for the official wording when confirmed.
@@ -36,6 +53,25 @@ function cell(value) {
 }
 
 export default function ClosingReport() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <ClosingReportView {...data} />
+}
+
+function ClosingReportView({
+  assessments,
+  attainmentBands,
+  attainmentConstants,
+  coAllocations,
+  coSplitValues,
+  courseExitSurvey,
+  courseNatures,
+  courses,
+  students,
+  studentAssessments,
+  studentCoMarks,
+}) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
@@ -65,10 +101,22 @@ export default function ClosingReport() {
         students,
         targetPercent,
         bands: attainmentBands,
+        studentCoMarks,
+        splitValues: coSplitValues,
       })
     }
     return out
-  }, [courseId, targetPercent])
+  }, [
+    courseId,
+    targetPercent,
+    assessments,
+    coAllocations,
+    studentAssessments,
+    students,
+    attainmentBands,
+    studentCoMarks,
+    coSplitValues,
+  ])
 
   const finalByCo = useMemo(() => {
     const out = {}
@@ -85,7 +133,7 @@ export default function ClosingReport() {
       out[co] = finalLevel(direct, survey, attainmentConstants)
     }
     return out
-  }, [coNumbers, levelsByKind, weights, courseId])
+  }, [coNumbers, levelsByKind, weights, courseId, courseExitSurvey, attainmentConstants])
 
   if (!course) {
     return (

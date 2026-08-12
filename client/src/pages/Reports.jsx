@@ -1,8 +1,21 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { courseNatures, courses, internalMarks, students } from '../data/mockData'
+import {
+  fetchCourseNatures,
+  fetchCourses,
+  fetchInternalMarks,
+  fetchStudents,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import { bandFor, isLowInternalMark, marksBelowThreshold } from '../utils/internalMarks'
 import './RiskReport.css'
+
+const LOADERS = {
+  courseNatures: fetchCourseNatures,
+  courses: fetchCourses,
+  internalMarks: fetchInternalMarks,
+  students: fetchStudents,
+}
 
 // The "marks required" list only tracks students within reach of the
 // threshold; anyone further behind is counted separately.
@@ -27,6 +40,13 @@ function pctClass(percent) {
 }
 
 export default function Reports() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <ReportsView {...data} />
+}
+
+function ReportsView({ courseNatures, courses, internalMarks, students }) {
   // Every internal-mark record joined to its course and course nature.
   const records = useMemo(() => {
     return internalMarks.map((record) => {
@@ -43,7 +63,7 @@ export default function Reports() {
         shortfall: marksBelowThreshold(record.total, threshold),
       }
     })
-  }, [])
+  }, [internalMarks, courses, courseNatures, students])
 
   const lowCount = records.filter((r) => r.low).length
   const enoughCount = records.length - lowCount
@@ -78,7 +98,7 @@ export default function Reports() {
         maxCount: Math.max(1, ...distribution.map((d) => d.count)),
       }
     })
-  }, [records])
+  }, [records, courseNatures])
 
   // Per course, sorted by the share of low internal marks.
   const byCourse = useMemo(() => {
@@ -96,7 +116,7 @@ export default function Reports() {
         }
       })
       .sort((a, b) => b.percent - a.percent)
-  }, [records])
+  }, [records, courses, courseNatures])
 
   return (
     <>

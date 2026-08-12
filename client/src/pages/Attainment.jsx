@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  assessments,
-  attainmentBands,
-  coAllocations,
-  courses,
-  students,
-  studentAssessments,
-} from '../data/mockData'
-import { mapSplitToCOs, splitTotal } from '../utils/coSplit'
-import { manualCoMarks } from '../utils/finalAttainment'
+  fetchAssessments,
+  fetchAttainmentBands,
+  fetchCoAllocations,
+  fetchCoSplitValues,
+  fetchCourses,
+  fetchStudentAssessments,
+  fetchStudentCoMarks,
+  fetchStudents,
+} from '../data/api'
+import { coMarksToShow } from '../data/coMarks'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
+import { splitIndex } from '../utils/coSplit'
 import {
   attainmentLevel,
   coPercent,
@@ -18,6 +21,17 @@ import {
   percentAchieved,
 } from '../utils/attainment'
 import './Attainment.css'
+
+const LOADERS = {
+  assessments: fetchAssessments,
+  attainmentBands: fetchAttainmentBands,
+  coAllocations: fetchCoAllocations,
+  coSplitValues: fetchCoSplitValues,
+  courses: fetchCourses,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  studentCoMarks: fetchStudentCoMarks,
+}
 
 function formatPercent(value, digits = 2) {
   return value === null ? '—' : `${value.toFixed(digits)}%`
@@ -29,15 +43,34 @@ function levelBadge(level) {
 }
 
 export default function Attainment() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <AttainmentView {...data} />
+}
+
+function AttainmentView({
+  assessments,
+  attainmentBands,
+  coAllocations,
+  coSplitValues,
+  courses,
+  students,
+  studentAssessments,
+  studentCoMarks,
+}) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
+
+  // Built once per data load so mapping 12 students does not rebuild it.
+  const splits = useMemo(() => splitIndex(coSplitValues), [coSplitValues])
 
   // The optional test has no CO attainment sheet in the source workbook, so
   // it is not offered here at all.
   const courseAssessments = useMemo(
     () => assessments.filter((a) => a.courseId === courseId && a.kind !== 'OT'),
-    [courseId],
+    [assessments, courseId],
   )
 
   // ?assessment=PT2 preselects that assessment; otherwise default to PT1.
@@ -61,7 +94,6 @@ export default function Attainment() {
 
   const assessment = courseAssessments.find((a) => a.id === assessmentId) ?? null
   const kind = assessment ? assessment.kind : ''
-  const splitMode = assessment ? assessment.splitMode : ''
   const targetPercent = course ? course.coTargetPercent : 0
 
   const allocation = useMemo(
@@ -69,7 +101,7 @@ export default function Attainment() {
       coAllocations
         .filter((a) => a.assessmentId === assessmentId)
         .sort((a, b) => a.coNumber - b.coNumber),
-    [assessmentId],
+    [coAllocations, assessmentId],
   )
 
   // One row per student. Absent students - and students with no mark on
@@ -98,15 +130,19 @@ export default function Attainment() {
         excluded: false,
         reason: null,
         totalObtained: record.totalObtained,
-        // 'manual' assessments (IP1/IP2/SEE) store per-CO marks directly;
-        // 'lookup' ones (PT1/PT2/OT) derive them from the total.
-        coMarks:
-          splitMode === 'manual'
-            ? manualCoMarks(assessmentId, student.id)
-            : mapSplitToCOs(splitTotal(record.totalObtained), kind),
+        // Prefer what the API stored; fall back to deriving from the split
+        // table. Behaviour still branches on splitMode, never on whether
+        // coMarks came back empty.
+        coMarks: coMarksToShow({
+          assessment,
+          studentId: student.id,
+          totalObtained: record.totalObtained,
+          studentCoMarks,
+          splits,
+        }),
       }
     })
-  }, [assessmentId, kind, splitMode])
+  }, [assessment, assessmentId, students, studentAssessments, studentCoMarks, splits])
 
   const attendedRows = rows.filter((row) => !row.excluded)
 
@@ -134,7 +170,7 @@ export default function Attainment() {
         level: attainmentLevel(percent, attainmentBands),
       }
     })
-  }, [allocation, attendedRows, targetPercent])
+  }, [allocation, attendedRows, targetPercent, attainmentBands])
 
   if (!course) {
     return (

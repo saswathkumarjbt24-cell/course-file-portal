@@ -1,20 +1,36 @@
 import { useParams } from 'react-router-dom'
 import {
-  assessments,
-  courseNatures,
-  courses,
-  institution,
-  students,
-  studentAssessments,
-} from '../data/mockData'
+  fetchAssessments,
+  fetchCourseNatures,
+  fetchCourses,
+  fetchInstitution,
+  fetchInternalMarksDetail,
+  fetchStudentAssessments,
+  fetchStudents,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Documents.css'
 
+const LOADERS = {
+  assessments: fetchAssessments,
+  courseNatures: fetchCourseNatures,
+  courses: fetchCourses,
+  institution: fetchInstitution,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  // null in MOCK mode, which is the signal to compute locally instead.
+  internalMarksDetail: fetchInternalMarksDetail,
+}
+
+// `ctx` is { assessments, studentAssessments }, supplied by the caller
+// instead of imported. No rule below changed.
+
 // Raw mark for one assessment, before scaling.
-function rawMark(courseId, kind, studentId) {
-  const assessment = assessments.find((a) => a.courseId === courseId && a.kind === kind)
+function rawMark(ctx, courseId, kind, studentId) {
+  const assessment = ctx.assessments.find((a) => a.courseId === courseId && a.kind === kind)
   if (!assessment) return { state: 'none' }
 
-  const record = studentAssessments.find(
+  const record = ctx.studentAssessments.find(
     (r) => r.assessmentId === assessment.id && r.studentId === studentId,
   )
   if (!record) return { state: 'none' }
@@ -30,7 +46,7 @@ function scale(mark, scaleMax) {
 }
 
 // IP1 and IP2 together make up the innovative-practice component.
-function scaledIp(courseId, studentId, scaleMax) {
+function scaledIp(ctx, courseId, studentId, scaleMax) {
   if (scaleMax === null || scaleMax === undefined) return { state: 'none' }
 
   let obtained = 0
@@ -39,7 +55,7 @@ function scaledIp(courseId, studentId, scaleMax) {
   let absent = 0
 
   for (const kind of ['IP1', 'IP2']) {
-    const mark = rawMark(courseId, kind, studentId)
+    const mark = rawMark(ctx, courseId, kind, studentId)
     if (mark.state === 'none') continue
     seen += 1
     outOf += mark.outOf
@@ -71,13 +87,13 @@ function scaledIp(courseId, studentId, scaleMax) {
  * it applied to PT1, and PT2 stays Absent. WHICH test the optional test
  * covers in that double-absence case is UNCONFIRMED and awaiting the client.
  */
-function componentsFor(courseId, studentId, scaleMax) {
-  const ot = rawMark(courseId, 'OT', studentId)
+function componentsFor(ctx, courseId, studentId, scaleMax) {
+  const ot = rawMark(ctx, courseId, 'OT', studentId)
   const hasOt = ot.state === 'ok'
   let otSpent = false
 
   const build = (kind, ptScaleMax) => {
-    const mark = rawMark(courseId, kind, studentId)
+    const mark = rawMark(ctx, courseId, kind, studentId)
     if (mark.state === 'absent' && hasOt && !otSpent) {
       otSpent = true
       return { state: 'substituted', value: scale(ot, ptScaleMax) }
@@ -112,6 +128,23 @@ function markCell(mark) {
 }
 
 export default function InternalMarks({ embedded = false }) {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <InternalMarksView embedded={embedded} {...data} />
+}
+
+function InternalMarksView({
+  embedded,
+  assessments,
+  courseNatures,
+  courses,
+  institution,
+  students,
+  studentAssessments,
+  internalMarksDetail,
+}) {
+  const ctx = { assessments, studentAssessments }
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
@@ -126,9 +159,44 @@ export default function InternalMarks({ embedded = false }) {
 
   const header = (label, max) => (max === null || max === undefined ? label : `${label} (${max})`)
 
+  // WHERE THE NUMBERS COME FROM
+  //   API mode  - the server derives the component states and recomputes the
+  //               total from the assessment rows, and internal_marks holds the
+  //               stored total. The STORED total is what is printed; if the two
+  //               disagree the row is flagged rather than quietly reconciled.
+  //   MOCK mode - internalMarksDetail is null, so the local computation below
+  //               is used exactly as before. It is the fallback, not a second
+  //               source of truth.
+  const detailByStudent = new Map(
+    (internalMarksDetail ?? [])
+      .filter((d) => d.courseId === courseId)
+      .map((d) => [d.studentId, d]),
+  )
+  const usingApi = internalMarksDetail !== null
+
   const rows = students.map((student) => {
-    const { pt1, pt2, ot } = componentsFor(courseId, student.id, scaleMax)
-    const ip = scaledIp(courseId, student.id, scaleMax.ip)
+    const detail = detailByStudent.get(student.id)
+
+    if (usingApi && detail) {
+      const c = detail.components
+      return {
+        student,
+        pt1: c.pt1,
+        pt2: c.pt2,
+        // The optional test has no state of its own: a value means it was sat.
+        ot: detail.otValue === null ? { state: 'none' } : { state: 'ok', value: detail.otValue },
+        ip: c.ip,
+        // The STORED total, per the record.
+        total: detail.total,
+        substituted: detail.substituted,
+        mismatch: detail.totalMismatch,
+        computedTotal: detail.computedTotal,
+      }
+    }
+
+    // MOCK mode, or a student with no stored internal-mark row.
+    const { pt1, pt2, ot } = componentsFor(ctx, courseId, student.id, scaleMax)
+    const ip = scaledIp(ctx, courseId, student.id, scaleMax.ip)
 
     const contributes = [pt1, pt2, ip].filter((m) => m.state !== 'none')
     const total =
@@ -144,10 +212,13 @@ export default function InternalMarks({ embedded = false }) {
       ip,
       total,
       substituted: pt1.state === 'substituted' || pt2.state === 'substituted',
+      mismatch: false,
+      computedTotal: total,
     }
   })
 
   const substitutedCount = rows.filter((r) => r.substituted).length
+  const mismatchCount = rows.filter((r) => r.mismatch).length
 
   return (
     <section className="doc-card">
@@ -197,7 +268,18 @@ export default function InternalMarks({ embedded = false }) {
                     {row.total === null ? (
                       <span className="doc-table__missing">-</span>
                     ) : (
-                      row.total
+                      <>
+                        {row.total}
+                        {row.mismatch && (
+                          <span
+                            className="doc-table__sub"
+                            title={`Stored ${row.total}, recomputed ${row.computedTotal}`}
+                          >
+                            {' '}
+                            (!)
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
                 </tr>
@@ -216,6 +298,12 @@ export default function InternalMarks({ embedded = false }) {
           {substitutedCount === 0
             ? ' No substitution applies to the current marks.'
             : ` ${substitutedCount} substitution${substitutedCount === 1 ? '' : 's'} applied.`}
+          {mismatchCount > 0 &&
+            ` ${mismatchCount} stored total${mismatchCount === 1 ? '' : 's'} disagree${
+              mismatchCount === 1 ? 's' : ''
+            } with the recomputed figure and ${
+              mismatchCount === 1 ? 'is' : 'are'
+            } marked (!). The stored figure is shown.`}
         </p>
 
         <div className="doc-sign">

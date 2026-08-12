@@ -1,19 +1,22 @@
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  assessments,
-  attainmentBands,
-  attainmentConstants,
-  coAllocations,
-  coPoMatrix,
-  courseExitSurvey,
-  courseNatures,
-  courses,
-  programOutcomes,
-  programSpecificOutcomes,
-  studentAssessments,
-  students,
-} from '../data/mockData'
+  fetchAssessments,
+  fetchAttainmentBands,
+  fetchAttainmentConstants,
+  fetchCoAllocations,
+  fetchCoPoMatrix,
+  fetchCoSplitValues,
+  fetchCourseExitSurvey,
+  fetchCourseNatures,
+  fetchCourses,
+  fetchProgramOutcomes,
+  fetchProgramSpecificOutcomes,
+  fetchStudentAssessments,
+  fetchStudentCoMarks,
+  fetchStudents,
+} from '../data/api'
+import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import {
   assessmentCoLevels,
   cieLevel,
@@ -26,6 +29,23 @@ import {
 import './Reports.css'
 
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
+
+const LOADERS = {
+  assessments: fetchAssessments,
+  attainmentBands: fetchAttainmentBands,
+  attainmentConstants: fetchAttainmentConstants,
+  coAllocations: fetchCoAllocations,
+  coPoMatrix: fetchCoPoMatrix,
+  coSplitValues: fetchCoSplitValues,
+  courseExitSurvey: fetchCourseExitSurvey,
+  courseNatures: fetchCourseNatures,
+  courses: fetchCourses,
+  programOutcomes: fetchProgramOutcomes,
+  programSpecificOutcomes: fetchProgramSpecificOutcomes,
+  students: fetchStudents,
+  studentAssessments: fetchStudentAssessments,
+  studentCoMarks: fetchStudentCoMarks,
+}
 
 function Missing({ text = 'Not entered' }) {
   return <span className="rep-table__missing">{text}</span>
@@ -40,6 +60,28 @@ function dash(value) {
 }
 
 export default function FinalAttainment() {
+  const { loading, error, data } = useApiData(LOADERS)
+  if (loading) return <DataLoading />
+  if (error) return <DataError error={error} />
+  return <FinalAttainmentView {...data} />
+}
+
+function FinalAttainmentView({
+  assessments,
+  attainmentBands,
+  attainmentConstants,
+  coAllocations,
+  coPoMatrix,
+  coSplitValues,
+  courseExitSurvey,
+  courseNatures,
+  courses,
+  programOutcomes,
+  programSpecificOutcomes,
+  students,
+  studentAssessments,
+  studentCoMarks,
+}) {
   const { id } = useParams()
   const courseId = Number(id)
   const course = courses.find((c) => c.id === courseId)
@@ -54,7 +96,7 @@ export default function FinalAttainment() {
       ...programOutcomes.map((o) => ({ ...o, type: 'PO' })),
       ...programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
     ],
-    [],
+    [programOutcomes, programSpecificOutcomes],
   )
 
   const weights = useMemo(() => componentWeights(nature), [nature])
@@ -78,10 +120,22 @@ export default function FinalAttainment() {
         students,
         targetPercent,
         bands: attainmentBands,
+        studentCoMarks,
+        splitValues: coSplitValues,
       })
     }
     return out
-  }, [courseId, targetPercent])
+  }, [
+    courseId,
+    targetPercent,
+    assessments,
+    coAllocations,
+    studentAssessments,
+    students,
+    attainmentBands,
+    studentCoMarks,
+    coSplitValues,
+  ])
 
   // Per CO: CIE -> direct -> final.
   const perCo = useMemo(() => {
@@ -106,7 +160,7 @@ export default function FinalAttainment() {
       }
     }
     return out
-  }, [coNumbers, levelsByKind, weights, courseId])
+  }, [coNumbers, levelsByKind, weights, courseId, courseExitSurvey, attainmentConstants])
 
   // Articulation values, keyed outcomeCode -> coNumber -> value.
   const matrix = useMemo(() => {
@@ -117,7 +171,7 @@ export default function FinalAttainment() {
       out[row.outcomeCode][row.coNumber] = row.value
     }
     return out
-  }, [courseId])
+  }, [courseId, coPoMatrix])
 
   const finalLevels = useMemo(() => {
     const out = {}
