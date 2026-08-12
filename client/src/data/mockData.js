@@ -571,22 +571,22 @@ export const institution = {
 export const facultyList = [
   {
     id: 1,
-    name: 'Balakrishnaraja',
-    email: 'balakrishnaraja@bitsathy.ac.in',
+    name: 'Faculty A',
+    email: 'facultya@bitsathy.ac.in',
     department: 'Computer Science and Engineering',
     designation: 'Assistant Professor',
   },
   {
     id: 2,
-    name: 'Tamilselvi prof',
-    email: 'tamilselvi@bitsathy.ac.in',
+    name: 'Faculty B',
+    email: 'facultyb@bitsathy.ac.in',
     department: 'Computer Science and Engineering',
     designation: 'Associate Professor',
   },
   {
     id: 3,
-    name: 'Pavithra MKS',
-    email: 'pavithramks@bitsathy.ac.in',
+    name: 'Faculty C',
+    email: 'facultyc@bitsathy.ac.in',
     department: 'Artificial Intelligence and Data Science',
     designation: 'Assistant Professor',
   },

@@ -122,6 +122,74 @@ async function put(path, body) {
 }
 
 // ---------------------------------------------------------------
+// Sign-in
+//
+// The ID token is passed through UNTOUCHED and is never decoded here. Every
+// check that matters -- signature, audience, verified email, allowed domain,
+// and whether the person is on staff -- happens on the server.
+// ---------------------------------------------------------------
+
+/**
+ * Exchange a Google ID token for the faculty record it belongs to.
+ * Resolves with the same shape /api/faculty returns; rejects with the
+ * server's own message on 401 (not verified) or 403 (wrong domain, or not
+ * registered as faculty).
+ */
+export async function signInWithGoogle(credential) {
+  if (!API_URL) {
+    // Nothing to verify against. The caller should not have offered the
+    // button in this build, but refuse rather than invent a session.
+    throw new Error(
+      'Google sign-in needs the API server. This build runs on sample data only.',
+    )
+  }
+
+  let res
+  try {
+    res = await fetch(`${API_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    })
+  } catch {
+    throw new Error(`Cannot reach the API at ${API_URL}. Is the server running?`)
+  }
+
+  let json = null
+  try {
+    json = await res.json()
+  } catch {
+    // non-JSON body; the status alone will have to do
+  }
+
+  if (!res.ok) {
+    const err = new Error(
+      json?.message || json?.error || `Sign-in failed with ${res.status}`,
+    )
+    err.status = res.status
+    throw err
+  }
+  return json
+}
+
+/**
+ * Whether the SERVER can do Google sign-in. Lets the page tell a missing
+ * server configuration apart from a rejected account.
+ *
+ * Never rejects: a server that is down is reported as "not configured with a
+ * reachable server", so the sign-in page still renders.
+ */
+export async function fetchAuthConfig() {
+  if (!API_URL) return { googleConfigured: false, serverReachable: false }
+  try {
+    const config = await get('/api/auth/config')
+    return { ...config, serverReachable: true }
+  } catch {
+    return { googleConfigured: false, serverReachable: false }
+  }
+}
+
+// ---------------------------------------------------------------
 // Saves
 //
 // In MOCK mode every one of these is a no-op that resolves to { mock: true },

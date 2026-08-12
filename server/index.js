@@ -9,6 +9,7 @@ const assessmentRoutes = require("./routes/assessments");
 const referenceRoutes = require("./routes/reference");
 const reportRoutes = require("./routes/reports");
 const studentRoutes = require("./routes/students");
+const authRoutes = require("./routes/auth");
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5175" }));
@@ -34,6 +35,9 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/reference", referenceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/students", studentRoutes);
+// Sign-in verification. The only POST in the app; everything else reads or
+// replaces a sheet with PUT.
+app.use("/api/auth", authRoutes);
 
 // ---------------------------------------------------------------------
 // Unknown /api path -> JSON 404, so the frontend never has to parse an HTML

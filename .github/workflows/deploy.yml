@@ -35,6 +35,15 @@ jobs:
 
       - name: Build
         working-directory: client
+        # VITE_API_URL is deliberately NOT set: the Pages build has no server
+        # to talk to, so leaving it unset keeps every screen on the mock
+        # fixtures with no network access.
+        #
+        # VITE_ALLOW_DEMO_LOGIN keeps the faculty picker on the sign-in page,
+        # so the public demo can still be signed into while institutional
+        # Google sign-in is unconfigured. A real install must leave it unset.
+        env:
+          VITE_ALLOW_DEMO_LOGIN: 'true'
         run: npm run build
 
       - name: Configure Pages

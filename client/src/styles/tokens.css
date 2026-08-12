@@ -20,6 +20,26 @@
 
   /* Tinted surfaces derived from the palette */
   --color-primary-soft: #e8eef7;
+  --color-danger-soft: #fdf0ef;
+
+  /* --- Palette extensions -------------------------------------
+     Added, not substituted: every token above keeps its value.
+     ------------------------------------------------------------ */
+
+  /* One step darker than --color-primary-dark, for the sign-in panel
+     where the brand needs to carry a full-height block of colour. */
+  --color-primary-deep: #16233a;
+
+  /* A half-step between --color-surface and --color-background, for
+     surfaces that must read as recessed without becoming a border:
+     sidebar group headers, the demo sign-in block. */
+  --color-surface-muted: #f8fafc;
+
+  /* Hairline against a dark ground, where --color-border would vanish. */
+  --color-border-inverse: rgba(255, 255, 255, 0.18);
+
+  /* Muted text on a dark ground. */
+  --color-text-on-dark: rgba(255, 255, 255, 0.72);
 
   /* Spacing scale */
   --space-1: 0.25rem;
@@ -38,17 +58,29 @@
 
   /* Typography */
   --font-sans: "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-size-xs: 0.6875rem;
   --font-size-sm: 0.8125rem;
   --font-size-base: 0.9375rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
   --line-height-base: 1.55;
 
   /* Elevation */
   --shadow-sm: 0 1px 2px rgba(31, 39, 51, 0.06);
   --shadow-md: 0 2px 8px rgba(31, 39, 51, 0.08);
+  --shadow-lg: 0 12px 32px rgba(31, 39, 51, 0.14);
 
-  /* Layout */
-  --sidebar-width: 220px;
-  --topbar-height: 56px;
+  /* Focus - one ring used everywhere, so keyboard focus is never lost */
+  --focus-ring: 0 0 0 3px rgba(43, 76, 126, 0.3);
+  --focus-ring-inverse: 0 0 0 3px rgba(255, 255, 255, 0.45);
+
+  /* Motion - deliberately small. Hover and focus only. */
+  --transition-fast: 140ms ease;
+
+  /* Layout
+     --sidebar-width was 220px. The course-file list is now grouped and
+     numbered, and 220px forced the longer sheet labels onto three lines. */
+  --sidebar-width: 268px;
+  --topbar-height: 64px;
 }
