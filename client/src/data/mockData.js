@@ -808,3 +808,89 @@ export const remedialSchedule = [
     ],
   },
 ]
+
+// ---------------------------------------------------------------
+// Mirrors table: courses (the offering columns added by migration 012)
+//
+// These are the values Cover.jsx used to hold as module-level constants,
+// moved into the fixtures so the cover sheet reads one source in both modes.
+// The demo therefore looks exactly as it did, except that Mini Project I now
+// names its own programme instead of borrowing the CSE one.
+//
+// handledBy and fileIncharge are NOT part of the offering columns: they are
+// read from course_allocations joined to faculty, and are read-only on the
+// cover sheet. They are shaped as ARRAYS here because the API returns arrays
+// - a course can have two handling faculty, and an unrecorded file incharge
+// is an empty array rather than a name.
+// ---------------------------------------------------------------
+export const courseMeta = [
+  {
+    courseId: 1,
+    programme: 'B.E. Computer Science and Engineering',
+    batch: '2022 - 2026',
+    academicYear: '2025 - 2026',
+    yearOfStudy: 'III',
+    semester: 'V',
+    section: 'A',
+    handledBy: [
+      {
+        id: 1,
+        name: 'Faculty A',
+        designation: 'Assistant Professor',
+        department: 'Computer Science and Engineering',
+      },
+    ],
+    fileIncharge: [
+      {
+        id: 2,
+        name: 'Faculty B',
+        designation: 'Associate Professor',
+        department: 'Computer Science and Engineering',
+      },
+    ],
+  },
+  {
+    courseId: 2,
+    programme: 'B.E. Computer Science and Engineering',
+    batch: '2022 - 2026',
+    academicYear: '2025 - 2026',
+    yearOfStudy: 'III',
+    semester: 'V',
+    section: 'A',
+    handledBy: [
+      {
+        id: 2,
+        name: 'Faculty B',
+        designation: 'Associate Professor',
+        department: 'Computer Science and Engineering',
+      },
+    ],
+    fileIncharge: [],
+  },
+  {
+    courseId: 3,
+    programme: 'B.Tech. Artificial Intelligence and Data Science',
+    batch: '2022 - 2026',
+    academicYear: '2025 - 2026',
+    yearOfStudy: 'III',
+    // Deliberately absent, to show what a not-yet-recorded field looks like:
+    // the cover sheet prints a muted placeholder, never a blank.
+    semester: null,
+    section: null,
+    handledBy: [
+      {
+        id: 3,
+        name: 'Faculty C',
+        designation: 'Assistant Professor',
+        department: 'Artificial Intelligence and Data Science',
+      },
+    ],
+    fileIncharge: [],
+  },
+]
+
+// Mirrors table: closing_report_actions
+//
+// Empty, exactly as migration 012 leaves it. The closing report shows its
+// three numbered lines whether or not anything has been written on them.
+export const closingReportActions = []

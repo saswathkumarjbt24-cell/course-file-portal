@@ -127,6 +127,27 @@ function optionalNumber(raw) {
   return { ok: true, value: n };
 }
 
+/**
+ * Read an optional short string from a request body.
+ *
+ * Trims, and treats an empty or all-whitespace value as null rather than "".
+ * A column that means "not recorded yet" must hold NULL: an empty string would
+ * print as a blank line on a cover sheet and read as a recorded blank.
+ *
+ * Returns {ok, value} -- ok false when the value is not a string, or is longer
+ * than the column can hold. Length is checked HERE rather than left to MySQL,
+ * so an over-long value is a 400 naming the field instead of a 500 from a
+ * truncation error.
+ */
+function optionalString(raw, maxLength) {
+  if (raw === null || raw === undefined) return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, value: null };
+  const trimmed = raw.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (trimmed.length > maxLength) return { ok: false, value: null };
+  return { ok: true, value: trimmed };
+}
+
 /** A DATE the client sent must be exactly YYYY-MM-DD. */
 function isDateString(raw) {
   if (typeof raw !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
@@ -196,6 +217,39 @@ const COURSE_FROM = `
   JOIN course_natures AS n ON n.id = c.nature_id
 `;
 
+// ---------------------------------------------------------------------
+// The offering columns added by migration 012.
+//
+// DELIBERATELY SEPARATE FROM COURSE_SELECT. Adding them there would change
+// what GET /api/courses and GET /api/faculty/:id/courses return, and those
+// two responses are relied on as they stand. Only GET /api/courses/:id
+// selects this block.
+//
+// Every one of them is NULLable and every one of them arrives as null for a
+// course whose cover page has never been filled in. A screen must render a
+// placeholder for null, never an empty string -- see optionalString above.
+// ---------------------------------------------------------------------
+const COURSE_META_SELECT = `
+  c.programme,
+  c.batch,
+  c.academic_year,
+  c.year_of_study,
+  c.semester,
+  c.section
+`;
+
+/** The migration-012 offering columns of a courses row -> camelCase JSON. */
+function mapCourseMeta(row) {
+  return {
+    programme: row.programme,
+    batch: row.batch,
+    academicYear: row.academic_year,
+    yearOfStudy: row.year_of_study,
+    semester: row.semester,
+    section: row.section,
+  };
+}
+
 module.exports = {
   asyncHandler,
   HttpError,
@@ -207,9 +261,12 @@ module.exports = {
   requireId,
   isPlainObject,
   optionalNumber,
+  optionalString,
   isDateString,
   mapNature,
   mapCourse,
+  mapCourseMeta,
   COURSE_SELECT,
   COURSE_FROM,
+  COURSE_META_SELECT,
 };

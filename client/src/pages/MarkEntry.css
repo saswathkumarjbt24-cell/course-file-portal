@@ -248,3 +248,66 @@
     gap: var(--space-3);
   }
 }
+
+/* ---------------- Per-CO entry ----------------
+   A 'manual' assessment (IP1, IP2, SEE) is entered CO by CO: the per-CO marks
+   ARE the data and the total is their sum. A 'lookup' assessment (PT1, PT2,
+   OT) keeps the opposite arrangement - the total is entered and the CO marks
+   are derived - and shows no input in these columns at all.
+   ---------------------------------------------------------------- */
+
+.mark-input--co {
+  width: 3.75rem;
+}
+
+/* The computed total of a manual assessment. Deliberately styled as a value
+   rather than a disabled field: it is a sum, not something waiting to be
+   filled in. */
+.mark-total--derived {
+  display: inline-block;
+  min-width: 3rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.mark-total--over {
+  color: var(--color-danger);
+}
+
+/* ---------------- Print ----------------
+   This is an entry screen rather than a course-file sheet, so it is not
+   normally printed - but if it is, every input has to come out as the value
+   it holds, with no box and no toolbar.
+   ---------------------------------------------------------------- */
+
+@media print {
+  .mark-toolbar,
+  .mark-footer,
+  .mark-hint,
+  .mark-noprint {
+    display: none !important;
+  }
+
+  .mark-input {
+    padding: 0 !important;
+    border: none !important;
+    background: none !important;
+    color: #000 !important;
+    width: auto !important;
+  }
+
+  .mark-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .mark-table th,
+  .mark-table td {
+    border-color: #000 !important;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+}

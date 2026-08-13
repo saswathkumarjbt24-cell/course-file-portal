@@ -27,7 +27,7 @@ const LOADERS = {
   studentCoMarks: fetchStudentCoMarks,
 }
 
-const EMPTY_ROW = { total: '', isAbsent: false }
+const EMPTY_ROW = { total: '', isAbsent: false, co: {} }
 
 // Assessment kinds that feed the internal mark but NOT CO attainment.
 // Evidence: in the source workbook the optional test has a mark sheet
@@ -39,17 +39,48 @@ export const NO_ATTAINMENT_NOTE =
 // Stable fallbacks so derived values keep a steady identity between renders.
 const NO_ROWS = {}
 
-// Seed one assessment's rows from the saved marks in mock data.
+// ---------------------------------------------------------------
+// TWO ENTRY MODES, DECIDED BY splitMode -- NEVER BY WHAT HAPPENS TO BE EMPTY
+//
+//   'lookup'  (PT1, PT2, OT)   the TOTAL is the entered data. The per-CO
+//                              marks are derived from the hand-authored split
+//                              table and are read-only here; the server
+//                              re-derives them on save regardless of what is
+//                              sent, so the database stays authoritative.
+//
+//   'manual'  (IP1, IP2, SEE)  the per-CO MARKS are the entered data. There
+//                              is no total to split -- the total is their sum
+//                              and is read-only.
+//
+// Reversing that in either direction would invent data: a lookup total split
+// by hand would disagree with the institution's table, and a manual total
+// split automatically has no split to use.
+// ---------------------------------------------------------------
+function isManual(assessment) {
+  return assessment ? assessment.splitMode === 'manual' : false
+}
+
+// Seed one assessment's rows from the saved marks.
 // Students with no saved row start blank and present.
-function seedRows(assessmentId, students, studentAssessments) {
+function seedRows(assessmentId, students, studentAssessments, studentCoMarks) {
   const seeded = {}
   for (const student of students) {
     const saved = studentAssessments.find(
       (sa) => sa.assessmentId === assessmentId && sa.studentId === student.id,
     )
+    // The per-CO marks of a manual assessment, as strings for the inputs. A
+    // lookup assessment has none and does not use this.
+    const savedCo = manualCoMarks(assessmentId, student.id, studentCoMarks)
+    const co = {}
+    if (savedCo) {
+      for (const key of Object.keys(savedCo)) {
+        co[key] = savedCo[key] === null ? '' : String(savedCo[key])
+      }
+    }
     seeded[student.id] = {
       total: saved && saved.totalObtained !== null ? String(saved.totalObtained) : '',
       isAbsent: saved ? saved.isAbsent : false,
+      co,
     }
   }
   return seeded
@@ -63,6 +94,42 @@ function rowError(row, maxTotal) {
   if (!/^\d+$/.test(raw)) return `Whole number 0-${maxTotal} only`
   if (Number(raw) > maxTotal) return `Maximum is ${maxTotal}`
   return null
+}
+
+// A per-CO mark, checked against the marks allocated to that CO. Two decimals,
+// matching student_co_marks.marks_obtained DECIMAL(6,2).
+function coError(row, coNumber, marksAllocated) {
+  if (!row || row.isAbsent) return null
+  const raw = (row.co?.[coNumber] ?? '').trim()
+  if (raw === '') return null
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return 'Use a number with at most two decimals'
+  if (marksAllocated !== null && Number(raw) > marksAllocated) {
+    return `Maximum for CO${coNumber} is ${marksAllocated}`
+  }
+  return null
+}
+
+/**
+ * The total of a manual assessment: the sum of its per-CO marks.
+ * Returns null when NOTHING has been entered, which is "not attempted yet"
+ * and must not be saved as a zero. A CO left blank alongside entered ones
+ * contributes nothing to the sum.
+ */
+function derivedTotal(row, allocation) {
+  if (!row || row.isAbsent) return null
+  let sum = 0
+  let entered = 0
+  for (const alloc of allocation) {
+    const raw = (row.co?.[alloc.coNumber] ?? '').trim()
+    if (raw === '') continue
+    const value = Number(raw)
+    if (Number.isNaN(value)) continue
+    sum += value
+    entered += 1
+  }
+  if (entered === 0) return null
+  // Two decimals in, two decimals out -- no floating-point tail on screen.
+  return Math.round(sum * 100) / 100
 }
 
 export default function MarkEntry() {
@@ -107,13 +174,16 @@ function MarkEntryView({
   }, [courseAssessments, requestedKind])
 
   const [assessmentId, setAssessmentId] = useState(defaultAssessmentId)
-  const [entries, setEntries] = useState(() =>
-    defaultAssessmentId ? { [defaultAssessmentId]: seedRows(defaultAssessmentId) } : {},
-  )
+  // Seeded empty and filled by the effect below. Seeding here would have to
+  // repeat the effect's arguments, and getting them wrong is silent.
+  const [entries, setEntries] = useState({})
   const [saveNonce, setSaveNonce] = useState(0)
   const [saveState, runSave] = useSave()
 
-  const inputRefs = useRef([])
+  // One entry per focusable input, keyed "<row index>:<column>", so Enter and
+  // the arrow keys walk a COLUMN in both modes -- the total column when the
+  // total is what is typed, and each CO column when the CO marks are.
+  const inputRefs = useRef({})
 
   useEffect(() => {
     setAssessmentId(defaultAssessmentId)
@@ -126,9 +196,17 @@ function MarkEntryView({
     setEntries((prev) =>
       prev[assessmentId]
         ? prev
-        : { ...prev, [assessmentId]: seedRows(assessmentId, students, studentAssessments) },
+        : {
+            ...prev,
+            [assessmentId]: seedRows(
+              assessmentId,
+              students,
+              studentAssessments,
+              studentCoMarks,
+            ),
+          },
     )
-  }, [assessmentId, students, studentAssessments])
+  }, [assessmentId, students, studentAssessments, studentCoMarks])
 
   // Clear the "Saved (mock)" message a few seconds after each save.
   useEffect(() => {
@@ -139,8 +217,8 @@ function MarkEntryView({
 
   const assessment = courseAssessments.find((a) => a.id === assessmentId) ?? null
   const kind = assessment ? assessment.kind : ''
-  const splitMode = assessment ? assessment.splitMode : ''
   const maxTotal = assessment ? assessment.maxTotal : 0
+  const manual = isManual(assessment)
 
   const allocation = useMemo(
     () =>
@@ -153,19 +231,38 @@ function MarkEntryView({
   const rows = entries[assessmentId] ?? NO_ROWS
 
   // The optional test has no CO attainment, so it shows no CO columns.
+  // Memoised because the validation and the payload both depend on it, and a
+  // fresh [] every render would re-run them every render.
   const contributesToAttainment = !NON_ATTAINMENT_KINDS.includes(kind)
-  const coColumns = contributesToAttainment ? allocation : []
+  const coColumns = useMemo(
+    () => (contributesToAttainment ? allocation : []),
+    [contributesToAttainment, allocation],
+  )
 
-  const errors = useMemo(() => {
+  // In manual mode the total is computed, so only the CO marks can be wrong.
+  const totalErrors = useMemo(() => {
     const found = {}
+    if (manual) return found
     for (const student of students) {
       const message = rowError(rows[student.id], maxTotal)
       if (message) found[student.id] = message
     }
     return found
-  }, [rows, maxTotal, students])
+  }, [manual, rows, maxTotal, students])
 
-  const invalidCount = Object.keys(errors).length
+  const coErrors = useMemo(() => {
+    const found = {}
+    if (!manual) return found
+    for (const student of students) {
+      for (const alloc of coColumns) {
+        const message = coError(rows[student.id], alloc.coNumber, alloc.marksAllocated)
+        if (message) found[`${student.id}:${alloc.coNumber}`] = message
+      }
+    }
+    return found
+  }, [manual, rows, students, coColumns])
+
+  const invalidCount = Object.keys(totalErrors).length + Object.keys(coErrors).length
 
   // In MOCK mode the wording stays exactly as it was, so the public demo is
   // unchanged. In API mode it says what actually happened.
@@ -175,15 +272,24 @@ function MarkEntryView({
     : 'Nothing is sent to a server yet.'
 
   // A rejected save comes back with one issue per offending row, keyed by
-  // student, so it can be shown against that row's input.
-  const serverIssues = {}
+  // student and -- for a per-CO failure -- by CO, so it can be shown against
+  // the exact input the server refused.
+  const serverTotalIssues = {}
+  const serverCoIssues = {}
   for (const issue of saveState.issues ?? []) {
-    if (issue.studentId !== undefined) serverIssues[issue.studentId] = issue.message
+    if (issue.studentId === undefined) continue
+    if (issue.coNumber === undefined) {
+      serverTotalIssues[issue.studentId] = issue.message
+    } else {
+      serverCoIssues[`${issue.studentId}:${issue.coNumber}`] = issue.message
+    }
   }
 
   function updateRow(studentId, patch) {
     setEntries((prev) => {
-      const base = prev[assessmentId] ?? seedRows(assessmentId, students, studentAssessments)
+      const base =
+        prev[assessmentId] ??
+        seedRows(assessmentId, students, studentAssessments, studentCoMarks)
       const current = base[studentId] ?? EMPTY_ROW
       return {
         ...prev,
@@ -192,16 +298,36 @@ function MarkEntryView({
     })
   }
 
-  function handleAbsentToggle(studentId, isAbsent) {
-    // Marking absent clears the total; there is no mark to split.
-    updateRow(studentId, isAbsent ? { isAbsent: true, total: '' } : { isAbsent: false })
+  function updateCoMark(studentId, coNumber, value) {
+    setEntries((prev) => {
+      const base =
+        prev[assessmentId] ??
+        seedRows(assessmentId, students, studentAssessments, studentCoMarks)
+      const current = base[studentId] ?? EMPTY_ROW
+      return {
+        ...prev,
+        [assessmentId]: {
+          ...base,
+          [studentId]: { ...current, co: { ...current.co, [coNumber]: value } },
+        },
+      }
+    })
   }
 
-  // Move focus to the next/previous total input, skipping absent (disabled) rows.
-  function moveFocus(fromIndex, direction) {
+  function handleAbsentToggle(studentId, isAbsent) {
+    // Marking absent clears everything entered: there is no mark to split and
+    // no per-CO mark to keep.
+    updateRow(
+      studentId,
+      isAbsent ? { isAbsent: true, total: '', co: {} } : { isAbsent: false },
+    )
+  }
+
+  // Move focus up or down WITHIN A COLUMN, skipping absent (disabled) rows.
+  function moveFocus(fromIndex, direction, column) {
     let i = fromIndex + direction
     while (i >= 0 && i < students.length) {
-      const input = inputRefs.current[i]
+      const input = inputRefs.current[`${i}:${column}`]
       if (input && !input.disabled) {
         input.focus()
         input.select()
@@ -211,39 +337,59 @@ function MarkEntryView({
     }
   }
 
-  function handleKeyDown(event, index) {
+  function handleKeyDown(event, index, column) {
     if (event.key === 'Enter' || event.key === 'ArrowDown') {
       event.preventDefault()
-      moveFocus(index, 1)
+      moveFocus(index, 1, column)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      moveFocus(index, -1)
+      moveFocus(index, -1, column)
     }
   }
 
   function handleSave() {
     // The API takes a flat array of rows. coMarks is [{coNumber, marksObtained}].
     //
-    // For a 'lookup' assessment the server IGNORES whatever is sent here and
-    // re-derives the split itself, so the database stays authoritative. The
-    // marks are still included so the payload is the same shape either way.
+    // MANUAL: the typed per-CO marks ARE the payload, and the total is their
+    // sum. A CO left blank is OMITTED rather than sent as null -- the server
+    // replaces the whole per-CO set, so an omitted CO means "no mark", which
+    // is what a blank box says.
     //
-    // For a 'manual' assessment this screen only edits the TOTAL, so the
-    // existing per-CO marks are sent back unchanged rather than being wiped.
-    const entries = students.map((student) => {
+    // LOOKUP: unchanged. The total is what was typed and the server re-derives
+    // the split itself; the derived marks are still included so the payload
+    // has the same shape either way.
+    const payload = students.map((student) => {
       const row = rows[student.id] ?? EMPTY_ROW
+
+      if (row.isAbsent) {
+        return { studentId: student.id, totalObtained: null, isAbsent: true, coMarks: [] }
+      }
+
+      if (manual) {
+        const coMarks = []
+        for (const alloc of coColumns) {
+          const raw = (row.co?.[alloc.coNumber] ?? '').trim()
+          if (raw === '') continue
+          coMarks.push({ coNumber: alloc.coNumber, marksObtained: Number(raw) })
+        }
+        return {
+          studentId: student.id,
+          totalObtained: derivedTotal(row, coColumns),
+          isAbsent: false,
+          coMarks,
+        }
+      }
+
       const raw = row.total.trim()
-      const totalObtained = row.isAbsent || raw === '' ? null : Number(raw)
+      const totalObtained = raw === '' ? null : Number(raw)
       const byCo =
         totalObtained === null
           ? null
-          : splitMode === 'manual'
-            ? manualCoMarks(assessmentId, student.id, studentCoMarks)
-            : mapSplitToCOs(splitTotal(totalObtained, splits), kind)
+          : mapSplitToCOs(splitTotal(totalObtained, splits), kind)
       return {
         studentId: student.id,
         totalObtained,
-        isAbsent: row.isAbsent,
+        isAbsent: false,
         coMarks: byCo
           ? Object.keys(byCo).map((co) => ({
               coNumber: Number(co),
@@ -254,7 +400,7 @@ function MarkEntryView({
     })
 
     runSave(
-      () => saveAssessmentMarks(assessmentId, entries),
+      () => saveAssessmentMarks(assessmentId, payload),
       () => setSaveNonce((n) => n + 1),
     )
   }
@@ -330,6 +476,14 @@ function MarkEntryView({
               <span className="mark-summary__label">Max total</span>
               <span className="mark-summary__value">{maxTotal}</span>
             </div>
+            <div className="mark-summary__item">
+              <span className="mark-summary__label">Entered as</span>
+              <span className="mark-summary__value">
+                {manual
+                  ? 'Per CO. The total is their sum and is not editable.'
+                  : 'A total. The per-CO marks come from the split table and are not editable.'}
+              </span>
+            </div>
             {contributesToAttainment ? (
               <div className="mark-summary__item">
                 <span className="mark-summary__label">CO allocation</span>
@@ -368,22 +522,23 @@ function MarkEntryView({
               <tbody>
                 {students.map((student, index) => {
                   const row = rows[student.id] ?? EMPTY_ROW
-                  // Local validation first; otherwise whatever the server
-                  // rejected this row for.
-                  const error = errors[student.id] ?? serverIssues[student.id]
+                  const totalError =
+                    totalErrors[student.id] ?? serverTotalIssues[student.id]
                   const raw = row.total.trim()
-                  // For 'manual' assessments (IP1/IP2/SEE) the per-CO marks
-                  // are the entered data, so they are read from
-                  // studentCoMarks rather than derived from the total.
-                  const coMarks =
-                    row.isAbsent || error || raw === ''
+
+                  // Lookup only: the CO marks derived from the typed total.
+                  const derivedCo =
+                    manual || row.isAbsent || totalError || raw === ''
                       ? null
-                      : splitMode === 'manual'
-                        ? manualCoMarks(assessmentId, student.id, studentCoMarks)
-                        : mapSplitToCOs(splitTotal(Number(raw), splits), kind)
+                      : mapSplitToCOs(splitTotal(Number(raw), splits), kind)
+
+                  const computedTotal = manual ? derivedTotal(row, coColumns) : null
 
                   return (
-                    <tr key={student.id} className={row.isAbsent ? 'mark-row--absent' : undefined}>
+                    <tr
+                      key={student.id}
+                      className={row.isAbsent ? 'mark-row--absent' : undefined}
+                    >
                       <td className="mark-table__num">{index + 1}</td>
                       <td className="mark-table__reg">{student.regNumber}</td>
                       <td>{student.name}</td>
@@ -397,32 +552,83 @@ function MarkEntryView({
                           }
                         />
                       </td>
+
+                      {/* TOTAL: typed for a lookup assessment, the sum of the
+                          CO marks for a manual one. */}
                       <td className="mark-table__center">
-                        <input
-                          ref={(el) => {
-                            inputRefs.current[index] = el
-                          }}
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          className={
-                            error ? 'mark-input mark-input--invalid' : 'mark-input'
-                          }
-                          value={row.total}
-                          disabled={row.isAbsent}
-                          aria-invalid={error ? true : undefined}
-                          title={error || undefined}
-                          aria-label={`Total mark for ${student.name}`}
-                          onFocus={(event) => event.target.select()}
-                          onChange={(event) => updateRow(student.id, { total: event.target.value })}
-                          onKeyDown={(event) => handleKeyDown(event, index)}
-                        />
+                        {manual ? (
+                          <span
+                            className="mark-total--derived"
+                            aria-label={`Total for ${student.name}`}
+                          >
+                            {row.isAbsent ? '--' : (computedTotal ?? '—')}
+                          </span>
+                        ) : (
+                          <input
+                            ref={(el) => {
+                              inputRefs.current[`${index}:total`] = el
+                            }}
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            className={
+                              totalError ? 'mark-input mark-input--invalid' : 'mark-input'
+                            }
+                            value={row.total}
+                            disabled={row.isAbsent}
+                            aria-invalid={totalError ? true : undefined}
+                            title={totalError || undefined}
+                            aria-label={`Total mark for ${student.name}`}
+                            onFocus={(event) => event.target.select()}
+                            onChange={(event) =>
+                              updateRow(student.id, { total: event.target.value })
+                            }
+                            onKeyDown={(event) => handleKeyDown(event, index, 'total')}
+                          />
+                        )}
                       </td>
+
+                      {/* CO COLUMNS: typed for a manual assessment, derived
+                          from the split table for a lookup one. */}
                       {coColumns.map((a) => {
+                        if (manual) {
+                          const key = `${student.id}:${a.coNumber}`
+                          const error = coErrors[key] ?? serverCoIssues[key]
+                          return (
+                            <td key={a.coNumber} className="mark-table__co">
+                              <input
+                                ref={(el) => {
+                                  inputRefs.current[`${index}:co${a.coNumber}`] = el
+                                }}
+                                type="text"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                className={
+                                  error
+                                    ? 'mark-input mark-input--co mark-input--invalid'
+                                    : 'mark-input mark-input--co'
+                                }
+                                value={row.co?.[a.coNumber] ?? ''}
+                                disabled={row.isAbsent}
+                                aria-invalid={error ? true : undefined}
+                                title={error || undefined}
+                                aria-label={`CO${a.coNumber} mark for ${student.name}, out of ${a.marksAllocated}`}
+                                onFocus={(event) => event.target.select()}
+                                onChange={(event) =>
+                                  updateCoMark(student.id, a.coNumber, event.target.value)
+                                }
+                                onKeyDown={(event) =>
+                                  handleKeyDown(event, index, `co${a.coNumber}`)
+                                }
+                              />
+                            </td>
+                          )
+                        }
+
                         const value = row.isAbsent
                           ? '--'
-                          : coMarks && coMarks[a.coNumber] !== undefined
-                            ? coMarks[a.coNumber]
+                          : derivedCo && derivedCo[a.coNumber] !== undefined
+                            ? derivedCo[a.coNumber]
                             : '—'
                         return (
                           <td
@@ -445,8 +651,11 @@ function MarkEntryView({
           </div>
 
           <p className="mark-hint">
-            Press Enter or Down arrow in a total to jump to the next student; Up arrow goes back.
-            Absent rows are skipped.
+            Press Enter or Down arrow to jump to the next student in the same column; Up arrow
+            goes back. Absent rows are skipped.{' '}
+            {manual
+              ? 'Each CO is entered against its own allocation; the total is their sum.'
+              : 'The total is entered; the per-CO marks follow from the split table.'}
           </p>
 
           <div className="mark-footer">
@@ -461,8 +670,8 @@ function MarkEntryView({
 
             {invalidCount > 0 && (
               <span className="mark-status mark-status--error">
-                {invalidCount} {invalidCount === 1 ? 'row has' : 'rows have'} an invalid total
-                (allowed 0-{maxTotal}).
+                {invalidCount} {invalidCount === 1 ? 'entry is' : 'entries are'} invalid
+                {manual ? ' (a CO mark exceeds its allocation)' : ` (allowed 0-${maxTotal})`}.
               </span>
             )}
 
@@ -475,7 +684,7 @@ function MarkEntryView({
             )}
           </div>
 
-          {/* A rejected save wrote nothing; the entered totals stay on screen. */}
+          {/* A rejected save wrote nothing; the entered marks stay on screen. */}
           <SaveFeedback state={saveState} />
         </>
       )}

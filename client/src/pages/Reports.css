@@ -244,12 +244,97 @@
    Leave only the document: app chrome, nav and buttons go away.
    --------------------------------------------------------------- */
 
+/* ---------------- Editing ----------------
+   Used by the closing-report action lines and the course-exit-survey row.
+   Everything here flattens or disappears in the print block below.
+   ---------------------------------------------------------------- */
+
+.rep-edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rep-textarea {
+  width: 100%;
+  padding: var(--space-2);
+  font: inherit;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.rep-input {
+  width: 5.5rem;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.rep-textarea:focus,
+.rep-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.rep-textarea--invalid,
+.rep-input--invalid {
+  border-color: var(--color-danger);
+  border-width: 2px;
+  background-color: #fdf2f1;
+}
+
+/* See the note in Documents.css: a textarea clips on paper, so the value is
+   also rendered as plain text and the two swap places when printing. */
+.rep-print-value {
+  display: none;
+}
+
+.rep-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.rep-status--saved {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.rep-status--error {
+  color: var(--color-danger);
+}
+
 @media print {
   .rep-nav,
   .rep-actions,
   .rep-card__note,
-  .rep-noprint {
+  .rep-noprint,
+  .rep-edit-bar {
     display: none !important;
+  }
+
+  /* Both swap places with their plain-text twin -- see the note in
+     Documents.css. What prints is the value, never the box. */
+  .rep-input,
+  .rep-textarea {
+    display: none !important;
+  }
+
+  .rep-print-value {
+    display: block !important;
+    white-space: pre-wrap;
+    color: #000 !important;
   }
 
   .rep-card {
@@ -284,9 +369,8 @@
     overflow: visible !important;
   }
 
-  .rep-action-input {
-    border-bottom: 1px solid #000 !important;
-  }
+  /* The action lines are textareas now and print through .rep-print-value
+     above, so there is no input left here to draw a rule under. */
 
   tr,
   .rep-sign {

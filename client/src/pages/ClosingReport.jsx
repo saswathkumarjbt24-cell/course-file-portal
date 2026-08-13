@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   fetchAssessments,
   fetchAttainmentBands,
   fetchAttainmentConstants,
+  fetchClosingActions,
   fetchCoAllocations,
   fetchCoSplitValues,
   fetchCourseExitSurvey,
@@ -12,8 +13,11 @@ import {
   fetchStudentAssessments,
   fetchStudentCoMarks,
   fetchStudents,
+  isApiMode,
+  saveClosingActions,
 } from '../data/api'
-import { DataError, DataLoading, useApiData } from '../data/useApiData'
+import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
+import { useSave } from '../data/useSave'
 import {
   assessmentCoLevels,
   cieLevel,
@@ -29,6 +33,7 @@ const LOADERS = {
   assessments: fetchAssessments,
   attainmentBands: fetchAttainmentBands,
   attainmentConstants: fetchAttainmentConstants,
+  closingActions: fetchClosingActions,
   coAllocations: fetchCoAllocations,
   coSplitValues: fetchCoSplitValues,
   courseExitSurvey: fetchCourseExitSurvey,
@@ -38,11 +43,23 @@ const LOADERS = {
   studentAssessments: fetchStudentAssessments,
   studentCoMarks: fetchStudentCoMarks,
 }
+// The report prints three numbered action lines. `seq` in the database is
+// this position plus one, which is what makes saving an upsert rather than an
+// append: line 2 stays line 2 however many times the report is saved.
 const ACTION_LINES = [0, 1, 2]
 
 // Placeholder letterhead - swap for the official wording when confirmed.
 const INSTITUTION = 'BANNARI AMMAN INSTITUTE OF TECHNOLOGY'
 const INSTITUTION_PLACE = 'Sathyamangalam'
+
+function seedActions(closingActions, courseId) {
+  return ACTION_LINES.map((index) => {
+    const row = closingActions.find(
+      (a) => a.courseId === courseId && a.seq === index + 1,
+    )
+    return row && row.statement !== null ? row.statement : ''
+  })
+}
 
 function cell(value) {
   return value === null || value === undefined ? (
@@ -63,6 +80,7 @@ function ClosingReportView({
   assessments,
   attainmentBands,
   attainmentConstants,
+  closingActions,
   coAllocations,
   coSplitValues,
   courseExitSurvey,
@@ -79,7 +97,46 @@ function ClosingReportView({
   const targetPercent = course ? course.coTargetPercent : 0
   const coCount = course ? course.coCount : 0
 
-  const [actions, setActions] = useState(['', '', ''])
+  const [actions, setActions] = useState(() => seedActions(closingActions, courseId))
+  const [savedNonce, setSavedNonce] = useState(0)
+  const [saveState, runSave] = useSave()
+
+  // Reseed when the route points at a different course.
+  useEffect(() => {
+    setActions(seedActions(closingActions, courseId))
+  }, [closingActions, courseId])
+
+  useEffect(() => {
+    if (savedNonce === 0) return undefined
+    const timer = setTimeout(() => setSavedNonce(0), 4000)
+    return () => clearTimeout(timer)
+  }, [savedNonce])
+
+  const savedLabel = isApiMode() ? 'Saved' : 'Saved (mock)'
+  const idleLabel = isApiMode()
+    ? 'Typed actions print as written. Saving writes them to the database.'
+    : 'Typed actions print as written. Nothing is sent to a server yet.'
+
+  function handleSaveActions() {
+    // All three lines are sent every time, blanks included. A blank is stored
+    // as NULL, so clearing a line really clears it -- sending only the
+    // filled-in lines would leave a deleted one on the printed report.
+    runSave(
+      () =>
+        saveClosingActions(
+          courseId,
+          ACTION_LINES.map((index) => ({
+            seq: index + 1,
+            statement: actions[index] ?? '',
+          })),
+        ),
+      () => setSavedNonce((n) => n + 1),
+    )
+  }
+
+  function handleCancelActions() {
+    setActions(seedActions(closingActions, courseId))
+  }
 
   const coNumbers = useMemo(() => Array.from({ length: coCount }, (_, i) => i + 1), [coCount])
   const weights = useMemo(() => componentWeights(nature), [nature])
@@ -238,11 +295,12 @@ function ClosingReportView({
               {ACTION_LINES.map((index) => (
                 <div className="rep-action-row" key={index}>
                   <span className="rep-action-num">{index + 1}.</span>
-                  <input
-                    type="text"
-                    className="rep-action-input"
-                    value={actions[index]}
+                  <textarea
+                    className="rep-textarea"
+                    rows={2}
+                    value={actions[index] ?? ''}
                     aria-label={`Action ${index + 1}`}
+                    placeholder={`Action ${index + 1}`}
                     onChange={(event) =>
                       setActions((prev) => {
                         const next = [...prev]
@@ -251,9 +309,39 @@ function ClosingReportView({
                       })
                     }
                   />
+                  {/* A textarea cannot grow to fit its text on paper, so the
+                      statement is printed from here instead. */}
+                  <span className="rep-print-value">{actions[index] ?? ''}</span>
                 </div>
               ))}
             </div>
+
+            <div className="rep-edit-bar">
+              <button
+                type="button"
+                className="rep-button"
+                disabled={saveState.saving}
+                onClick={handleSaveActions}
+              >
+                {saveState.saving ? 'Saving…' : 'Save actions'}
+              </button>
+              <button
+                type="button"
+                className="rep-button"
+                disabled={saveState.saving}
+                onClick={handleCancelActions}
+              >
+                Revert
+              </button>
+              {savedNonce > 0 ? (
+                <span className="rep-status rep-status--saved">{savedLabel}</span>
+              ) : (
+                <span className="rep-status">{idleLabel}</span>
+              )}
+            </div>
+
+            {/* A rejected save wrote nothing; the typed actions stay put. */}
+            <SaveFeedback state={saveState} />
           </div>
 
           <div className="rep-sign">
@@ -270,9 +358,7 @@ function ClosingReportView({
           <button type="button" className="rep-button" onClick={() => window.print()}>
             Print
           </button>
-          <span className="rep-status">
-            Typed actions print as written. Nothing is saved to a server.
-          </span>
+          <span className="rep-status">Printing drops the navigation and buttons.</span>
         </div>
       </section>
     </>

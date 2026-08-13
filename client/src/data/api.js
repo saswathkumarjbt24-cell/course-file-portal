@@ -235,6 +235,64 @@ export async function saveRemedial(courseId, kind, body) {
   return result
 }
 
+/**
+ * The cover-page offering details.
+ * `body` is { programme, batch, academicYear, yearOfStudy, semester, section }
+ * and REPLACES all six -- an omitted field is cleared, not preserved.
+ */
+export async function saveCourseMeta(courseId, body) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/courses/${courseId}/meta`, body)
+  invalidate()
+  return result
+}
+
+/** The closing-report action lines: [{ seq, statement }]. */
+export async function saveClosingActions(courseId, rows) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/courses/${courseId}/closing`, rows)
+  invalidate()
+  return result
+}
+
+/**
+ * The whole enrolled list: [{ regNumber, name }].
+ *
+ * Rejects with a 400 carrying `.issues` when a student being removed still
+ * has marks in the course. The caller must show that rather than swallow it:
+ * the removal did not happen and nothing else in the list was saved either.
+ */
+export async function saveCourseStudents(courseId, rows) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/courses/${courseId}/students`, rows)
+  invalidate()
+  return result
+}
+
+/** One scope's vision and ordered missions. */
+export async function saveVisionMission(body) {
+  if (!API_URL) return { mock: true }
+  const result = await put('/api/reference/vision-mission', body)
+  invalidate()
+  return result
+}
+
+/** One department's ordered PEO list. */
+export async function savePeos(body) {
+  if (!API_URL) return { mock: true }
+  const result = await put('/api/reference/peos', body)
+  invalidate()
+  return result
+}
+
+/** One department's ordered PSO list. */
+export async function savePsos(body) {
+  if (!API_URL) return { mock: true }
+  const result = await put('/api/reference/psos', body)
+  invalidate()
+  return result
+}
+
 // ---------------------------------------------------------------
 // Reference data
 // ---------------------------------------------------------------
@@ -337,6 +395,21 @@ export async function fetchPeos() {
   return rows.map((p) => ({ code: p.code, statement: p.statement }))
 }
 
+/**
+ * The same PEOs WITH their department, which the editor needs: department is
+ * half of the unique key, and null there means "applies to every department".
+ * fetchPeos above drops it because the printed list does not show it.
+ */
+export async function fetchPeoRecords() {
+  if (!API_URL) return mock.peos.map((p) => ({ department: null, ...p }))
+  const rows = await get('/api/reference/peos')
+  return rows.map((p) => ({
+    department: p.department,
+    code: p.code,
+    statement: p.statement,
+  }))
+}
+
 async function fetchVisionMissions() {
   return get('/api/reference/vision-missions')
 }
@@ -362,6 +435,73 @@ export async function fetchDepartmentVisionMission() {
 // ---------------------------------------------------------------
 // Course-scoped data, flattened to the fixtures' global shape
 // ---------------------------------------------------------------
+
+/**
+ * The cover-page offering details of every course, plus the read-only
+ * allocation names.
+ *
+ * Fans out over /api/courses/:id rather than reading the list endpoint,
+ * because only the single-course endpoint carries these columns -- adding
+ * them to GET /api/courses would change a response other screens rely on.
+ */
+export async function fetchCourseMeta() {
+  if (!API_URL) return mock.courseMeta
+  const courses = await fetchCourses()
+  const per = await Promise.all(courses.map((c) => get(`/api/courses/${c.id}`)))
+  return per.map((c) => ({
+    courseId: c.id,
+    programme: c.programme,
+    batch: c.batch,
+    academicYear: c.academicYear,
+    yearOfStudy: c.yearOfStudy,
+    semester: c.semester,
+    section: c.section,
+    handledBy: c.handledBy ?? [],
+    fileIncharge: c.fileIncharge ?? [],
+  }))
+}
+
+/** The closing-report action lines of every course. */
+export async function fetchClosingActions() {
+  if (!API_URL) return mock.closingReportActions
+  const courses = await fetchCourses()
+  const per = await Promise.all(courses.map((c) => get(`/api/courses/${c.id}/closing`)))
+  return per.flat().map((a) => ({
+    courseId: a.courseId,
+    seq: a.seq,
+    statement: a.statement,
+  }))
+}
+
+/**
+ * The ENROLLED roll of every course, tagged with its courseId.
+ *
+ * Different from fetchStudents(), which is the institution-wide list. A
+ * screen that adds or removes an enrolment, or saves anything validated
+ * against the roll, must use this one: the attendance and mark endpoints
+ * reject a student who is not enrolled in the course being saved.
+ *
+ * In MOCK mode every student is on every roll, which is what the fixtures
+ * have always shown.
+ */
+export async function fetchCourseStudents() {
+  if (!API_URL) {
+    return mock.courses.flatMap((c) =>
+      mock.students.map((s) => ({ courseId: c.id, ...s })),
+    )
+  }
+  const courses = await fetchCourses()
+  const per = await Promise.all(courses.map((c) => get(`/api/courses/${c.id}/students`)))
+  return courses.flatMap((c, i) =>
+    per[i].map((s) => ({
+      courseId: c.id,
+      id: s.id,
+      regNumber: s.regNumber,
+      name: s.name,
+      currentSem: s.currentSem,
+    })),
+  )
+}
 
 /** The raw per-course assessment payload, allocations included. */
 async function fetchAssessmentPayload() {

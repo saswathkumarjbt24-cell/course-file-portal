@@ -289,13 +289,182 @@
   border-top: 1px dashed var(--color-border);
 }
 
+/* ---------------- Editing ----------------
+   The controls the editable sheets share. Every one of them disappears or
+   flattens in the print block below, so a sheet printed while it is being
+   edited looks exactly like a sheet printed while it is not.
+   ---------------------------------------------------------------- */
+
+.doc-edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.doc-input,
+.doc-textarea {
+  width: 100%;
+  padding: var(--space-2);
+  font: inherit;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.doc-textarea {
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.doc-input:focus,
+.doc-textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.doc-input--invalid,
+.doc-textarea--invalid {
+  border-color: var(--color-danger);
+  border-width: 2px;
+}
+
+.doc-input--number {
+  width: 7rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The print twin of a textarea. A textarea cannot grow to fit its content on
+   paper -- anything past its visible rows is simply clipped -- so the value
+   is also rendered as ordinary text, hidden on screen and swapped in for the
+   box when printing. */
+.doc-print-value {
+  display: none;
+}
+
+.doc-value--muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.doc-row-actions {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.doc-mini-button {
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-dark);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.doc-mini-button:hover {
+  background-color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.doc-mini-button--danger {
+  color: var(--color-danger);
+}
+
+.doc-mini-button--danger:hover {
+  background-color: #fdf2f1;
+  border-color: var(--color-danger);
+}
+
+.doc-button:disabled,
+.doc-mini-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.doc-status--saved {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.doc-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.doc-add-row__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.doc-add-row__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.doc-add-row .doc-input {
+  width: 16rem;
+}
+
+.doc-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.doc-edit-list__row {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.doc-edit-list__code {
+  padding-top: var(--space-2);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
 /* ---------------- Print ---------------- */
 
 @media print {
   .doc-actions,
   .doc-note,
-  .doc-noprint {
+  .doc-noprint,
+  .doc-edit-bar,
+  .doc-row-actions,
+  .doc-add-row,
+  .doc-mini-button {
     display: none !important;
+  }
+
+  /* Every editable control swaps places with its plain-text twin, so what
+     prints is the VALUE and never the box. Flattening the borders instead
+     would leave a textarea clipped to its visible rows, and would lose the
+     formatting the read-only view adds (a percent sign, a placeholder). */
+  .doc-input,
+  .doc-textarea {
+    display: none !important;
+  }
+
+  .doc-print-value {
+    display: block !important;
+    white-space: pre-wrap;
+    color: #000 !important;
+  }
+
+  .doc-edit-list__row {
+    grid-template-columns: 4rem 1fr;
   }
 
   .doc-card {

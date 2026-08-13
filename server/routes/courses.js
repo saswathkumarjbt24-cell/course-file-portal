@@ -9,11 +9,15 @@
 //   GET /api/courses/:id/attendance      - attendance percentages
 //   GET /api/courses/:id/exit-survey     - indirect attainment values
 //   GET /api/courses/:id/remedial        - remedial plans, classes, register
+//   GET /api/courses/:id/closing         - closing-report action lines
 //
 //   PUT /api/courses/:id/outcomes        - CO statements + articulation matrix
 //   PUT /api/courses/:id/exit-survey     - indirect attainment values
 //   PUT /api/courses/:id/attendance      - attendance percentages
 //   PUT /api/courses/:id/remedial/:kind  - one remedial plan, end to end
+//   PUT /api/courses/:id/meta            - cover-page offering details
+//   PUT /api/courses/:id/closing         - closing-report action lines
+//   PUT /api/courses/:id/students        - the enrolled list
 //
 // Every query is parameterised. Writes run through withTransaction.
 // ---------------------------------------------------------------
@@ -30,16 +34,36 @@ const {
   num,
   isPlainObject,
   optionalNumber,
+  optionalString,
   isDateString,
   mapCourse,
+  mapCourseMeta,
   COURSE_SELECT,
   COURSE_FROM,
+  COURSE_META_SELECT,
 } = require("../helpers");
 
 const router = express.Router();
 
 const ASSESSMENT_KINDS = ["PT1", "PT2", "IP1", "IP2", "OT", "SEE"];
 const REMEDIAL_STATUSES = ["PR", "AB", "NA"];
+
+// ---------------------------------------------------------------------
+// The cover-page offering fields, as camelCase body key -> column.
+//
+// `semester` and `yearOfStudy` are strings, not numbers: the source sheets
+// write them as "V" and "III Year", and coercing that to an integer would
+// lose what was actually written. maxLength matches the column exactly so an
+// over-long value is a 400 rather than a truncation.
+// ---------------------------------------------------------------------
+const META_FIELDS = [
+  { key: "programme", column: "programme", maxLength: 120 },
+  { key: "batch", column: "batch", maxLength: 20 },
+  { key: "academicYear", column: "academic_year", maxLength: 20 },
+  { key: "yearOfStudy", column: "year_of_study", maxLength: 20 },
+  { key: "semester", column: "semester", maxLength: 10 },
+  { key: "section", column: "section", maxLength: 10 },
+];
 
 /** 404 unless the course exists. */
 async function assertCourseExists(conn, courseId) {
@@ -79,19 +103,62 @@ router.get(
 
 // ---------------------------------------------------------------------
 // GET /api/courses/:id
+//
+// The course, its nature, the migration-012 offering columns, and the people
+// allocated to it.
+//
+// handledBy / fileIncharge ARE NOT COVER-PAGE TEXT
+//   They are read from course_allocations joined to faculty, and there is no
+//   endpoint to type them in. Who teaches a course and who owns its file is
+//   an allocation fact recorded once for the whole institution; letting each
+//   course file carry its own free-text copy would let the printed sheet
+//   disagree with the allocation it is supposed to report.
+//
+//   Both are ARRAYS. The same course can legitimately have two handling
+//   faculty (two sections), and 'incharge' is frequently unrecorded -- an
+//   empty array is the honest answer, and the screen shows a placeholder for
+//   it rather than inventing a name.
+//
+//   is_active is NOT filtered: a course file signed by someone who has since
+//   left must still print their name.
 // ---------------------------------------------------------------------
 router.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const [rows] = await pool.execute(
-      `SELECT ${COURSE_SELECT} ${COURSE_FROM} WHERE c.id = ?`,
+      `SELECT ${COURSE_SELECT}, ${COURSE_META_SELECT} ${COURSE_FROM} WHERE c.id = ?`,
       [courseId]
     );
     if (rows.length === 0) {
       throw new HttpError(404, `No course with id ${courseId}`);
     }
-    res.json(mapCourse(rows[0]));
+
+    const [allocations] = await pool.execute(
+      `SELECT ca.role, f.id AS faculty_id, f.name, f.designation, f.department
+         FROM course_allocations AS ca
+         JOIN faculty            AS f ON f.id = ca.faculty_id
+        WHERE ca.course_id = ?
+        ORDER BY ca.role, f.name`,
+      [courseId]
+    );
+
+    const inRole = (role) =>
+      allocations
+        .filter((a) => a.role === role)
+        .map((a) => ({
+          id: a.faculty_id,
+          name: a.name,
+          designation: a.designation,
+          department: a.department,
+        }));
+
+    res.json({
+      ...mapCourse(rows[0]),
+      ...mapCourseMeta(rows[0]),
+      handledBy: inRole("handling"),
+      fileIncharge: inRole("incharge"),
+    });
   })
 );
 
@@ -295,6 +362,40 @@ router.get(
         courseId: r.course_id,
         coNumber: r.co_number,
         value: num(r.value),
+      }))
+    );
+  })
+);
+
+// ---------------------------------------------------------------------
+// GET /api/courses/:id/closing
+//
+// The numbered action lines of the closing report, in printed order.
+//
+// A course with no actions recorded is an empty array, and a line whose
+// statement is NULL is returned as null rather than "" -- the report form
+// has three numbered lines whether or not anyone has written on them, and
+// "opened but blank" is not a different state from "never opened".
+// ---------------------------------------------------------------------
+router.get(
+  "/:id/closing",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    await assertCourseExists(pool, courseId);
+
+    const [rows] = await pool.execute(
+      `SELECT course_id, seq, statement
+         FROM closing_report_actions
+        WHERE course_id = ?
+        ORDER BY seq`,
+      [courseId]
+    );
+
+    res.json(
+      rows.map((r) => ({
+        courseId: r.course_id,
+        seq: r.seq,
+        statement: r.statement,
       }))
     );
   })
@@ -1056,6 +1157,412 @@ router.put(
         classesSaved: classes.length,
         attendanceSaved: register.length,
         resultsSaved,
+      };
+    });
+
+    res.json(result);
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/courses/:id/meta
+//
+// Body: { programme, batch, academicYear, yearOfStudy, semester, section }
+//
+// WHOLE-SHEET REPLACE
+//   All six columns are written on every call. A field the body omits is set
+//   to NULL, not left alone -- this is the cover page saved as one form, and
+//   a PUT here replaces it at a known address the same way every other write
+//   in this app does. Clearing a field is therefore done by sending it empty,
+//   which is what the screen does.
+//
+//   An empty or all-whitespace value becomes NULL rather than "", so a
+//   cleared field reads as "not recorded" and the cover page can show a
+//   placeholder instead of a blank line.
+//
+// THE ALLOCATION IS UPDATED WITH IT
+//   course_allocations carries its OWN academic_year, semester and section.
+//   Saving them here without updating those rows would leave the cover sheet
+//   and the allocation quietly disagreeing about which offering the file
+//   describes. So the matching allocation rows are updated in the SAME
+//   transaction -- the same principle as recomputing internal_marks when a
+//   mark sheet is saved.
+//
+//   If no allocation row matches, NOTHING is created. An allocation records
+//   that a named person teaches this course, and this endpoint has no idea
+//   who that is; inventing a row would be worse than leaving the gap.
+// ---------------------------------------------------------------------
+router.put(
+  "/:id/meta",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+
+    if (!isPlainObject(body)) {
+      throw new HttpError(400, "Body must be an object");
+    }
+
+    const result = await withTransaction(async (conn) => {
+      await assertCourseExists(conn, courseId);
+
+      const issues = [];
+      const values = {};
+
+      for (const field of META_FIELDS) {
+        const parsed = optionalString(body[field.key], field.maxLength);
+        if (!parsed.ok) {
+          issues.push({
+            field: field.key,
+            value: body[field.key],
+            message: `${field.key} must be a string of ${field.maxLength} characters or fewer, or null`,
+          });
+          continue;
+        }
+        values[field.column] = parsed.value;
+      }
+
+      if (issues.length > 0) throw new ValidationError(issues);
+
+      await conn.execute(
+        `UPDATE courses
+            SET programme     = ?,
+                batch         = ?,
+                academic_year = ?,
+                year_of_study = ?,
+                semester      = ?,
+                section       = ?
+          WHERE id = ?`,
+        [
+          values.programme,
+          values.batch,
+          values.academic_year,
+          values.year_of_study,
+          values.semester,
+          values.section,
+          courseId,
+        ]
+      );
+
+      // Keep the allocation in step. UNIQUE(faculty_id, course_id, role,
+      // academic_year, semester, section) means two allocations that differ
+      // ONLY in these three columns would collapse onto one key here. That is
+      // a real conflict about which offering the course file describes, not
+      // something to paper over, so it is reported rather than swallowed.
+      let allocationsUpdated = 0;
+      try {
+        const [updated] = await conn.execute(
+          `UPDATE course_allocations
+              SET academic_year = ?, semester = ?, section = ?
+            WHERE course_id = ?`,
+          [values.academic_year, values.semester, values.section, courseId]
+        );
+        allocationsUpdated = updated.affectedRows;
+      } catch (err) {
+        if (err.code === "ER_DUP_ENTRY") {
+          throw new ValidationError(
+            [
+              {
+                field: "academicYear",
+                message:
+                  `course ${courseId} has two allocations that differ only in academic year, ` +
+                  `semester or section, so they cannot all be moved onto the same offering. ` +
+                  `Correct course_allocations first; nothing was saved.`,
+              },
+            ],
+            "Allocation conflict; nothing was saved"
+          );
+        }
+        throw err;
+      }
+
+      return { courseId, saved: META_FIELDS.length, allocationsUpdated };
+    });
+
+    res.json(result);
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/courses/:id/closing
+//
+// Body: an array of { seq, statement }.
+//
+// UPSERT, NOT REPLACE
+//   A line the body does not mention is left alone. The report form has a
+//   fixed set of numbered lines and the screen sends all of them, so this
+//   only matters for a caller sending one line -- which should correct that
+//   line, not silently delete the others.
+//
+//   `seq` is the printed number and is what makes this an upsert: saving the
+//   report twice updates line 2 rather than adding a second line 2. Both
+//   columns of the unique key are NOT NULL, so unlike attendance and
+//   student_enrolments the key really does match and ON DUPLICATE KEY UPDATE
+//   is safe here.
+//
+//   A blank statement is stored as NULL, so "line 3 is empty" and "line 3 was
+//   never written" are the same state rather than two that print alike.
+// ---------------------------------------------------------------------
+router.put(
+  "/:id/closing",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+
+    if (!Array.isArray(body)) {
+      throw new HttpError(400, "Body must be an array of { seq, statement }");
+    }
+
+    const result = await withTransaction(async (conn) => {
+      await assertCourseExists(conn, courseId);
+
+      const issues = [];
+      const rows = [];
+      const seen = new Set();
+
+      body.forEach((row, index) => {
+        const fail = (message, extra = {}) => issues.push({ index, ...extra, message });
+
+        if (!isPlainObject(row)) return fail("entry must be an object");
+
+        const seq = parseId(row.seq);
+        if (seq === null || seq > 127) {
+          return fail("seq must be a positive integer of 127 or less", { seq: row.seq });
+        }
+        if (seen.has(seq)) return fail("duplicate seq", { seq });
+        seen.add(seq);
+
+        // TEXT holds 65535 BYTES, and one character can take up to four of
+        // them in utf8mb4. The cap is deliberately well under that so a long
+        // action line is a 400 naming the row, never a truncated statement.
+        const statement = optionalString(row.statement, 10000);
+        if (!statement.ok) {
+          return fail("statement must be a string of 10000 characters or fewer, or null", {
+            seq,
+          });
+        }
+
+        rows.push({ seq, statement: statement.value });
+      });
+
+      if (issues.length > 0) throw new ValidationError(issues);
+
+      for (const r of rows) {
+        await conn.execute(
+          `INSERT INTO closing_report_actions (course_id, seq, statement)
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE statement = ?`,
+          [courseId, r.seq, r.statement, r.statement]
+        );
+      }
+
+      return { courseId, saved: rows.length };
+    });
+
+    res.json(result);
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/courses/:id/students
+//
+// Body: an array of { regNumber, name } -- the WHOLE enrolled list.
+//
+// WHAT THIS ENDPOINT OWNS
+//   Enrolment, and nothing else. A student is identified by reg_number,
+//   which is the institution's own unique key for them.
+//
+//   - reg_number not in `students`  -> the student row is CREATED, and `name`
+//                                      is required to create it.
+//   - reg_number already in students -> that row is reused AS IT STANDS. The
+//                                      name sent is IGNORED, not applied.
+//                                      students is institution-wide; renaming
+//                                      someone from inside one course file
+//                                      would rename them on every other
+//                                      course file too.
+//   - enrolled but absent from the body -> the ENROLMENT row is deleted. The
+//                                      student row is never touched.
+//
+// REMOVAL IS BLOCKED WHERE MARKS EXIST
+//   student_assessments and internal_marks both hang off (student, course)
+//   but neither has a foreign key to student_enrolments, so deleting an
+//   enrolment under existing marks does not cascade -- it orphans them. The
+//   marks would stay in the database, keep feeding the attainment tables and
+//   the risk report, and no longer appear on any roll. That is a 400 listing
+//   every blocked student, thrown before anything is written.
+//
+//   Both tables are checked. Only checking student_assessments would let a
+//   student with a consolidated internal mark but no per-assessment rows --
+//   the state of a course whose marks came from elsewhere -- be removed
+//   silently.
+//
+// ATTENDANCE IS LEFT ALONE
+//   A removed student's attendance row is NOT deleted. It is not a mark, and
+//   deleting data this endpoint was not asked to manage is worse than leaving
+//   a row that becomes visible again if they are re-enrolled.
+//
+// THE ENROLMENT INSERT USES <=>, NOT ON DUPLICATE KEY UPDATE
+//   academic_year and semester are NULL here and sit inside the unique key,
+//   which in MySQL therefore does not match. Same reason as the attendance
+//   PUT above.
+// ---------------------------------------------------------------------
+router.put(
+  "/:id/students",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+
+    if (!Array.isArray(body)) {
+      throw new HttpError(400, "Body must be an array of { regNumber, name }");
+    }
+
+    const result = await withTransaction(async (conn) => {
+      await assertCourseExists(conn, courseId);
+
+      // ---------------- validate the body ----------------
+      const issues = [];
+      const wanted = [];
+      const seen = new Set();
+
+      body.forEach((row, index) => {
+        const fail = (message, extra = {}) => issues.push({ index, ...extra, message });
+
+        if (!isPlainObject(row)) return fail("entry must be an object");
+
+        const reg = optionalString(row.regNumber, 20);
+        if (!reg.ok || reg.value === null) {
+          return fail(
+            "regNumber must be a non-empty string of 20 characters or fewer",
+            { regNumber: row.regNumber }
+          );
+        }
+        if (seen.has(reg.value)) return fail("duplicate regNumber", { regNumber: reg.value });
+        seen.add(reg.value);
+
+        const name = optionalString(row.name, 120);
+        if (!name.ok) {
+          return fail("name must be a string of 120 characters or fewer", {
+            regNumber: reg.value,
+          });
+        }
+
+        wanted.push({ index, regNumber: reg.value, name: name.value });
+      });
+
+      if (issues.length > 0) throw new ValidationError(issues);
+
+      // ---------------- resolve, still writing nothing ----------------
+      const toCreate = [];
+      const wantedIds = new Set();
+
+      for (const entry of wanted) {
+        const [found] = await conn.execute(
+          `SELECT id FROM students WHERE reg_number = ?`,
+          [entry.regNumber]
+        );
+        if (found.length > 0) {
+          entry.studentId = found[0].id;
+          wantedIds.add(found[0].id);
+          continue;
+        }
+        // New student: a name is the one thing that cannot be defaulted.
+        if (entry.name === null) {
+          issues.push({
+            index: entry.index,
+            regNumber: entry.regNumber,
+            message: `no student with registration number ${entry.regNumber} exists yet, so a name is required to create one`,
+          });
+          continue;
+        }
+        toCreate.push(entry);
+      }
+
+      const currentlyEnrolled = await enrolledStudentIds(conn, courseId);
+      const toRemove = [...currentlyEnrolled].filter((id) => !wantedIds.has(id));
+
+      for (const studentId of toRemove) {
+        const [assessed] = await conn.execute(
+          `SELECT COUNT(*) AS n
+             FROM student_assessments AS sa
+             JOIN assessments         AS a ON a.id = sa.assessment_id
+            WHERE a.course_id = ? AND sa.student_id = ?`,
+          [courseId, studentId]
+        );
+        const [internal] = await conn.execute(
+          `SELECT COUNT(*) AS n FROM internal_marks WHERE course_id = ? AND student_id = ?`,
+          [courseId, studentId]
+        );
+
+        const assessmentRows = Number(assessed[0].n);
+        const internalRows = Number(internal[0].n);
+        if (assessmentRows === 0 && internalRows === 0) continue;
+
+        const held = [];
+        if (assessmentRows > 0) held.push(`${assessmentRows} assessment mark row(s)`);
+        if (internalRows > 0) held.push(`${internalRows} internal mark row(s)`);
+
+        const [who] = await conn.execute(
+          `SELECT reg_number, name FROM students WHERE id = ?`,
+          [studentId]
+        );
+        const label = who.length > 0 ? `${who[0].reg_number} (${who[0].name})` : `id ${studentId}`;
+
+        issues.push({
+          studentId,
+          regNumber: who.length > 0 ? who[0].reg_number : undefined,
+          message:
+            `${label} already has ${held.join(" and ")} in this course. ` +
+            `Removing the enrolment would leave those marks with no roll to belong to, ` +
+            `so nothing was saved. Delete the marks first if the removal is intended.`,
+        });
+      }
+
+      if (issues.length > 0) throw new ValidationError(issues);
+
+      // ---------------- write ----------------
+      for (const entry of toCreate) {
+        const [inserted] = await conn.execute(
+          `INSERT INTO students (reg_number, name) VALUES (?, ?)`,
+          [entry.regNumber, entry.name]
+        );
+        entry.studentId = inserted.insertId;
+        wantedIds.add(inserted.insertId);
+      }
+
+      let enrolmentsAdded = 0;
+      for (const entry of wanted) {
+        const [existing] = await conn.execute(
+          `SELECT id FROM student_enrolments
+            WHERE student_id     =   ?
+              AND course_id      =   ?
+              AND academic_year <=>  NULL
+              AND semester      <=>  NULL`,
+          [entry.studentId, courseId]
+        );
+        if (existing.length > 0) continue;
+        await conn.execute(
+          `INSERT INTO student_enrolments
+             (student_id, course_id, academic_year, semester)
+           VALUES (?, ?, NULL, NULL)`,
+          [entry.studentId, courseId]
+        );
+        enrolmentsAdded += 1;
+      }
+
+      let enrolmentsRemoved = 0;
+      for (const studentId of toRemove) {
+        const [deleted] = await conn.execute(
+          `DELETE FROM student_enrolments WHERE course_id = ? AND student_id = ?`,
+          [courseId, studentId]
+        );
+        enrolmentsRemoved += deleted.affectedRows;
+      }
+
+      return {
+        courseId,
+        enrolled: wanted.length,
+        studentsCreated: toCreate.length,
+        enrolmentsAdded,
+        enrolmentsRemoved,
       };
     });
 

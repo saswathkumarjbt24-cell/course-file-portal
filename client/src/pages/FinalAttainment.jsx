@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   fetchAssessments,
@@ -15,8 +15,11 @@ import {
   fetchStudentAssessments,
   fetchStudentCoMarks,
   fetchStudents,
+  isApiMode,
+  saveCourseExitSurvey,
 } from '../data/api'
-import { DataError, DataLoading, useApiData } from '../data/useApiData'
+import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
+import { useSave } from '../data/useSave'
 import {
   assessmentCoLevels,
   cieLevel,
@@ -49,6 +52,38 @@ const LOADERS = {
 
 function Missing({ text = 'Not entered' }) {
   return <span className="rep-table__missing">{text}</span>
+}
+
+// ---------------------------------------------------------------
+// THE COURSE EXIT SURVEY IS THE ONLY EDITABLE FIGURE ON THIS PAGE.
+//
+// Every other value here is DERIVED from the marks -- the component levels,
+// the CIE, the SEE, the direct level, the final level, the articulation
+// matrix and the PO/PSO roll-up. Making any of them typeable would let a
+// printed figure disagree with the marks it was calculated from.
+//
+// The survey is different in kind: it is an indirect measure collected from
+// students, and there is nothing in the database to compute it from.
+// ---------------------------------------------------------------
+
+// A level on the 0..3 attainment scale, to at most two decimals -- the same
+// range the server validates against, so a percentage pasted in by mistake
+// is caught before it is sent.
+function surveyError(raw) {
+  const text = raw.trim()
+  if (text === '') return null
+  if (!/^\d(\.\d{1,2})?$/.test(text)) return 'Use a level 0-3, at most two decimals'
+  if (Number(text) > 3) return 'Maximum level is 3'
+  return null
+}
+
+function seedSurvey(courseExitSurvey, courseId, coNumbers) {
+  const seeded = {}
+  for (const co of coNumbers) {
+    const row = courseExitSurvey.find((s) => s.courseId === courseId && s.coNumber === co)
+    seeded[co] = row && row.value !== null ? String(row.value) : ''
+  }
+  return seeded
 }
 
 function level(value) {
@@ -101,6 +136,47 @@ function FinalAttainmentView({
 
   const weights = useMemo(() => componentWeights(nature), [nature])
 
+  const [editingSurvey, setEditingSurvey] = useState(false)
+  const [survey, setSurvey] = useState(() =>
+    seedSurvey(courseExitSurvey, courseId, coNumbers),
+  )
+  const [savedNonce, setSavedNonce] = useState(0)
+  const [saveState, runSave] = useSave()
+
+  useEffect(() => {
+    setSurvey(seedSurvey(courseExitSurvey, courseId, coNumbers))
+    setEditingSurvey(false)
+  }, [courseExitSurvey, courseId, coNumbers])
+
+  useEffect(() => {
+    if (savedNonce === 0) return undefined
+    const timer = setTimeout(() => setSavedNonce(0), 4000)
+    return () => clearTimeout(timer)
+  }, [savedNonce])
+
+  const surveyErrors = useMemo(() => {
+    const found = {}
+    for (const co of coNumbers) {
+      const message = surveyError(survey[co] ?? '')
+      if (message) found[co] = message
+    }
+    return found
+  }, [coNumbers, survey])
+
+  const surveyInvalid = Object.keys(surveyErrors).length
+
+  // The survey level actually in play, per CO. Null for a blank or invalid
+  // entry, which keeps the final level blank rather than computing it from a
+  // half-typed number.
+  const surveyValues = useMemo(() => {
+    const out = {}
+    for (const co of coNumbers) {
+      const raw = (survey[co] ?? '').trim()
+      out[co] = raw === '' || surveyErrors[co] ? null : Number(raw)
+    }
+    return out
+  }, [coNumbers, survey, surveyErrors])
+
   // CO levels for every assessment kind, via the same chain the Attainment
   // screen uses. A kind with no assessment or no marks yields {}.
   const levelsByKind = useMemo(() => {
@@ -148,19 +224,21 @@ function FinalAttainmentView({
       const cie = cieLevel(componentLevels, weights)
       const see = levelsByKind.SEE?.[co] ?? null
       const direct = directLevel(cie, see, attainmentConstants)
-      const survey =
-        courseExitSurvey.find((s) => s.courseId === courseId && s.coNumber === co)?.value ?? null
+      // The survey level as it stands ON SCREEN, so the final level always
+      // agrees with the number printed above it. Saving is what makes that
+      // agreement permanent; Cancel puts the stored value back.
+      const surveyLevel = surveyValues[co] ?? null
       out[co] = {
         componentLevels,
         cie,
         see,
         direct,
-        survey,
-        final: finalLevel(direct, survey, attainmentConstants),
+        survey: surveyLevel,
+        final: finalLevel(direct, surveyLevel, attainmentConstants),
       }
     }
     return out
-  }, [coNumbers, levelsByKind, weights, courseId, courseExitSurvey, attainmentConstants])
+  }, [coNumbers, levelsByKind, weights, surveyValues, attainmentConstants])
 
   // Articulation values, keyed outcomeCode -> coNumber -> value.
   const matrix = useMemo(() => {
@@ -178,6 +256,39 @@ function FinalAttainmentView({
     for (const co of coNumbers) out[co] = perCo[co].final
     return out
   }, [coNumbers, perCo])
+
+  const savedLabel = isApiMode() ? 'Saved' : 'Saved (mock)'
+  const idleLabel = isApiMode()
+    ? 'Saving writes the survey levels to the database.'
+    : 'Nothing is sent to a server yet.'
+
+  // A rejected save comes back with one issue per offending CO.
+  const serverIssues = {}
+  for (const issue of saveState.issues ?? []) {
+    if (issue.coNumber !== undefined) serverIssues[issue.coNumber] = issue.message
+  }
+
+  function handleSaveSurvey() {
+    // Only COs that HAVE a level are sent. The exit-survey endpoint requires
+    // a number for every row it is given, and there is no delete: a blank
+    // means "not collected", which is not the same as a level of zero.
+    const payload = coNumbers
+      .filter((co) => surveyValues[co] !== null)
+      .map((co) => ({ coNumber: co, value: surveyValues[co] }))
+
+    runSave(
+      () => saveCourseExitSurvey(courseId, payload),
+      () => {
+        setSavedNonce((n) => n + 1)
+        setEditingSurvey(false)
+      },
+    )
+  }
+
+  function handleCancelSurvey() {
+    setSurvey(seedSurvey(courseExitSurvey, courseId, coNumbers))
+    setEditingSurvey(false)
+  }
 
   if (!course) {
     return (
@@ -288,9 +399,53 @@ function FinalAttainmentView({
       <section className="rep-card">
         <h2 className="rep-card__title">2. Indirect assessment and final CO attainment</h2>
         <p className="rep-card__note">
-          The course exit survey is the indirect measure. The final level needs the direct level,
-          so it stays blank until SEE marks exist.
+          The course exit survey is the indirect measure and is the only figure on this page
+          that is entered rather than calculated. The final level needs the direct level, so it
+          stays blank until SEE marks exist. Clearing a survey box leaves the stored value
+          alone — this sheet has no way to delete one.
         </p>
+
+        <div className="rep-edit-bar">
+          {editingSurvey ? (
+            <>
+              <button
+                type="button"
+                className="rep-button"
+                disabled={surveyInvalid > 0 || saveState.saving}
+                onClick={handleSaveSurvey}
+              >
+                {saveState.saving ? 'Saving…' : 'Save survey'}
+              </button>
+              <button
+                type="button"
+                className="rep-button"
+                disabled={saveState.saving}
+                onClick={handleCancelSurvey}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="rep-button"
+              onClick={() => setEditingSurvey(true)}
+            >
+              Edit course exit survey
+            </button>
+          )}
+
+          {surveyInvalid > 0 ? (
+            <span className="rep-status rep-status--error">
+              {surveyInvalid} {surveyInvalid === 1 ? 'value is' : 'values are'} outside the
+              0–3 attainment scale.
+            </span>
+          ) : savedNonce > 0 ? (
+            <span className="rep-status rep-status--saved">{savedLabel}</span>
+          ) : (
+            <span className="rep-status">{idleLabel}</span>
+          )}
+        </div>
 
         <div className="rep-table-wrap">
           <table className="rep-table">
@@ -305,11 +460,37 @@ function FinalAttainmentView({
             <tbody>
               <tr>
                 <td className="rep-table__label">Course Exit Survey</td>
-                {coNumbers.map((co) => (
-                  <td key={co} className="rep-table__value">
-                    {level(perCo[co].survey)}
-                  </td>
-                ))}
+                {coNumbers.map((co) => {
+                  const error = surveyErrors[co] ?? serverIssues[co]
+                  return (
+                    <td key={co} className="rep-table__value">
+                      {editingSurvey ? (
+                        <>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            className={
+                              error ? 'rep-input rep-input--invalid' : 'rep-input'
+                            }
+                            value={survey[co] ?? ''}
+                            aria-invalid={error ? true : undefined}
+                            aria-label={`Course exit survey level for CO${co}`}
+                            title={error || undefined}
+                            onFocus={(event) => event.target.select()}
+                            onChange={(event) =>
+                              setSurvey((prev) => ({ ...prev, [co]: event.target.value }))
+                            }
+                          />
+                          {/* Printing mid-edit shows the value, not the box. */}
+                          <span className="rep-print-value">{level(perCo[co].survey)}</span>
+                        </>
+                      ) : (
+                        level(perCo[co].survey)
+                      )}
+                    </td>
+                  )
+                })}
               </tr>
               <tr className="rep-row--total">
                 <td className="rep-table__label">
@@ -325,6 +506,9 @@ function FinalAttainmentView({
             </tbody>
           </table>
         </div>
+
+        {/* A rejected save wrote nothing; the typed levels stay on screen. */}
+        <SaveFeedback state={saveState} />
       </section>
 
       {/* ---------------- Table 3 ---------------- */}
