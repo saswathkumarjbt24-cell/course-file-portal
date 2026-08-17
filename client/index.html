@@ -2,7 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      The institution crest, taken from the SAME source file the sign-in page
+      imports rather than a second copy dropped in public/.
+
+      Vite processes this href like any other asset: it fingerprints the file
+      and rewrites the URL with the configured base, so the tag resolves to
+      <base>/assets/bit-logo-<hash>.jpg under the default base and under the
+      --base=/ production build alike. A copy in public/ would have to be
+      referenced by a fixed path and would ship the image twice.
+
+      Because it is the same file the bundle imports, it hashes to the same
+      name and is emitted once.
+    -->
+    <link rel="icon" type="image/jpeg" href="/src/assets/bit-logo.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Course File Portal</title>
   </head>
