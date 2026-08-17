@@ -5,12 +5,16 @@
 //                                     student, the course and the course
 //                                     nature
 //
-// Read-only. Parameterless, so nothing to inject.
+// Read-only, and scoped to the courses the caller may see. The only value
+// reaching the query is the caller's own department or faculty id, taken from
+// the signed session token and bound as a parameter -- never anything a
+// request asked for.
 // ---------------------------------------------------------------
 
 const express = require("express");
 const pool = require("../db");
 const { asyncHandler, num } = require("../helpers");
+const { courseScope } = require("../auth");
 const { loadMarkContext } = require("../internalMarks");
 
 const router = express.Router();
@@ -23,8 +27,19 @@ const router = express.Router();
 // (Theory 23, Theory & Lab 27.5, Mini Project I 32) and the report must not
 // hardcode it.
 //
-// Returns every course, not one, because the report ranks across all of them.
-// A course with no internal_marks rows simply contributes none.
+// Returns every course the CALLER MAY SEE, not one, because the report ranks
+// across all of them. A course with no internal_marks rows simply contributes
+// none.
+//
+// SCOPED THE SAME WAY THE COURSE LIST IS
+//   A faculty member's risk report covers their allocated courses, a hod's
+//   their department, an admin's the institution. Rows outside that are
+//   filtered out rather than refused, for the same reason GET /api/courses
+//   filters: the report is a whole-institution ranking by construction, and
+//   403-ing it would leave the screen blank instead of showing the caller
+//   their own students. The counts and rankings the screen prints are
+//   therefore over what the caller may see, which is the only honest total
+//   it could show them.
 //
 // pt1 / pt2 / ip are null for a nature with no component breakdown -- Mini
 // Project I records a total and nothing else. That is real, not missing data.
@@ -49,6 +64,7 @@ const router = express.Router();
 router.get(
   "/internal-marks",
   asyncHandler(async (req, res) => {
+    const scope = courseScope(req.faculty, "c");
     const [rows] = await pool.execute(
       `SELECT im.student_id,
               im.course_id,
@@ -72,7 +88,9 @@ router.get(
          JOIN students       AS s ON s.id = im.student_id
          JOIN courses        AS c ON c.id = im.course_id
          JOIN course_natures AS n ON n.id = c.nature_id
-        ORDER BY c.code, s.reg_number`
+        WHERE ${scope.sql}
+        ORDER BY c.code, s.reg_number`,
+      scope.params
     );
 
     // One pass over the assessment tables, reused for every row.

@@ -2,7 +2,16 @@
 // Routes mounted at /api/auth
 //
 //   GET  /api/auth/config - is Google sign-in configured on this server?
-//   POST /api/auth/google - verify a Google ID token and return the faculty
+//   POST /api/auth/google - verify a Google ID token, and return the faculty
+//                           together with a signed session token
+//
+// THE ONLY TWO ENDPOINTS IN THE APP THAT NEED NO SESSION.
+//   They are how a session is obtained, so they are mounted ahead of the
+//   requireAuth gate in index.js. Every other route is behind it.
+//
+// GOOGLE PROVES WHO YOU ARE, ONCE.
+//   After that the session token in ../auth.js does, on every request. The
+//   verification below is unchanged; the token is simply its output.
 //
 // THE BROWSER DECIDES NOTHING.
 //   The frontend passes Google's ID token through untouched and never decodes
@@ -24,6 +33,7 @@ const express = require("express");
 const { OAuth2Client } = require("google-auth-library");
 const pool = require("../db");
 const { asyncHandler, HttpError, isPlainObject } = require("../helpers");
+const { signToken } = require("../auth");
 
 const router = express.Router();
 
@@ -139,7 +149,7 @@ router.post(
     // has been deactivated gets an accurate message instead of being told it
     // was never registered. Both are 403 and neither grants access.
     const [rows] = await pool.execute(
-      `SELECT id, name, email, department, designation, is_active
+      `SELECT id, name, email, department, designation, role, is_active
          FROM faculty
         WHERE email = ?`,
       [email]
@@ -157,14 +167,32 @@ router.post(
       throw new HttpError(403, "That faculty account is no longer active");
     }
 
-    // Exactly the shape /api/faculty returns, so the session stores the same
-    // object whichever way the user signed in and nothing downstream changes.
+    // ---------------------------------------------------------------
+    // The faculty fields, plus the session token.
+    //
+    // The faculty half is still exactly the shape /api/faculty returns, with
+    // `role` added, so the session keeps storing the same object. `token` is
+    // the one new key: the caller separates it out and sends it back as
+    // `Authorization: Bearer <token>` on every later request.
+    //
+    // WHAT THE TOKEN IS NOT
+    //   It is not a capability list and the server never believes its claims.
+    //   `role` is in it so a client can say who is signed in without another
+    //   round trip; every request re-reads the row and uses THAT. Editing the
+    //   role claim in a token buys nothing, and re-signing one is impossible
+    //   without JWT_SECRET.
+    //
+    // NOT LOGGED, HERE OR ANYWHERE
+    //   Written straight to the response and never passed to console.
+    // ---------------------------------------------------------------
     res.json({
       id: row.id,
       name: row.name,
       email: row.email,
       department: row.department,
       designation: row.designation,
+      role: row.role,
+      token: signToken(row),
     });
   })
 );

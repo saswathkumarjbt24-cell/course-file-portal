@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const pool = require("./db");
+const { requireAuth } = require("./auth");
 
 const facultyRoutes = require("./routes/faculty");
 const courseRoutes = require("./routes/courses");
@@ -25,9 +26,40 @@ app.get("/api/health", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------
+// THE THREE OPEN ENDPOINTS, AND NOTHING ELSE.
+//
+// GET /api/health is above. authRoutes holds GET /api/auth/config and POST
+// /api/auth/google, which have to be reachable by definition -- they are how
+// you get a token in the first place. Both are mounted BEFORE the gate below.
+//
+// Sign-in verification carries the only POST in the app; everything else
+// reads or replaces a sheet with PUT.
+// ---------------------------------------------------------------------
+app.use("/api/auth", authRoutes);
+
+// ---------------------------------------------------------------------
+// THE GATE. Everything mounted after this line needs a valid session token.
+//
+// Deliberately ONE app.use on the /api prefix rather than requireAuth listed
+// on each router: a route added later is protected by default, and protecting
+// it is not something anybody has to remember. Fail closed.
+//
+// It also means an unknown /api path answers 401 rather than the 404 below
+// when there is no token, so the route list cannot be enumerated anonymously.
+//
+// CORS preflights never reach it -- the cors middleware above answers OPTIONS
+// itself, which it must, because a browser sends no Authorization header on a
+// preflight.
+// ---------------------------------------------------------------------
+app.use("/api", requireAuth);
+
+// ---------------------------------------------------------------------
 // API routes. Reads are GET; saves are PUT. There is no POST or DELETE
 // anywhere -- every write in this app replaces a whole sheet at a known
 // address, which is exactly what PUT means.
+//
+// Authentication is settled by the gate above. What each router adds on top
+// is AUTHORISATION: which courses, which department, which role.
 // ---------------------------------------------------------------------
 app.use("/api/faculty", facultyRoutes);
 app.use("/api/courses", courseRoutes);
@@ -35,9 +67,6 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/reference", referenceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/students", studentRoutes);
-// Sign-in verification. The only POST in the app; everything else reads or
-// replaces a sheet with PUT.
-app.use("/api/auth", authRoutes);
 
 // ---------------------------------------------------------------------
 // Unknown /api path -> JSON 404, so the frontend never has to parse an HTML

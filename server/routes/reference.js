@@ -17,6 +17,26 @@
 // Institution-wide reference data: none of it belongs to a single course.
 // Every query is parameterised; writes run through withTransaction.
 //
+// THE READS ARE OPEN TO ANY SIGNED-IN MEMBER OF STAFF; THE WRITES ARE NOT.
+//   None of this is course-scoped, so the course ownership rules have nothing
+//   to say about it -- but it is the text every printed course file in the
+//   institution shares, and a portal where any one of fifty staff accounts can
+//   rewrite the institution's vision statement is not meaningfully protected.
+//   So each write is scoped to what the caller is responsible for:
+//
+//     institution vision / mission     admin only
+//     PEOs with no department          admin only (they apply to every one)
+//     a department's vision / mission  the hod OF THAT DEPARTMENT, or admin
+//     a department's PEOs / PSOs       the hod OF THAT DEPARTMENT, or admin
+//
+//   The department being written is read from the BODY and then checked
+//   against the signed-in row -- see assertDepartmentWrite. Sending another
+//   department's name is a 403, not a silent write.
+//
+//   Each check sits AFTER the body validation and BEFORE the first write, so
+//   a malformed body is still the 400 it always was, and a refused save has
+//   changed nothing.
+//
 // PROGRAMME OUTCOMES ARE DELIBERATELY NOT WRITEABLE
 //   PO1..PO12 are the NBA's own text, identical for every programme in the
 //   country. There is nothing here for an institution to edit, and an
@@ -48,6 +68,7 @@ const {
   isPlainObject,
   optionalString,
 } = require("../helpers");
+const { assertDepartmentWrite } = require("../auth");
 
 const router = express.Router();
 
@@ -403,6 +424,11 @@ router.put(
 
       if (issues.length > 0) throw new ValidationError(issues);
 
+      // `department` is null for scope 'institution' -- forced so above -- so
+      // this is the admin-only case, and a department scope is checked against
+      // the caller's own department.
+      await assertDepartmentWrite(conn, req.faculty, department);
+
       // NULL-safe lookup: `department <=> ?` matches the NULL institution row,
       // which `department = ?` never would.
       const [existing] = await conn.execute(
@@ -528,6 +554,10 @@ router.put(
 
       if (issues.length > 0) throw new ValidationError(issues);
 
+      // A null department here means "applies to every department", which is
+      // institution-wide and therefore admin only.
+      await assertDepartmentWrite(conn, req.faculty, department);
+
       for (const r of rows) {
         const [existing] = await conn.execute(
           `SELECT id FROM peos WHERE department <=> ? AND code = ?`,
@@ -651,6 +681,10 @@ router.put(
       });
 
       if (issues.length > 0) throw new ValidationError(issues);
+
+      // department is NOT NULL here, so this is always the department case:
+      // the hod of that department, or an admin.
+      await assertDepartmentWrite(conn, req.faculty, department);
 
       // Which stored codes this save would drop, and whether any matrix still
       // points at them. Checked BEFORE a single row is written.

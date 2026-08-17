@@ -29,6 +29,7 @@
 // ---------------------------------------------------------------
 
 import * as mock from './mockData'
+import { expireSession, readStoredToken } from '../context/sessionStore'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -41,22 +42,88 @@ export function isApiMode() {
 // id, matching how migration 002 defines it.
 const SPLIT_PATTERN_NAME = 'PT 50 (20/20/10)'
 
+// Shown on the sign-in page when a 401 sent the user back there and the server
+// gave no better reason of its own.
+const SESSION_EXPIRED_MESSAGE = 'Your session expired. Please sign in again.'
+
+// ---------------------------------------------------------------
+// EVERY REQUEST CARRIES THE TOKEN
+//
+// Added in ONE place, so a new endpoint cannot be added without it. Read from
+// storage per request rather than captured once, so a fresh sign-in in the
+// same tab is picked up without a reload.
+//
+// Omitted entirely when there is no token: the sign-in page legitimately calls
+// /api/auth/config before anyone has one, and sending "Bearer null" would turn
+// that into an error.
+//
+// NEVER LOGGED. The token appears here and in no other line of this file.
+// ---------------------------------------------------------------
+function withAuth(headers) {
+  const token = readStoredToken()
+  if (!token) return headers
+  return { ...headers, Authorization: `Bearer ${token}` }
+}
+
+/**
+ * Turn a failed response into the Error a screen will show.
+ *
+ *   401  the session is over. Storage is cleared and the provider is told, so
+ *        the route guard drops back to /login carrying a short reason. The
+ *        thrown Error still propagates -- the caller must not carry on as if
+ *        the request had worked.
+ *   403  signed in and refused. The SERVER'S OWN sentence is the message,
+ *        unprefixed, because it explains something the user can act on ("you
+ *        are not allocated to course 2") and a status code does not.
+ *   else unchanged from before, and the two callers differed: a failed read
+ *        names the request and the status, a failed save shows the server's
+ *        sentence on its own. `detailStandsAlone` keeps that difference --
+ *        "Could not save: totalObtained must not be negative" reads better
+ *        than the same line with a URL bolted to the front.
+ *
+ * `issues` is carried through on any status, so a 400's per-row list keeps
+ * reaching SaveFeedback exactly as it did.
+ */
+async function failure(res, described, detailStandsAlone = false) {
+  let json = null
+  try {
+    json = await res.json()
+  } catch {
+    // non-JSON error body; the status alone will have to do
+  }
+  const detail = json?.message || json?.error || ''
+
+  let message
+  if (res.status === 401) {
+    // Read BEFORE expireSession clears it. With no token there was no session
+    // to expire and the server's message is aimed at a developer, so the
+    // generic sentence is the honest one.
+    const hadToken = readStoredToken() !== null
+    message = hadToken && detail ? detail : SESSION_EXPIRED_MESSAGE
+    expireSession(message)
+  } else if (res.status === 403) {
+    message = detail || 'You do not have access to that.'
+  } else if (detailStandsAlone && detail) {
+    message = detail
+  } else {
+    message = `${described} failed with ${res.status}${detail ? ` — ${detail}` : ''}`
+  }
+
+  const err = new Error(message)
+  err.status = res.status
+  err.issues = Array.isArray(json?.issues) ? json.issues : null
+  return err
+}
+
 async function request(path) {
   let res
   try {
-    res = await fetch(`${API_URL}${path}`)
+    res = await fetch(`${API_URL}${path}`, { headers: withAuth({}) })
   } catch {
     throw new Error(`Cannot reach the API at ${API_URL}${path}. Is the server running?`)
   }
   if (!res.ok) {
-    let detail = ''
-    try {
-      const body = await res.json()
-      detail = body.message || body.error || ''
-    } catch {
-      // non-JSON error body; the status alone will have to do
-    }
-    throw new Error(`GET ${path} failed with ${res.status}${detail ? ` — ${detail}` : ''}`)
+    throw await failure(res, `GET ${path}`)
   }
   return res.json()
 }
@@ -96,11 +163,15 @@ async function put(path, body) {
   try {
     res = await fetch(`${API_URL}${path}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     })
   } catch {
     throw new Error(`Cannot reach the API at ${API_URL}${path}. Is the server running?`)
+  }
+
+  if (!res.ok) {
+    throw await failure(res, `PUT ${path}`, true)
   }
 
   let json = null
@@ -108,15 +179,6 @@ async function put(path, body) {
     json = await res.json()
   } catch {
     // non-JSON body; the status alone will have to do
-  }
-
-  if (!res.ok) {
-    const err = new Error(
-      json?.message || json?.error || `PUT ${path} failed with ${res.status}`,
-    )
-    err.status = res.status
-    err.issues = Array.isArray(json?.issues) ? json.issues : null
-    throw err
   }
   return json
 }
@@ -130,10 +192,17 @@ async function put(path, body) {
 // ---------------------------------------------------------------
 
 /**
- * Exchange a Google ID token for the faculty record it belongs to.
- * Resolves with the same shape /api/faculty returns; rejects with the
- * server's own message on 401 (not verified) or 403 (wrong domain, or not
- * registered as faculty).
+ * Exchange a Google ID token for the faculty record it belongs to, plus the
+ * session token every later request carries.
+ *
+ * Resolves with the faculty fields /api/faculty returns, with `role`, and with
+ * `token`. Rejects with the server's own message on 401 (not verified) or 403
+ * (wrong domain, or not registered as faculty).
+ *
+ * NOT ROUTED THROUGH failure() above. A 401 here means Google did not verify
+ * the account, not that a session ended -- there is no session yet to clear,
+ * and treating it as an expiry would fire a redirect at somebody already
+ * sitting on the sign-in page.
  */
 export async function signInWithGoogle(credential) {
   if (!API_URL) {

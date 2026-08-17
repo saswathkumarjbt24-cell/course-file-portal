@@ -42,8 +42,25 @@ const {
   COURSE_FROM,
   COURSE_META_SELECT,
 } = require("../helpers");
+const { courseScope, requireCourseAccess } = require("../auth");
 
 const router = express.Router();
+
+// ---------------------------------------------------------------------
+// OWNERSHIP, ENFORCED IN ONE PLACE
+//
+// Every route below except the list is under a `/:id` course prefix, and this
+// one line gates all of them: read or write, present or added later. It runs
+// before any handler, so no handler has to remember to ask.
+//
+// The rule itself lives in ../auth.js, so the 403 gate here and the filter on
+// GET / below cannot drift apart. Nothing is read from the body: the course
+// id comes from the path and the person comes from the signed token.
+//
+// A course you may not reach is a 403 whether or not it exists -- see
+// canAccessCourse for why that is deliberate.
+// ---------------------------------------------------------------------
+router.use("/:id", requireCourseAccess);
 
 const ASSESSMENT_KINDS = ["PT1", "PT2", "IP1", "IP2", "OT", "SEE"];
 const REMEDIAL_STATUSES = ["PR", "AB", "NA"];
@@ -90,12 +107,24 @@ async function enrolledStudentIds(conn, courseId) {
 
 // ---------------------------------------------------------------------
 // GET /api/courses
+//
+// FILTERED, NOT REFUSED.
+//   A faculty member sees the courses allocated to them, a hod their
+//   department's, an admin all of them. Someone with no allocations gets an
+//   empty array and a 200 -- that is an accurate answer, not an error.
+//
+//   It has to filter rather than 403, and not only for tidiness: the data
+//   layer fans out from THIS list to /api/courses/:id/... inside a
+//   Promise.all, so a course listed here that the caller may not read would
+//   reject the whole load and blank every screen.
 // ---------------------------------------------------------------------
 router.get(
   "/",
   asyncHandler(async (req, res) => {
+    const scope = courseScope(req.faculty, "c");
     const [rows] = await pool.execute(
-      `SELECT ${COURSE_SELECT} ${COURSE_FROM} ORDER BY c.code`
+      `SELECT ${COURSE_SELECT} ${COURSE_FROM} WHERE ${scope.sql} ORDER BY c.code`,
+      scope.params
     );
     res.json(rows.map(mapCourse));
   })

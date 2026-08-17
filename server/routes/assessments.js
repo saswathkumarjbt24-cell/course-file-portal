@@ -24,9 +24,22 @@ const {
   isPlainObject,
   optionalNumber,
 } = require("../helpers");
+const { requireAssessmentAccess } = require("../auth");
 const { recomputeInternalMarks } = require("../internalMarks");
 
 const router = express.Router();
+
+// ---------------------------------------------------------------------
+// OWNERSHIP
+//
+// An assessment inherits its course's permissions: a mark sheet is part of a
+// course file, not a separately owned thing. The gate resolves the
+// assessment's course_id and applies the same rule GET /api/courses/:id does,
+// so there is no second definition of who may enter marks.
+//
+// Both routes here are under `/:id`, so this covers the read and the write.
+// ---------------------------------------------------------------------
+router.use("/:id", requireAssessmentAccess);
 
 // ---------------------------------------------------------------------
 // The question-to-CO mapping for a 'lookup' assessment.

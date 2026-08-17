@@ -2,17 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchAuthConfig, fetchFacultyList, isApiMode, signInWithGoogle } from '../data/api'
 import { DataError, DataLoading, useApiData } from '../data/useApiData'
-import { useSession } from '../context/sessionStore'
+import { takeSessionNotice, useSession } from '../context/sessionStore'
 // Imported, not referenced by path: Vite fingerprints it and rewrites the URL
 // with the configured base. A hard-coded /src or /public path would 404 on
 // GitHub Pages, which serves the app from /course-file-portal/.
 import bitLogo from '../assets/bit-logo.jpg'
 import './Login.css'
-
-const LOADERS = {
-  facultyList: fetchFacultyList,
-  authConfig: fetchAuthConfig,
-}
 
 const INSTITUTION_NAME = 'Bannari Amman Institute of Technology'
 const INSTITUTION_SHORT = 'BIT Sathy'
@@ -35,6 +30,22 @@ const INSTITUTION_SHORT = 'BIT Sathy'
 const ALLOW_DEMO_LOGIN = import.meta.env.VITE_ALLOW_DEMO_LOGIN === 'true'
 const IS_MOCK_BUILD = !import.meta.env.VITE_API_URL
 const SHOW_DEMO_PICKER = ALLOW_DEMO_LOGIN && IS_MOCK_BUILD
+
+// ---------------------------------------------------------------
+// THE STAFF LIST IS LOADED ONLY WHEN THE DEMO PICKER EXISTS.
+//
+// It is the picker's options and has never had another use on this page. It
+// now MUST NOT be requested otherwise: /api/faculty needs a session, and this
+// page is where somebody goes who has not got one. Asking for it here would
+// fail every time and useApiData would replace the whole sign-in form with an
+// error, leaving no way to sign in at all.
+//
+// The two conditions coincide exactly -- the picker only exists in a build
+// with no API -- so this is one flag, not two.
+// ---------------------------------------------------------------
+const LOADERS = SHOW_DEMO_PICKER
+  ? { facultyList: fetchFacultyList, authConfig: fetchAuthConfig }
+  : { authConfig: fetchAuthConfig }
 
 // Public by design: this identifies the app to Google and is embedded in the
 // bundle. It is not a secret, and it is not read from a component.
@@ -139,13 +150,19 @@ export default function Login() {
   return <LoginView {...data} />
 }
 
-function LoginView({ facultyList, authConfig }) {
+// facultyList is absent in an API build -- see LOADERS above.
+function LoginView({ facultyList = [], authConfig }) {
   const { signIn } = useSession()
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState(facultyList[0]?.id ?? null)
   const [authError, setAuthError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [scriptError, setScriptError] = useState(null)
+
+  // Why the user is looking at this page rather than the one they were on:
+  // the API refused their token. Read once and consumed, so it does not
+  // reappear on the next visit. Null in the ordinary case of just arriving.
+  const [sessionNotice] = useState(takeSessionNotice)
 
   // Decorative sign-in form state -- see the note above the markup.
   const [username, setUsername] = useState('')
@@ -180,9 +197,11 @@ function LoginView({ facultyList, authConfig }) {
     setAuthError(null)
     setBusy(true)
     try {
-      // The token is forwarded untouched. It is never decoded here.
-      const faculty = await signInWithGoogle(response.credential)
-      signIn(faculty)
+      // Google's ID token is forwarded untouched and is never decoded here.
+      // What comes back is the faculty record plus OUR session token, which is
+      // split off and stored beside it -- neither is inspected in this file.
+      const { token, ...faculty } = await signInWithGoogle(response.credential)
+      signIn(faculty, token)
       navigate('/', { replace: true })
     } catch (err) {
       setAuthError(err.message)
@@ -228,7 +247,9 @@ function LoginView({ facultyList, authConfig }) {
   function handleDemoSignIn(event) {
     event.preventDefault()
     if (!selected) return
-    signIn(selected)
+    // No token: this path exists only in a build with no server to have issued
+    // one, and makes no requests that would carry it.
+    signIn(selected, null)
     navigate('/', { replace: true })
   }
 
@@ -276,6 +297,14 @@ function LoginView({ facultyList, authConfig }) {
           Sign in with your @{authConfig?.allowedEmailDomain ?? HOSTED_DOMAIN_HINT} account to
           continue.
         </p>
+
+        {/* Why they were sent back here. Reuses the existing note style; no
+            new layout or CSS. */}
+        {sessionNotice && (
+          <p className="auth__inline-note" role="status">
+            {sessionNotice}
+          </p>
+        )}
 
         <form className="auth__form" onSubmit={handlePasswordSubmit} noValidate>
           <div className="auth__field">

@@ -1,44 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchFacultyList } from '../data/api'
-import { SessionContext } from './sessionStore'
+import {
+  SESSION_EXPIRED_EVENT,
+  SessionContext,
+  readStoredFaculty,
+  readStoredToken,
+  writeStoredSession,
+} from './sessionStore'
 
 // Who is using the portal.
 //
-// THIS IS NOT AUTHENTICATION. There is no password, token or session cookie -
-// signing in picks a faculty record, and signing out forgets it.
+// SIGNING IN IS NOW REAL AUTHENTICATION. Google verifies who you are, the
+// server checks you are on staff and issues a signed token, and that token is
+// what every later request carries. The token is stored beside the faculty
+// record; see sessionStore.js for where and why.
 //
-// WHY sessionStorage AND NOT localStorage
-//   These are shared lab machines. sessionStorage is scoped to the browser
-//   tab and is cleared when the browser closes, so walking away from a machine
-//   does not leave the next person signed in as you. localStorage would
-//   persist indefinitely, which is the wrong default here.
-const STORAGE_KEY = 'cfp.session.faculty'
-
-/** Read the stored session, tolerating absent, corrupt or foreign values. */
-function readStored() {
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    // Anything can end up under a storage key. Only accept a shape we can use.
-    if (!parsed || typeof parsed !== 'object') return null
-    if (!Number.isInteger(parsed.id) || typeof parsed.name !== 'string') return null
-    return parsed
-  } catch {
-    // Malformed JSON, or storage blocked entirely.
-    return null
-  }
-}
-
-function writeStored(faculty) {
-  try {
-    if (faculty) window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(faculty))
-    else window.sessionStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // Some privacy modes refuse storage. The session still works for this tab;
-    // it just will not survive a refresh. Not worth failing the sign-in over.
-  }
-}
+// THE SERVER IS STILL THE ONLY AUTHORITY. What is held here decides what to
+// RENDER, never what is allowed: the API re-reads the faculty row on every
+// request and enforces the rules itself, so editing anything in storage buys
+// nothing but a 401.
 
 export function SessionProvider({ children }) {
   // Restored SYNCHRONOUSLY in the state initialiser, so the very first render
@@ -46,16 +26,28 @@ export function SessionProvider({ children }) {
   // guard in App.jsx never observes a null session and never redirects to
   // /login. Restoring in an effect instead would render null once, bounce, and
   // lose the page the user was on.
-  const [faculty, setFaculty] = useState(readStored)
+  const [faculty, setFaculty] = useState(readStoredFaculty)
 
-  const signIn = useCallback((selected) => {
-    writeStored(selected)
+  const signIn = useCallback((selected, token = null) => {
+    writeStoredSession(selected, token)
     setFaculty(selected)
   }, [])
 
   const signOut = useCallback(() => {
-    writeStored(null)
+    writeStoredSession(null, null)
     setFaculty(null)
+  }, [])
+
+  // The API rejected the token: expired, revoked, or belonging to an account
+  // that has since been deactivated. The data layer has already cleared
+  // storage and left a message for the sign-in page; all that is left is to
+  // drop the in-memory session, which makes the route guard redirect.
+  useEffect(() => {
+    function onExpired() {
+      setFaculty(null)
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
   }, [])
 
   // The stored id may name a faculty member who has since been removed or
@@ -65,10 +57,17 @@ export function SessionProvider({ children }) {
   //
   // A FAILED LOOKUP IS NOT PROOF THE ACCOUNT IS GONE. If the API is
   // unreachable the session is left alone, so a dropped connection does not
-  // sign everyone out mid-edit.
+  // sign everyone out mid-edit. That now covers one more case: the staff
+  // directory needs the hod or admin role, so for an ordinary faculty member
+  // this check answers 403 and is skipped. Nothing is lost by that -- the
+  // server re-reads the faculty row on EVERY request and answers 401 the
+  // moment the account stops being valid, which is stricter than this check
+  // ever was and does not depend on it running.
   const facultyId = faculty ? faculty.id : null
   useEffect(() => {
     if (facultyId === null) return undefined
+    // Mock mode has no token and no server; the fixtures always agree.
+    if (readStoredToken() === null) return undefined
 
     let cancelled = false
     fetchFacultyList()
@@ -77,7 +76,7 @@ export function SessionProvider({ children }) {
         if (!list.some((f) => f.id === facultyId)) signOut()
       })
       .catch(() => {
-        // Unreachable or erroring: keep the session.
+        // Unreachable, erroring, or forbidden to this role: keep the session.
       })
 
     return () => {
