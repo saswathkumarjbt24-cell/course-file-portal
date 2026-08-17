@@ -690,3 +690,61 @@
     width: 1.5rem;
   }
 }
+
+
+/* ---------------------------------------------------------------
+   PRINT: the app chrome does not belong on a course file.
+
+   THE ONE GLOBAL PRINT RULE. Until now only Remedial.css hid the
+   navigation, so the other document sheets printed the top bar, the
+   sidebar and their action rows -- the whole application frame wrapped
+   around an NBA document. This is that gap closed in one place, for
+   every screen, rather than repeated per page.
+
+   IT DOES NOT TOUCH THE FOUR EXISTING PRINT BLOCKS. Documents.css,
+   Reports.css, Remedial.css and MarkEntry.css keep their own rules
+   exactly as they are; this only adds what none of them provided
+   globally. Remedial already hid these same elements, so its printout
+   is unchanged -- the two agree.
+   --------------------------------------------------------------- */
+
+@media print {
+  /* Navigation chrome. */
+  .topbar,
+  .sidebar,
+  .sidebar-backdrop,
+  .back-link {
+    display: none !important;
+  }
+
+  /* Page-level action, toolbar and breadcrumb rows. A control that
+     cannot be operated on paper is noise on it. */
+  .doc-actions,
+  .rep-actions,
+  .rem-actions,
+  .cd-actions,
+  .att-toolbar,
+  .rem-toolbar,
+  .mark-toolbar,
+  .mark-footer,
+  .rep-nav,
+  .cd-nav {
+    display: none !important;
+  }
+
+  /* THE GRID OFFSET.
+     .app-shell is a grid with a top-bar ROW and a sidebar COLUMN. Hiding
+     those two elements does not remove their tracks, so the sheet would
+     still begin one top-bar height down and one sidebar width in, with a
+     band of blank paper up the left of every page. Collapsing the shell
+     to a block drops both tracks, and clearing .main's padding puts the
+     document at the top-left corner where it belongs. */
+  .app-shell {
+    display: block !important;
+    min-height: 0 !important;
+  }
+
+  .main {
+    padding: 0 !important;
+  }
+}
