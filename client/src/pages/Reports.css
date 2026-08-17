@@ -219,21 +219,6 @@
   margin-top: var(--space-5);
 }
 
-.rep-button {
-  padding: var(--space-2) var(--space-5);
-  font: inherit;
-  font-weight: 600;
-  color: var(--color-primary-dark);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.rep-button:hover {
-  background-color: var(--color-primary-soft);
-  border-color: var(--color-primary);
-}
 
 .rep-status {
   font-size: var(--font-size-sm);
@@ -301,10 +286,6 @@
   display: none;
 }
 
-.rep-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 .rep-status--saved {
   color: var(--color-primary-dark);
@@ -375,5 +356,37 @@
   tr,
   .rep-sign {
     break-inside: avoid;
+  }
+}
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   Same reasoning as Documents.css: this sheet is printed, so its
+   density and its column alignment stay as they are and match the
+   printout. Only hover and overflow are added.
+   --------------------------------------------------------------- */
+
+@media screen {
+  .rep-table tbody tr:hover td {
+    background-color: var(--color-primary-soft);
+  }
+
+  /* A total row stays legible under the cursor rather than being tinted
+     like an ordinary row. */
+  .rep-row--total:hover td,
+  .rep-row--sub:hover td {
+    background-color: inherit;
+  }
+
+  .rep-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .rep-actions {
+    align-items: center;
+    gap: var(--space-3);
   }
 }

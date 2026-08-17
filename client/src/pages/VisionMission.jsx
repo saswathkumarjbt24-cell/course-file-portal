@@ -112,7 +112,7 @@ function VisionMissionEditor({ title, scope, department, vision, missions, onSav
           <>
             <button
               type="button"
-              className="doc-button"
+              className="doc-button btn--primary"
               disabled={visionEmpty || saveState.saving}
               onClick={handleSave}
             >
@@ -209,7 +209,7 @@ function VisionMissionEditor({ title, scope, department, vision, missions, onSav
 
 export default function VisionMission({ embedded = false }) {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="sheet" />
   if (error) return <DataError error={error} />
   return <VisionMissionView embedded={embedded} {...data} />
 }
@@ -222,6 +222,13 @@ function VisionMissionView({
 }) {
   return (
     <section className="doc-card">
+      {!embedded && (
+        <header className="page-header doc-noprint">
+          <h1 className="page-header__title">Vision &amp; Mission</h1>
+          <p className="page-header__subtitle">{`Department of ${departmentVisionMission.department}`}</p>
+        </header>
+      )}
+
       <article className="doc-sheet">
         <header className="doc-head">
           <h1 className="doc-head__name">{institution.name}</h1>

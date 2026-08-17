@@ -195,28 +195,6 @@
   margin-top: var(--space-4);
 }
 
-.mark-button {
-  padding: var(--space-2) var(--space-5);
-  font: inherit;
-  font-weight: 600;
-  color: #fff;
-  background-color: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.mark-button:hover:not(:disabled) {
-  background-color: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
-}
-
-.mark-button:disabled {
-  background-color: var(--color-border);
-  border-color: var(--color-border);
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
 
 .mark-status {
   font-size: var(--font-size-sm);
@@ -309,5 +287,51 @@
 
   tr {
     break-inside: avoid;
+  }
+}
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   THE KEYBOARD FLOW IS THE POINT OF THIS SCREEN. Enter and the arrow
+   keys walk a column of inputs, so where focus is must never be in
+   doubt: the focused cell is tinted as well as outlined, which is
+   visible from across a row in a way an outline alone is not.
+
+   The sticky header is already in the base rules and is left as it is --
+   this only makes sure the tinted row cannot paint over it.
+   --------------------------------------------------------------- */
+
+@media screen {
+  .mark-table thead th {
+    /* Above the hovered-row and focused-cell tints below. */
+    z-index: 3;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+  }
+
+  /* The whole cell holding focus, not just the box inside it. */
+  .mark-table td:focus-within {
+    background-color: var(--color-primary-soft);
+  }
+
+  .mark-input:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+    box-shadow: var(--focus-ring);
+  }
+
+  .mark-input--invalid:focus-visible {
+    outline-color: var(--color-danger);
+    box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.25);
+  }
+
+  .mark-table-wrap {
+    max-width: 100%;
+  }
+
+  .mark-footer {
+    align-items: center;
+    gap: var(--space-4);
   }
 }

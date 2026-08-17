@@ -1,0 +1,532 @@
+/* ---------------------------------------------------------------
+   Shared UI primitives - Course File Portal
+
+   The pieces that were being re-invented per screen: buttons, loading
+   skeletons, empty states and attainment level badges. Defined once here
+   so the whole app agrees on them.
+
+   LOADED AFTER index.css AND BEFORE EVERY PAGE STYLESHEET.
+     Vite emits them in import order: tokens, index, this file, then each
+     page's CSS as its component is imported. A page rule and a rule here
+     at the same specificity would therefore be won by the PAGE. That is
+     why the per-page button declarations were deleted rather than left to
+     be overridden -- see the note above the button block.
+
+   PRINT SAFETY
+     Everything here is inside @media screen. Not one rule can reach a
+     printed course file, so the printed sheets look exactly as they did
+     before this file existed. Buttons, skeletons and empty states are
+     chrome; none of them belongs on a printed sheet, and the existing
+     print stylesheets already hide the containers they sit in.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* =============================================================
+     BUTTONS - three roles and one destructive variant.
+
+       primary    the committing action. One per form, never two.
+       secondary  everything reversible: Edit, Cancel, Print.
+       quiet      row-level and incidental: Add a row, Remove.
+       danger     a quiet button that destroys something.
+
+     THE LEGACY NAMES ARE ALIASES, NOT A SECOND SYSTEM.
+       .doc-button, .rep-button, .rem-button, .mark-button and
+       .cd-button are the class names already in the markup. Rather than
+       edit forty-odd call sites, each is mapped onto the role it already
+       played, and a screen that needs a different role adds the explicit
+       modifier -- which is declared later in this file and therefore
+       wins the tie.
+
+       .doc-mini-button keeps its name because the print stylesheet in
+       Documents.css hides it BY NAME. Renaming it in the markup would
+       put "Add a mission" and "Remove" on a printed course file.
+     ============================================================= */
+
+  .btn,
+  .doc-button,
+  .rep-button,
+  .rem-button,
+  .mark-button,
+  .cd-button,
+  .doc-mini-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-5);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast),
+      color var(--transition-fast);
+  }
+
+  /* One ring, every button, no exceptions. The mark-entry keyboard flow
+     depends on always being able to see where focus is. */
+  .btn:focus-visible,
+  .doc-button:focus-visible,
+  .rep-button:focus-visible,
+  .rem-button:focus-visible,
+  .mark-button:focus-visible,
+  .cd-button:focus-visible,
+  .doc-mini-button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* ---- role: primary ---- */
+  .btn--primary,
+  .rem-button,
+  .mark-button,
+  .cd-button {
+    color: #fff;
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  .btn--primary:hover:not(:disabled),
+  .rem-button:hover:not(:disabled),
+  .mark-button:hover:not(:disabled),
+  .cd-button:hover:not(:disabled) {
+    background-color: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+  }
+
+  /* ---- role: secondary ---- */
+  .btn--secondary,
+  .doc-button,
+  .rep-button,
+  .rem-button--ghost {
+    color: var(--color-primary-dark);
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+  }
+
+  .btn--secondary:hover:not(:disabled),
+  .doc-button:hover:not(:disabled),
+  .rep-button:hover:not(:disabled),
+  .rem-button--ghost:hover:not(:disabled) {
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+
+  /* ---- role: quiet ---- */
+  .btn--quiet,
+  .doc-mini-button {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-primary-dark);
+    background-color: transparent;
+    border-color: var(--color-border);
+  }
+
+  .btn--quiet:hover:not(:disabled),
+  .doc-mini-button:hover:not(:disabled) {
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+
+  /* ---- role: danger (a quiet button that removes something) ---- */
+  .btn--danger,
+  .doc-mini-button--danger {
+    color: var(--color-danger);
+    border-color: var(--color-border);
+  }
+
+  .btn--danger:hover:not(:disabled),
+  .doc-mini-button--danger:hover:not(:disabled) {
+    background-color: var(--color-danger-soft);
+    border-color: var(--color-danger);
+  }
+
+  /* ---- explicit roles, declared LAST so they win the tie against the
+          legacy alias a screen happens to be using ---- */
+  .btn--primary {
+    color: #fff;
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  .btn--primary:hover:not(:disabled) {
+    background-color: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+  }
+
+  .btn--secondary {
+    color: var(--color-primary-dark);
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+  }
+
+  .btn--secondary:hover:not(:disabled) {
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+
+  /* ---- disabled, one look for every role ---- */
+  .btn:disabled,
+  .doc-button:disabled,
+  .rep-button:disabled,
+  .rem-button:disabled,
+  .mark-button:disabled,
+  .cd-button:disabled,
+  .doc-mini-button:disabled {
+    color: var(--color-text-muted);
+    background-color: var(--color-background);
+    border-color: var(--color-border);
+    cursor: not-allowed;
+  }
+
+  /* =============================================================
+     FOCUS - the catch-all.
+
+     Every focusable thing in the app gets a visible ring. Individual
+     stylesheets may draw a nicer one; this is the floor, so a control
+     added later is never invisible to a keyboard.
+     ============================================================= */
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* =============================================================
+     SKELETONS - the loading state.
+
+     Blocks in the shape of what is coming, rather than the word
+     "Loading". The pulse is opacity only; nothing moves, and it stops
+     entirely for anyone who asked for reduced motion.
+     ============================================================= */
+
+  .skeleton {
+    background-color: var(--color-border);
+    border-radius: var(--radius-sm);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
+
+  .skeleton-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .skeleton-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .skeleton-header .skeleton:first-child {
+    width: 14rem;
+    height: 1.75rem;
+  }
+
+  .skeleton-header .skeleton:last-child {
+    width: 22rem;
+    max-width: 100%;
+    height: 0.9rem;
+  }
+
+  /* A card panel: the summary strips several screens open with. */
+  .skeleton-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    padding: var(--space-5);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .skeleton-panel .skeleton {
+    width: 7rem;
+    height: 2.25rem;
+  }
+
+  /* A table: a header band and a set of rows. */
+  .skeleton-table {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .skeleton-table__head {
+    height: 2.5rem;
+    background-color: var(--color-background);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .skeleton-table__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .skeleton-table__row:last-child {
+    border-bottom: none;
+  }
+
+  .skeleton-table__row .skeleton {
+    height: 0.8rem;
+  }
+
+  .skeleton-table__row .skeleton:nth-child(1) {
+    width: 2rem;
+  }
+
+  .skeleton-table__row .skeleton:nth-child(2) {
+    width: 7rem;
+  }
+
+  .skeleton-table__row .skeleton:nth-child(3) {
+    flex: 1;
+    max-width: 18rem;
+  }
+
+  .skeleton-table__row .skeleton:nth-child(4) {
+    width: 3.5rem;
+    margin-left: auto;
+  }
+
+  /* A printable sheet: one tall page-shaped block. */
+  .skeleton-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .skeleton-sheet .skeleton:nth-child(1) {
+    align-self: center;
+    width: 18rem;
+    height: 1.25rem;
+  }
+
+  .skeleton-sheet .skeleton:nth-child(2) {
+    align-self: center;
+    width: 11rem;
+    height: 0.8rem;
+    margin-bottom: var(--space-4);
+  }
+
+  .skeleton-sheet .skeleton:nth-child(n + 3) {
+    height: 0.8rem;
+  }
+
+  .skeleton-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-4);
+  }
+
+  /* The sign-in screen loads before there is any app shell around it, so a
+     full page of blocks would read as a broken page. One centred card on
+     the same deep ground the real screen uses. */
+  .skeleton-auth {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: var(--space-5);
+    background-color: var(--color-primary-deep);
+  }
+
+  .skeleton-auth__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: min(25rem, 100%);
+    padding: var(--space-6);
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .skeleton-auth__card .skeleton:nth-child(1) {
+    width: 9rem;
+    height: 1.5rem;
+  }
+
+  .skeleton-auth__card .skeleton:nth-child(2) {
+    width: 100%;
+    height: 0.8rem;
+  }
+
+  .skeleton-auth__card .skeleton:nth-child(3) {
+    width: 100%;
+    height: 2.75rem;
+  }
+
+  .skeleton-card {
+    height: 9.5rem;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+    }
+  }
+
+  /* =============================================================
+     EMPTY STATES
+
+     An empty table tells you nothing. These say what is missing and
+     where to go and enter it.
+     ============================================================= */
+
+  .empty-state {
+    padding: var(--space-6);
+    background-color: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: left;
+  }
+
+  .empty-state__title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .empty-state__body {
+    margin: 0;
+    max-width: 60ch;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  .empty-state__action {
+    margin-top: var(--space-4);
+  }
+
+  /* =============================================================
+     ATTAINMENT LEVEL BADGE
+
+     ONE definition, so a level looks the same on every screen that
+     shows one. The colour meanings are the existing ones and are NOT
+     changed here:
+
+       3  success    2  primary    1  warning    0  danger
+
+     .att-badge is the name already in the markup and is kept as an
+     alias, so Attainment.jsx needs no edit.
+     ============================================================= */
+
+  .level-badge,
+  .att-badge {
+    display: inline-block;
+    min-width: 1.75rem;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    color: #fff;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .level-badge--3,
+  .att-badge--3 {
+    background-color: var(--color-success);
+  }
+
+  .level-badge--2,
+  .att-badge--2 {
+    background-color: var(--color-primary);
+  }
+
+  .level-badge--1,
+  .att-badge--1 {
+    background-color: var(--color-warning);
+  }
+
+  .level-badge--0,
+  .att-badge--0 {
+    background-color: var(--color-danger);
+  }
+
+  /* No level recorded. Deliberately not a colour on the 0..3 scale: an
+     absent level is not a bad one. */
+  .level-badge--none,
+  .att-badge--none {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+
+  /* =============================================================
+     PAGE HEADER
+
+     index.css defines it; this tightens the rhythm so every screen
+     opens on the same spacing. Screen only -- Remedial and Reports
+     both print their page header, and those printouts must not move.
+     ============================================================= */
+
+  .page-header {
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .page-header__title {
+    font-size: var(--font-size-xl);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .page-header__subtitle {
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* The course a screen belongs to, shown as code + title with the code
+     carrying the accent. Used by the document sheets, which had no page
+     header of their own at all. */
+  .page-header__course {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-3);
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .page-header__course-code {
+    flex: none;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--color-primary);
+  }
+
+  .page-header__course-title {
+    min-width: 0;
+    color: var(--color-text-muted);
+  }
+}

@@ -310,40 +310,6 @@
   margin-top: var(--space-5);
 }
 
-.rem-button {
-  padding: var(--space-2) var(--space-5);
-  font: inherit;
-  font-weight: 600;
-  color: #fff;
-  background-color: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.rem-button:hover:not(:disabled) {
-  background-color: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
-}
-
-.rem-button:disabled {
-  background-color: var(--color-border);
-  border-color: var(--color-border);
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.rem-button--ghost {
-  color: var(--color-primary-dark);
-  background-color: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-.rem-button--ghost:hover {
-  background-color: var(--color-primary-soft);
-  border-color: var(--color-primary);
-  color: var(--color-primary-dark);
-}
 
 .rem-status {
   font-size: var(--font-size-sm);
@@ -433,5 +399,37 @@
   tr,
   .rem-sign {
     break-inside: avoid;
+  }
+}
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   The remedial sheet prints, so the table itself is left alone. Hover,
+   overflow and the tab strip's focus ring are screen concerns.
+   --------------------------------------------------------------- */
+
+@media screen {
+  .rem-table tbody tr:hover td,
+  .rem-doc__table tbody tr:hover td {
+    background-color: var(--color-primary-soft);
+  }
+
+  .rem-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .rem-actions {
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  /* The tab strip is a real control and was the one interactive element
+     on this screen with no visible focus. */
+  .rem-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
   }
 }

@@ -8,7 +8,7 @@ import {
   isApiMode,
   saveCourseAttendance,
 } from '../data/api'
-import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
+import { DataError, DataLoading, EmptyState, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './Documents.css'
 
@@ -49,7 +49,7 @@ function seedValues(attendance, courseId, roll) {
 
 export default function Attendance({ embedded = false }) {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="sheet" />
   if (error) return <DataError error={error} />
   return <AttendanceView embedded={embedded} {...data} />
 }
@@ -139,6 +139,16 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
 
   return (
     <section className="doc-card">
+      {!embedded && (
+        <header className="page-header doc-noprint">
+          <h1 className="page-header__title">Attendance</h1>
+          <p className="page-header__course">
+            <span className="page-header__course-code">{course.code}</span>
+            <span className="page-header__course-title">{course.title}</span>
+          </p>
+        </header>
+      )}
+
       <article className="doc-sheet">
         <header className="doc-head">
           <h1 className="doc-head__name">{institution.name}</h1>
@@ -165,7 +175,7 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
               <>
                 <button
                   type="button"
-                  className="doc-button"
+                  className="doc-button btn--primary"
                   disabled={invalidCount > 0 || saveState.saving}
                   onClick={handleSave}
                 >
@@ -196,6 +206,19 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
             ) : (
               <span className="doc-status">{idleLabel}</span>
             )}
+          </div>
+        )}
+
+        {/* Screen only: the table below still renders (and still prints)
+            when the roll is empty, so the printed sheet is unchanged. This
+            says what is missing rather than leaving a blank grid. */}
+        {rows.length === 0 && (
+          <div className="doc-noprint">
+            <EmptyState title="No students on this course roll yet.">
+              Attendance is recorded against the enrolled roll, so there is nothing to
+              record until the roll exists. Add students on the Student name list sheet
+              first.
+            </EmptyState>
           </div>
         )}
 

@@ -71,7 +71,7 @@ function cell(value) {
 
 export default function ClosingReport() {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="sheet" />
   if (error) return <DataError error={error} />
   return <ClosingReportView {...data} />
 }
@@ -223,6 +223,14 @@ function ClosingReportView({
         <Link to={`/course/${courseId}/final`}>Final attainment</Link>
       </nav>
 
+      <header className="page-header rep-noprint">
+        <h1 className="page-header__title">Closing Report</h1>
+        <p className="page-header__course">
+          <span className="page-header__course-code">{course.code}</span>
+          <span className="page-header__course-title">{course.title}</span>
+        </p>
+      </header>
+
       <section className="rep-card">
         <article className="rep-doc">
           <header className="rep-doc__head">
@@ -319,7 +327,7 @@ function ClosingReportView({
             <div className="rep-edit-bar">
               <button
                 type="button"
-                className="rep-button"
+                className="rep-button btn--primary"
                 disabled={saveState.saving}
                 onClick={handleSaveActions}
               >

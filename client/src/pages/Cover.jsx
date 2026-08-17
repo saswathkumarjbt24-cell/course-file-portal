@@ -78,7 +78,7 @@ function Value({ value }) {
 
 export default function Cover({ embedded = false }) {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="sheet" />
   if (error) return <DataError error={error} />
   return <CoverView embedded={embedded} {...data} />
 }
@@ -147,6 +147,16 @@ function CoverView({ embedded, courseMeta, courses, institution }) {
 
   return (
     <section className="doc-card">
+      {!embedded && (
+        <header className="page-header doc-noprint">
+          <h1 className="page-header__title">Cover</h1>
+          <p className="page-header__course">
+            <span className="page-header__course-code">{course.code}</span>
+            <span className="page-header__course-title">{course.title}</span>
+          </p>
+        </header>
+      )}
+
       <article className="doc-sheet">
         <header className="doc-head">
           <h1 className="doc-head__name">{institution.name}</h1>
@@ -164,7 +174,7 @@ function CoverView({ embedded, courseMeta, courses, institution }) {
               <>
                 <button
                   type="button"
-                  className="doc-button"
+                  className="doc-button btn--primary"
                   disabled={saveState.saving}
                   onClick={handleSave}
                 >

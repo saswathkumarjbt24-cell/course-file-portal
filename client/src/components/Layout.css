@@ -568,3 +568,125 @@
     visibility: visible;
   }
 }
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   Tightened spacing and alignment for the top bar and the sidebar. The
+   19-sheet structure, the grouping and the active-item logic are NOT
+   touched -- this is spacing, weight and alignment only.
+
+   Wrapped in @media screen because the top bar and the sidebar are part
+   of what most document pages currently print. Leaving these rules
+   unscoped would change those printouts.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* ---- Top bar ---- */
+
+  .topbar {
+    padding: 0 var(--space-5);
+    gap: var(--space-5);
+    /* A hairline under the bar rather than a drop shadow: the shadow bled
+       over the sidebar's own border and read as two separate edges. */
+    box-shadow: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .topbar__left {
+    gap: var(--space-4);
+  }
+
+  .topbar__identity {
+    gap: 1px;
+  }
+
+  .topbar__product {
+    letter-spacing: 0.005em;
+  }
+
+  .topbar__institution {
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.07em;
+  }
+
+  /* The course context sits centred between the identity and the user
+     menu, with breathing room rather than tight rules on either side. */
+  .topbar__context {
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-5);
+    border-left-color: rgba(255, 255, 255, 0.18);
+    border-right-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .topbar__user-button {
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  }
+
+  .topbar__avatar {
+    width: 30px;
+    height: 30px;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---- Sidebar ---- */
+
+  .sidebar__scroll {
+    padding: var(--space-5) var(--space-3) var(--space-6);
+  }
+
+  .sidebar__heading {
+    margin-bottom: var(--space-3);
+    letter-spacing: 0.1em;
+  }
+
+  .sidebar__nav {
+    gap: 1px;
+  }
+
+  .sidebar__link {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+
+  /* The course-file block reads as a section, so it gets more air above
+     the rule than below it. */
+  .sidebar__file {
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+  }
+
+  .sidebar__group + .sidebar__group {
+    margin-top: 1px;
+  }
+
+  .sidebar__group-toggle {
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    letter-spacing: 0.01em;
+  }
+
+  .sidebar__group-range {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  .sidebar__sheets {
+    margin: 1px 0 var(--space-4);
+  }
+
+  /* Numbers align on their right edge in a fixed column, so the labels
+     start on one line however wide the number is. */
+  .sidebar__sheet {
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    line-height: 1.4;
+  }
+
+  .sidebar__sheet-num {
+    width: 1.5rem;
+  }
+}

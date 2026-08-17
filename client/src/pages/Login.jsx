@@ -126,26 +126,13 @@ function EyeIcon() {
   )
 }
 
-function EyeOffIcon() {
-  return (
-    <svg className="auth__field-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d="M4.4 5.15C2.72 6.63 1.75 10 1.75 10s3 5.25 8.25 5.25c1.4 0 2.63-.37 3.68-.93M8.2 5.1A7.6 7.6 0 0 1 10 4.75c5.25 0 8.25 5.25 8.25 5.25s-.8 1.4-2.25 2.77"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M8.23 8.23a2.5 2.5 0 0 0 3.54 3.54" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M3.25 3.25l13.5 13.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
+/* There is no EyeOffIcon any more. The reveal control is inert, so the
+   password field is never shown as text and the "hidden" state is the only
+   one it can be in. */
 
 export default function Login() {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="auth" />
   if (error) return <DataError error={error} />
   return <LoginView {...data} />
 }
@@ -164,11 +151,10 @@ function LoginView({ facultyList = [], authConfig }) {
   // reappear on the next visit. Null in the ordinary case of just arriving.
   const [sessionNotice] = useState(takeSessionNotice)
 
-  // Decorative sign-in form state -- see the note above the markup.
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(false)
+  // The decorative form holds NO state. It used to keep a username, a
+  // password, a reveal toggle and a "remember me" flag; none of them can
+  // change any more, because nothing in that block can be typed into or
+  // clicked. See the note above the markup.
   const [passwordNotice, setPasswordNotice] = useState(false)
 
   const buttonRef = useRef(null)
@@ -230,8 +216,18 @@ function LoginView({ facultyList = [], authConfig }) {
           theme: 'outline',
           size: 'large',
           text: 'signin_with',
-          shape: 'rectangular',
+          // Pill, to match the field and button shapes around it. This is a
+          // rendering option only -- it changes what Google draws, not what
+          // is verified or what the callback above receives.
+          shape: 'pill',
           logo_alignment: 'left',
+          // 288px inside a 320px column: 32px of slack, 16px either side.
+          //
+          // THIS NUMBER MUST STAY BELOW THE 20rem CAP ON .auth__panel-inner.
+          // It is a FIXED pixel value -- Google sets it once, here -- so it
+          // cannot shrink with the column. Sizing it to exactly the column
+          // width is what produced the horizontal scrollbar under the
+          // button: no slack, so any sub-pixel rounding overflowed.
           width: 288,
         })
       })
@@ -253,22 +249,33 @@ function LoginView({ facultyList = [], authConfig }) {
     navigate('/', { replace: true })
   }
 
-  // ---------------------------------------------------------------
-  // THE USERNAME AND PASSWORD FIELDS BELOW ARE PRESENTATIONAL ONLY.
+  // ===============================================================
+  // THE BLOCK MARKED .auth__decor BELOW IS DECORATION. IT IS NOT A FORM.
   //
   // This system has no password authentication and the `faculty` table has no
-  // password column, so there is nothing for them to be checked against. They
-  // accept typing and the eye toggle works, but submitting them contacts no
-  // endpoint and can never sign anyone in -- it only explains that and points
-  // at the Google button.
+  // password column, so there is nothing for these fields to be checked
+  // against. They exist because the institution asked for this layout, and
+  // for no other reason.
   //
-  // "Forgot password?" and "Remember me" are inert for the same reason. The
-  // link is a <button> so it cannot navigate anywhere.
+  // They are not merely ignored -- they CANNOT BE USED:
   //
-  // They exist because the institution asked for this layout. If password
-  // sign-in is ever added, this whole block has to be built properly rather
-  // than wired up as it stands.
-  // ---------------------------------------------------------------
+  //   readOnly        nothing can be typed into them
+  //   tabIndex={-1}   the keyboard cannot reach them
+  //   aria-hidden     a screen reader is not told they exist
+  //   pointer-events: none (on .auth__decor)  no click, drag or focus
+  //   cursor: default they do not even invite a click
+  //
+  // "Forgot password?" and the reveal toggle are plain <span>s rather than
+  // <button>s, so they are inert by construction and not merely by being
+  // told not to act. "Remember me" is uncontrolled and unreachable.
+  //
+  // THE ONLY LIVE CONTROL IN THE FORM IS THE SUBMIT BUTTON, and all it does
+  // is set the notice below, which points at the Google button. Signing in
+  // happens THERE and nowhere else.
+  //
+  // If password sign-in is ever really added, this whole block has to be
+  // built properly rather than wired up as it stands.
+  // ===============================================================
   function handlePasswordSubmit(event) {
     event.preventDefault()
     setPasswordNotice(true)
@@ -276,170 +283,196 @@ function LoginView({ facultyList = [], authConfig }) {
 
   return (
     <div className="auth">
-      <main className="auth__card">
-        <header className="auth__brand">
-          {/* The image already carries the institution name and motto, so no
-              text wordmark sits beside it. Explicit width/height keep the card
-              from jumping while it loads. */}
-          <img
-            className="auth__logo"
-            src={bitLogo}
-            width="112"
-            height="112"
-            alt="Bannari Amman Institute of Technology"
-          />
-        </header>
+      {/* ONE card, split by the curve. The curve itself is a clip-path on
+          .auth__brand -- see the long note in Login.css for its geometry
+          and for why no text can end up underneath it. */}
+      <div className="auth__card">
+        {/* ---- Brand panel: what this is, and whose it is ---- */}
+        <section className="auth__brand">
+          {/* The texture is a ::before on this section. The content sits in
+              its own wrapper above it -- see .auth__brand-inner. */}
+          <div className="auth__brand-inner">
+            {/* The crest is a full-colour image on white, so it keeps a light
+                plate behind it on the brand ground rather than being knocked
+                out. Explicit width/height reserve the space while it loads. */}
+            <img className="auth__logo" src={bitLogo} width="84" height="84" alt="" />
 
-        <p className="auth__badge">{INSTITUTION_NAME}</p>
+            {/* HEADING ORDER IS SEMANTIC, NOT VISUAL.
+                The product name is what this page IS, so it is the h1 even
+                though "Welcome Back" is the larger thing on screen. Both keep
+                the classes they had, and those classes set margin, font-size,
+                font-weight, letter-spacing and line-height explicitly -- so
+                the tags change the outline and nothing you can see. Class
+                beats element on specificity, so neither the UA's heading
+                defaults nor the h1/h2 rule in index.css reaches them. */}
+            <h1 className="auth__wordmark">Course File Portal</h1>
 
-        <h1 className="auth__heading">Welcome back</h1>
-        <p className="auth__subheading">
-          Sign in with your @{authConfig?.allowedEmailDomain ?? HOSTED_DOMAIN_HINT} account to
-          continue.
-        </p>
+            <h2 className="auth__welcome">Welcome Back</h2>
 
-        {/* Why they were sent back here. Reuses the existing note style; no
-            new layout or CSS. */}
-        {sessionNotice && (
-          <p className="auth__inline-note" role="status">
-            {sessionNotice}
-          </p>
-        )}
+            <p className="auth__tagline">
+              Course outcome attainment, internal marks and the complete course file, in one
+              place.
+            </p>
 
-        <form className="auth__form" onSubmit={handlePasswordSubmit} noValidate>
-          <div className="auth__field">
-            <label className="auth__label" htmlFor="login-username">
-              Username
-            </label>
-            <div className="auth__control">
-              <span className="auth__control-icon">
-                <UserIcon />
-              </span>
-              <input
-                id="login-username"
-                className="auth__input"
-                type="text"
-                autoComplete="username"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-              />
-            </div>
+            <hr className="auth__rule" />
+
+            <p className="auth__brand-footer">{INSTITUTION_NAME}</p>
           </div>
+        </section>
 
-          <div className="auth__field">
-            <div className="auth__label-row">
-              <label className="auth__label" htmlFor="login-password">
-                Password
-              </label>
-              {/* A button, not an anchor: it must not navigate anywhere. */}
-              <button type="button" className="auth__forgot">
-                Forgot password?
-              </button>
-            </div>
-            <div className="auth__control">
-              <span className="auth__control-icon">
-                <LockIcon />
-              </span>
-              <input
-                id="login-password"
-                className="auth__input"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-              <button
-                type="button"
-                className="auth__reveal"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                aria-pressed={showPassword}
-                onClick={() => setShowPassword((shown) => !shown)}
-              >
-                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
-            </div>
-          </div>
+        {/* ---- Form panel ---- */}
+        <main className="auth__panel">
+          <div className="auth__panel-inner">
+            <h2 className="auth__heading">Sign in</h2>
+            <p className="auth__subheading">
+              Use your @{authConfig?.allowedEmailDomain ?? HOSTED_DOMAIN_HINT} account to
+              continue.
+            </p>
 
-          <label className="auth__remember">
-            <input
-              type="checkbox"
-              className="auth__checkbox"
-              checked={remember}
-              onChange={(event) => setRemember(event.target.checked)}
-            />
-            <span>Remember me</span>
-          </label>
-
-          <button type="submit" className="auth__submit">
-            Sign In
-          </button>
-        </form>
-
-        {passwordNotice && (
-          <p className="auth__inline-note" role="status">
-            Password sign-in is not enabled. Please use your institution Google account below.
-          </p>
-        )}
-
-        <div className="auth__divider">
-          <span>or</span>
-        </div>
-
-        {canUseGoogle ? (
-          <>
-            {/* Google renders its own button into this element. */}
-            <div className="auth__google-slot" ref={buttonRef} aria-busy={busy} />
-            {busy && (
+            {/* Why they were sent back here. Reuses the existing note style. */}
+            {sessionNotice && (
               <p className="auth__inline-note" role="status">
-                Checking your account…
+                {sessionNotice}
               </p>
             )}
-          </>
-        ) : (
-          <p className="auth__inline-note" role="status">
-            {unavailable}
-          </p>
-        )}
 
-        {scriptError && (
-          <p className="auth__inline-note auth__inline-note--error" role="status">
-            {scriptError}
-          </p>
-        )}
+            <form className="auth__form" onSubmit={handlePasswordSubmit} noValidate>
+              {/* DECORATION ONLY -- see the block comment above
+                  handlePasswordSubmit. Nothing in here can be typed into,
+                  clicked or reached by keyboard. */}
+              <div className="auth__decor" aria-hidden="true">
+                <div className="auth__field">
+                  <span className="auth__label">Username</span>
+                  <div className="auth__control">
+                    <span className="auth__control-icon">
+                      <UserIcon />
+                    </span>
+                    <input
+                      className="auth__input"
+                      type="text"
+                      value=""
+                      readOnly
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      autoComplete="off"
+                      placeholder="Enter your username"
+                    />
+                  </div>
+                </div>
 
-        {authError && (
-          <p className="auth__inline-note auth__inline-note--error" role="alert">
-            {authError}
-          </p>
-        )}
+                <div className="auth__field">
+                  <div className="auth__label-row">
+                    <span className="auth__label">Password</span>
+                    {/* A span, not a button: nothing to focus and nowhere to go. */}
+                    <span className="auth__forgot">Forgot password?</span>
+                  </div>
+                  <div className="auth__control">
+                    <span className="auth__control-icon">
+                      <LockIcon />
+                    </span>
+                    <input
+                      className="auth__input"
+                      type="password"
+                      value=""
+                      readOnly
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      autoComplete="off"
+                      placeholder="Enter your password"
+                    />
+                    {/* Visible, and inert: a span cannot be pressed. */}
+                    <span className="auth__reveal">
+                      <EyeIcon />
+                    </span>
+                  </div>
+                </div>
 
-        {SHOW_DEMO_PICKER && (
-          <form className="auth__demo" onSubmit={handleDemoSignIn}>
-            <select
-              className="auth__select"
-              aria-label="Demo sign-in: continue as"
-              value={selectedId ?? ''}
-              onChange={(event) => setSelectedId(Number(event.target.value))}
-            >
-              {facultyList.map((faculty) => (
-                <option key={faculty.id} value={faculty.id}>
-                  {faculty.name} — {faculty.designation}
-                </option>
-              ))}
-            </select>
+                <span className="auth__remember">
+                  <input
+                    type="checkbox"
+                    className="auth__checkbox"
+                    defaultChecked={false}
+                    readOnly
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                  <span>Remember me</span>
+                </span>
+              </div>
 
-            <button type="submit" className="auth__demo-submit" disabled={!selected}>
-              Continue
-            </button>
-          </form>
-        )}
+              {/* The one live control in the form. It signs nobody in; it says
+                  so, and points at the Google button. */}
+              <button type="submit" className="auth__submit">
+                Sign In
+              </button>
+            </form>
 
-        <p className="auth__footer">
-          © {new Date().getFullYear()} {INSTITUTION_SHORT}
-        </p>
-      </main>
+            {passwordNotice && (
+              <p className="auth__inline-note" role="status">
+                Password sign-in is not enabled. Please use your institution Google account below.
+              </p>
+            )}
+
+            <div className="auth__divider">
+              <span>or</span>
+            </div>
+
+            {canUseGoogle ? (
+              <div className="auth__primary">
+                <p className="auth__primary-label">Institutional sign-in</p>
+                {/* Google renders its own button into this element. */}
+                <div className="auth__google-slot" ref={buttonRef} aria-busy={busy} />
+                {busy && (
+                  <p className="auth__inline-note" role="status">
+                    Checking your account…
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="auth__inline-note" role="status">
+                {unavailable}
+              </p>
+            )}
+
+            {scriptError && (
+              <p className="auth__inline-note auth__inline-note--error" role="status">
+                {scriptError}
+              </p>
+            )}
+
+            {authError && (
+              <p className="auth__inline-note auth__inline-note--error" role="alert">
+                {authError}
+              </p>
+            )}
+
+            {SHOW_DEMO_PICKER && (
+              <form className="auth__demo" onSubmit={handleDemoSignIn}>
+                <select
+                  className="auth__select"
+                  aria-label="Demo sign-in: continue as"
+                  value={selectedId ?? ''}
+                  onChange={(event) => setSelectedId(Number(event.target.value))}
+                >
+                  {facultyList.map((faculty) => (
+                    <option key={faculty.id} value={faculty.id}>
+                      {faculty.name} — {faculty.designation}
+                    </option>
+                  ))}
+                </select>
+
+                <button type="submit" className="auth__demo-submit" disabled={!selected}>
+                  Continue
+                </button>
+              </form>
+            )}
+
+            <p className="auth__footer">
+              © {new Date().getFullYear()} {INSTITUTION_SHORT}
+            </p>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

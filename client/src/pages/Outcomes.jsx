@@ -113,7 +113,7 @@ function StatementEditor({ title, prefix, items, onSave }) {
       <div className="doc-edit-bar">
         <button
           type="button"
-          className="doc-button"
+          className="doc-button btn--primary"
           disabled={saveState.saving}
           onClick={handleSave}
         >
@@ -195,7 +195,7 @@ function StatementEditor({ title, prefix, items, onSave }) {
 
 export default function Outcomes({ embedded = false }) {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="sheet" />
   if (error) return <DataError error={error} />
   return <OutcomesView embedded={embedded} {...data} />
 }
@@ -247,6 +247,16 @@ function OutcomesView({
 
   return (
     <section className="doc-card">
+      {!embedded && (
+        <header className="page-header doc-noprint">
+          <h1 className="page-header__title">PEO / PO / PSO</h1>
+          <p className="page-header__course">
+            <span className="page-header__course-code">{course.code}</span>
+            <span className="page-header__course-title">{course.title}</span>
+          </p>
+        </header>
+      )}
+
       <article className="doc-sheet">
         <header className="doc-head">
           <h1 className="doc-head__name">{institution.name}</h1>

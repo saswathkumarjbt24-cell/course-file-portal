@@ -1045,7 +1045,7 @@ function ClosingSection({ course, nature, targetPercent }) {
 
 export default function FullCourseFile() {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="sheet" />
   if (error) return <DataError error={error} />
   return (
     <FileData.Provider value={data}>

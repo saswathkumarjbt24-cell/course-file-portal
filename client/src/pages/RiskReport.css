@@ -221,3 +221,41 @@
     grid-template-columns: 8rem 1fr 3rem;
   }
 }
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   The risk report is a screen, never a sheet. The ranked table can run
+   to every student in the institution, so its header pins.
+   --------------------------------------------------------------- */
+
+@media screen {
+  .risk-table-wrap {
+    max-width: 100%;
+    max-height: 70vh;
+    overflow: auto;
+  }
+
+  .risk-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+  }
+
+  /* Course titles and student names are the free-text columns here, and a
+     long one should wrap rather than push the percentages off-screen. The
+     cap is a MAXIMUM, not a minimum: a course code or a roll number still
+     takes only the width it needs. */
+  .risk-table td:not(.risk-table__value):not(.risk-table__muted) {
+    white-space: normal;
+    max-width: 22rem;
+  }
+}
+
+@media screen and (max-width: 720px) {
+  .risk-table-wrap {
+    max-height: none;
+  }
+}

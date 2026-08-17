@@ -410,7 +410,7 @@ function FinalAttainmentView({
             <>
               <button
                 type="button"
-                className="rep-button"
+                className="rep-button btn--primary"
                 disabled={surveyInvalid > 0 || saveState.saving}
                 onClick={handleSaveSurvey}
               >

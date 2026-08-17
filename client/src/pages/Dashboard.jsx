@@ -6,7 +6,7 @@ const LOADERS = { courseNatures: fetchCourseNatures, courses: fetchCourses }
 
 export default function Dashboard() {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="cards" />
   if (error) return <DataError error={error} />
   return <DashboardView {...data} />
 }

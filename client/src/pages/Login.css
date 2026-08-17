@@ -1,355 +1,599 @@
 /* ---------------------------------------------------------------
-   Sign-in screen: one centred card on a plain ground.
+   Sign-in screen: FULL BLEED, split by a straight vertical divider.
+   Brand panel left, form panel right. No card, no margin, no radius,
+   no shadow -- the two panels are the page.
 
-   Palette is the app's own -- var(--color-primary) and friends from
-   ../styles/tokens.css. No second blue is introduced to match any
-   reference; the primary here is the same primary the top bar uses.
+   Palette is the app's own -- var(--color-primary-dark) and friends from
+   ../styles/tokens.css. No new colour is introduced.
+
+   EVERY RULE IN THIS FILE IS INSIDE @media screen.
+     Nothing here may reach a printout. The login page is not part of any
+     course file, and the rule is kept absolute so no future edit can
+     leak into one by accident.
+
+   NOTHING IN HERE MAY EXCEED THE VIEWPORT WIDTH.
+     The two horizontal scrollbars this file used to produce were both
+     EXACT-FIT COLLISIONS -- a box sized to precisely the space available
+     to it, so that any sub-pixel rounding tipped it over. Both are gone,
+     and the rule now is that a fixed width always leaves slack rather
+     than matching its container exactly. See the notes on
+     .auth__google-slot and .auth__primary.
 
    Motion is limited to hover and focus transitions.
    --------------------------------------------------------------- */
 
-.auth {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: var(--space-6) var(--space-5);
-  background-color: var(--color-background);
-}
+@media screen {
+  /* Width comes from the grid, never from a viewport unit: a vw length
+     counts the vertical scrollbar, so on any page that scrolls it is
+     wider than the visible area. That is a horizontal scrollbar by
+     construction, and this page must not have one. */
+  .auth {
+    min-height: 100vh;
+    /* Mobile browsers report 100vh as the tallest the viewport ever gets,
+       so the address bar can crop the panel. dvh tracks the real height;
+       the vh line above stays as the fallback. */
+    min-height: 100dvh;
+    display: grid;
+    grid-template-rows: 1fr;
+    background-color: var(--color-surface);
+  }
 
-.auth__card {
-  width: 100%;
-  max-width: 24rem;
-  padding: var(--space-6);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-}
+  /* THE STRAIGHT SPLIT. 42% brand, the rest form. The divider is the
+     edge between the two fills -- no border is drawn, because a line
+     between a dark panel and a white one is a line drawn twice.
 
-/* ---------------- Brand ---------------- */
+     grid-template-rows: 1fr on .auth above makes this stretch to the
+     full height, so a tall screen gets taller panels and never a band of
+     empty colour under them. */
+  .auth__card {
+    display: grid;
+    grid-template-columns: 42% 1fr;
+    min-width: 0;
+    background-color: var(--color-surface);
+  }
 
-.auth__brand {
-  display: flex;
-  justify-content: center;
-}
+  /* ---------------- Brand panel ----------------
+     Content is centred vertically AND capped in width, so it sits as one
+     block in the middle of the panel rather than drifting with the
+     panel's height.
+     ---------------------------------------------------------------- */
 
-/* A square block, not an inline mark: the image already carries the
-   institution name and motto, so it stands on its own above the heading.
-   The intrinsic width/height on the element reserve the space; this only
-   caps it on very narrow cards. */
-.auth__logo {
-  display: block;
-  width: 112px;
-  height: 112px;
-  max-width: 100%;
-  object-fit: contain;
-}
+  .auth__brand {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    min-width: 0;
+    padding: clamp(var(--space-6), 6%, var(--space-7)) clamp(var(--space-5), 9%, 5.5rem);
+    background-color: var(--color-primary-dark);
+    color: #fff;
+  }
 
-.auth__badge {
-  display: block;
-  width: fit-content;
-  margin: var(--space-3) auto 0;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-primary-soft);
-  color: var(--color-primary-dark);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-align: center;
-}
+  /* TEXTURE. Two sets of hairlines crossing at right angles, drawn as
+     repeating gradients -- no image, no extra request.
 
-.auth__heading {
-  margin: var(--space-5) 0 0;
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  text-align: center;
-}
+     It sits in a ::before UNDER the content (z-index 0 against the
+     content's 1) and is inert to the pointer. At 4.5% white on
+     #1d3557 the lightest point of the texture still gives roughly
+     11.9:1 against white text, against 12.6:1 on the flat colour, so
+     nothing here takes the contrast anywhere near a threshold. */
+  .auth__brand::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.045) 0 1px,
+        transparent 1px 10px
+      ),
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.03) 0 1px,
+        transparent 1px 10px
+      );
+    pointer-events: none;
+  }
 
-.auth__subheading {
-  margin: var(--space-2) 0 var(--space-6);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  text-align: center;
-}
+  /* The content column. Capped so the line length stays readable on a
+     wide monitor, where 42% of the viewport is far wider than any text
+     wants to be. `margin-block: auto` is belt-and-braces against the
+     parent's justify-content, so the block is centred whichever way the
+     panel is sized. */
+  .auth__brand-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 28rem;
+    margin-block: auto;
+  }
 
-/* ---------------- Decorative sign-in form ----------------
-   Presentational only -- see the note in Login.jsx. Styled as a real form
-   because that is what was asked for, but it authenticates nothing.
-   --------------------------------------------------------------- */
+  /* A soft surround rather than a hard plate. The rings are deliberately
+     tighter than before: a wide halo pushed the logo's optical top well
+     above its layout box and made the whole block read as sitting low. */
+  .auth__logo {
+    display: block;
+    width: 84px;
+    height: 84px;
+    max-width: 100%;
+    padding: var(--space-3);
+    background-color: #fff;
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 0 6px rgba(255, 255, 255, 0.06),
+      0 10px 26px rgba(0, 0, 0, 0.25);
+  }
 
-.auth__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
+  /* ---------------- Type ----------------
+     1. wordmark    the product name. A HEADING -- normal case, near the
+                    size of the display line, not a tracked label.
+     2. welcome     the display line, the largest thing on the panel
+     3. tagline     body, comfortable measure
+     4. institution the quietest line
+     ---------------------------------------------------------------- */
 
-.auth__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
+  .auth__wordmark {
+    margin: var(--space-5) 0 0;
+    font-size: clamp(1.3rem, 0.95rem + 0.8vw, 1.75rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    color: #fff;
+  }
 
-.auth__label-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
+  .auth__welcome {
+    margin: var(--space-2) 0 0;
+    font-size: clamp(1.9rem, 1rem + 2.1vw, 2.9rem);
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.06;
+    color: rgba(255, 255, 255, 0.95);
+  }
 
-.auth__label {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text);
-}
+  .auth__tagline {
+    max-width: 34ch;
+    margin: var(--space-4) 0 0;
+    font-size: var(--font-size-base);
+    font-weight: 400;
+    line-height: 1.7;
+    color: var(--color-text-on-dark);
+  }
 
-.auth__forgot {
-  padding: 0;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  color: var(--color-primary);
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
+  .auth__rule {
+    width: 3.5rem;
+    height: 2px;
+    margin: var(--space-5) 0 0;
+    border: none;
+    border-radius: var(--radius-pill);
+    background-color: rgba(255, 255, 255, 0.3);
+  }
 
-.auth__forgot:hover {
-  color: var(--color-primary-dark);
-  text-decoration: underline;
-}
+  .auth__brand-footer {
+    margin: var(--space-3) 0 0;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.5);
+  }
 
-.auth__forgot:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
+  /* ---------------- Form panel ---------------- */
 
-/* The icon sits inside the control, so the whole thing reads as one field
-   and the focus ring wraps icon and input together. */
-.auth__control {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
+  .auth__panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: var(--space-5) clamp(var(--space-4), 5%, var(--space-6));
+  }
 
-.auth__control:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
+  /* 20rem = 320px. Every fixed width in this column is measured against
+     it, and none of them matches it -- see .auth__google-slot. */
+  .auth__panel-inner {
+    width: 100%;
+    max-width: 20rem;
+    margin-block: auto;
+  }
 
-.auth__control-icon {
-  flex: none;
-  display: flex;
-  color: var(--color-text-muted);
-}
+  .auth__heading {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
 
-.auth__field-icon {
-  width: 18px;
-  height: 18px;
-}
+  .auth__subheading {
+    margin: var(--space-1) 0 var(--space-5);
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-text-muted);
+  }
 
-.auth__input {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-3) 0;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  background: none;
-  border: none;
-}
+  /* ---------------- THE DECORATIVE SIGN-IN FORM ----------------
 
-.auth__input:focus {
-  outline: none;
-}
+     EVERYTHING IN .auth__decor IS ORNAMENT. It authenticates nothing and
+     it cannot be interacted with: the wrapper takes pointer events out,
+     every control inside is readOnly and tabIndex -1, and the subtree is
+     aria-hidden. See the block comment in Login.jsx.
 
-.auth__input::placeholder {
-  color: var(--color-text-muted);
-}
+     THERE IS NO HOVER OR FOCUS STYLE ANYWHERE IN THIS BLOCK, and there
+     must not be: a control that lights up under the cursor is claiming
+     it can be used. pointer-events: none already makes :hover
+     unmatchable here, so this is belt and braces -- but the belt is the
+     point, and any future edit that adds one is a bug.
+     ---------------------------------------------------------------- */
 
-.auth__reveal {
-  flex: none;
-  display: flex;
-  align-items: center;
-  padding: var(--space-1);
-  color: var(--color-text-muted);
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
+  .auth__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
 
-.auth__reveal:hover {
-  color: var(--color-text);
-}
+  .auth__decor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    /* The load-bearing line. Nothing inside can be clicked, dragged or
+       focused by pointer; tabIndex -1 on each control covers the
+       keyboard. It also means :hover can never match in here. */
+    pointer-events: none;
+    cursor: default;
+    user-select: none;
+  }
 
-.auth__reveal:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
+  .auth__decor * {
+    cursor: default;
+  }
 
-.auth__remember {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
+  .auth__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
 
-.auth__checkbox {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
+  .auth__label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
 
-.auth__submit {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  font: inherit;
-  font-weight: 600;
-  color: #fff;
-  background-color: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
+  .auth__label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
 
-.auth__submit:hover {
-  background-color: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
-}
+  .auth__forgot {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
 
-.auth__submit:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
+  /* PILL. Fully rounded ends, the leading icon inside the shape, and a
+     recessed fill so the field reads as a container rather than a raised
+     control. No hover, no focus ring -- see the note above. */
+  .auth__control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0 var(--space-4);
+    background-color: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+  }
 
-/* ---------------- Notes ---------------- */
+  .auth__control-icon {
+    flex: none;
+    display: flex;
+    color: var(--color-text-muted);
+  }
 
-.auth__inline-note {
-  margin: var(--space-4) 0 0;
-  padding: var(--space-3);
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  color: var(--color-primary-dark);
-  background-color: var(--color-primary-soft);
-  border-radius: var(--radius-sm);
-}
+  .auth__field-icon {
+    width: 18px;
+    height: 18px;
+  }
 
-/* Placed after the base rule on purpose: same specificity, so the later
-   declaration is the one that wins. */
-.auth__inline-note--error {
-  color: var(--color-danger);
-  background-color: var(--color-danger-soft);
-}
+  .auth__input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-3) 0;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    background: none;
+    border: none;
+    cursor: default;
+  }
 
-/* ---------------- Divider ---------------- */
+  /* There is deliberately NO .auth__input:focus rule. There used to be one
+     suppressing the outline, and it was dead code: the field cannot be
+     focused by pointer or by keyboard, so the rule could never fire. If
+     this field ever does take focus, something has gone wrong upstream
+     and the browser's own outline is the right way to find out. */
 
-.auth__divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-5) 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
+  .auth__input::placeholder {
+    color: var(--color-text-muted);
+  }
 
-.auth__divider::before,
-.auth__divider::after {
-  content: "";
-  flex: 1;
-  border-top: 1px solid var(--color-border);
-}
+  /* A span, not a button -- see Login.jsx. Visible, and inert by
+     construction rather than by being told not to act. */
+  .auth__reveal {
+    flex: none;
+    display: flex;
+    align-items: center;
+    color: var(--color-text-muted);
+  }
 
-/* ---------------- Google ----------------
-   Google renders its own button into the slot; its internals are Google's
-   markup and are not styled here. The slot only centres it and reserves
-   height so the card does not jump as it appears.
-   --------------------------------------------------------------- */
+  .auth__remember {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
 
-.auth__google-slot {
-  display: flex;
-  justify-content: center;
-  min-height: 44px;
-}
+  .auth__checkbox {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--color-text-muted);
+  }
 
-/* ---------------- Demo fallback ----------------
-   Present only in a MOCK build (no VITE_API_URL) made with
-   VITE_ALLOW_DEMO_LOGIN='true'.
-   --------------------------------------------------------------- */
+  /* A REAL control, so it does react to hover and focus -- but a QUIET
+     one. It signs nobody in; it says so and points at the Google button
+     below. Filling it in brand colour made the decorative half of this
+     page the loudest thing on it, which is precisely backwards. Muted
+     fill, real border, real hover: pressable, and plainly not the way
+     in. */
+  .auth__submit {
+    width: 100%;
+    padding: var(--space-3) var(--space-5);
+    font: inherit;
+    font-weight: 600;
+    color: var(--color-text);
+    background-color: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast),
+      color var(--transition-fast);
+  }
 
-.auth__demo {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--color-border);
-}
+  .auth__submit:hover {
+    color: var(--color-primary-dark);
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
 
-.auth__select {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
+  .auth__submit:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
 
-.auth__select:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
+  /* ---------------- Notes ---------------- */
 
-.auth__demo-submit {
-  flex: none;
-  padding: var(--space-2) var(--space-4);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text);
-  background-color: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
+  .auth__inline-note {
+    margin: var(--space-4) 0 0;
+    padding: var(--space-3);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-primary-dark);
+    background-color: var(--color-primary-soft);
+    border-radius: var(--radius-md);
+  }
 
-.auth__demo-submit:hover:not(:disabled) {
-  background-color: var(--color-primary-soft);
-  border-color: var(--color-primary);
-}
+  /* Placed after the base rule on purpose: same specificity, so the later
+     declaration is the one that wins. */
+  .auth__inline-note--error {
+    color: var(--color-danger);
+    background-color: var(--color-danger-soft);
+  }
 
-.auth__demo-submit:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
+  /* ---------------- The break ----------------
+     Everything above it is ornament; everything below it signs you in.
+     ---------------------------------------------------------------- */
 
-.auth__demo-submit:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+  .auth__divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin: var(--space-6) 0 var(--space-5);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
 
-/* ---------------- Footer ---------------- */
+  .auth__divider::before,
+  .auth__divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--color-border);
+  }
 
-.auth__footer {
-  margin: var(--space-5) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  text-align: center;
+  /* ---------------- Google: the real way in ----------------
+
+     STRIPPED BACK TO THE ACTION. This was a tinted box with a border,
+     holding an eyebrow label, holding the button -- three layers of
+     chrome around one control, and the box's negative margins were what
+     produced the page's horizontal scrollbar.
+
+     What makes it read as primary now is position and contrast, not
+     decoration: it is the only thing below the break, and it is the only
+     crisp white control on the panel, against a muted Sign In button
+     above it. No background, no border, no negative margin.
+     ---------------------------------------------------------------- */
+
+  .auth__primary {
+    /* Deliberately no background, border, padding or margin. The element
+       stays as a grouping hook for the caption and the slot. */
+    display: block;
+  }
+
+  .auth__primary-label {
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--color-text-muted);
+  }
+
+  /* NO overflow-x HERE, AND NONE IS NEEDED.
+     Google's button width is a fixed pixel value set once at render time
+     and it cannot shrink with the column, so the only safe arrangement
+     is for it to be smaller than the column at every width. It is
+     rendered at 288px inside this 320px slot: 32px of slack, 16px either
+     side, at every viewport this page supports. The scrollbar that used
+     to appear here came from asking for 352px in a 352px box.
+
+     If the width in Login.jsx is ever raised, it must stay below the
+     20rem cap on .auth__panel-inner, or this scrollbar comes back. */
+  .auth__google-slot {
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
+    max-width: 100%;
+  }
+
+  .auth__primary .auth__inline-note {
+    margin-bottom: 0;
+  }
+
+  /* ---------------- Demo fallback ----------------
+     Present only in a MOCK build (no VITE_API_URL) made with
+     VITE_ALLOW_DEMO_LOGIN='true'. The gating is in Login.jsx and is not
+     touched here.
+     ---------------------------------------------------------------- */
+
+  .auth__demo {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .auth__select {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-2) var(--space-4);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  .auth__select:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+
+  .auth__demo-submit {
+    flex: none;
+    padding: var(--space-2) var(--space-5);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    background-color: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .auth__demo-submit:hover:not(:disabled) {
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+
+  .auth__demo-submit:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  .auth__demo-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  /* ---------------- Footer ---------------- */
+
+  .auth__footer {
+    margin: var(--space-5) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  /* ---------------- Stacked layout ----------------
+     Below 900px the page becomes one column with a STRAIGHT horizontal
+     edge between the two panels. The brand row is sized by its content
+     and the form row takes the rest, so the two still fill the viewport
+     between them.
+     ---------------------------------------------------------------- */
+
+  @media (max-width: 900px) {
+    .auth__card {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+
+    .auth__brand {
+      align-items: center;
+      text-align: center;
+      padding: var(--space-6) var(--space-5);
+    }
+
+    .auth__brand-inner {
+      align-items: center;
+      max-width: 32rem;
+    }
+
+    .auth__tagline {
+      max-width: none;
+    }
+
+    .auth__panel {
+      padding: var(--space-6) var(--space-5);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .auth__brand {
+      padding: var(--space-5) var(--space-4);
+    }
+
+    .auth__logo {
+      width: 72px;
+      height: 72px;
+    }
+
+    .auth__panel {
+      padding: var(--space-5) var(--space-4);
+    }
+  }
+
+  /* Someone who has asked for less motion gets none of the transitions
+     this page uses. */
+  @media (prefers-reduced-motion: reduce) {
+    .auth__submit,
+    .auth__select,
+    .auth__demo-submit {
+      transition: none;
+    }
+  }
 }

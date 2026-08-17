@@ -228,21 +228,6 @@
   margin-top: var(--space-5);
 }
 
-.cd-button {
-  padding: var(--space-2) var(--space-5);
-  font: inherit;
-  font-weight: 600;
-  color: #fff;
-  background-color: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.cd-button:hover {
-  background-color: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
-}
 
 .cd-status {
   font-size: var(--font-size-sm);
@@ -252,4 +237,49 @@
 .cd-status--saved {
   color: var(--color-success);
   font-weight: 600;
+}
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   Focus rings for the two controls that had none, and a matrix header
+   that stays put while the CO rows scroll under it.
+   --------------------------------------------------------------- */
+
+@media screen {
+  .cd-textarea:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+    box-shadow: var(--focus-ring);
+  }
+
+  .cd-matrix__select:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+    box-shadow: var(--focus-ring);
+  }
+
+  .cd-matrix-wrap {
+    max-width: 100%;
+    max-height: 70vh;
+    overflow: auto;
+  }
+
+  .cd-matrix thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+  }
+
+  /* The sticky CO column and the sticky header cross at this cell, so it
+     has to sit above both. */
+  .cd-matrix thead .cd-matrix__co {
+    z-index: 5;
+  }
+
+  .cd-actions {
+    align-items: center;
+    gap: var(--space-4);
+  }
 }

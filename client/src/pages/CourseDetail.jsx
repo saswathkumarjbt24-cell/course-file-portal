@@ -56,7 +56,7 @@ function orNone(value, suffix = '') {
 
 export default function CourseDetail() {
   const { loading, error, data } = useApiData(LOADERS)
-  if (loading) return <DataLoading />
+  if (loading) return <DataLoading variant="table" />
   if (error) return <DataError error={error} />
   return <CourseDetailView {...data} />
 }

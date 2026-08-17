@@ -169,38 +169,12 @@
   font-style: italic;
 }
 
-/* ---------------- Level badge ---------------- */
+/* ---------------- Level badge ----------------
+   Defined ONCE in ../styles/ui.css, alongside .level-badge, so a level
+   looks the same on every screen that shows one. The colour meanings are
+   unchanged: 3 success, 2 primary, 1 warning, 0 danger, none neutral.
+   ---------------------------------------------------------------- */
 
-.att-badge {
-  display: inline-block;
-  min-width: 1.75rem;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  color: #fff;
-  font-weight: 600;
-  text-align: center;
-}
-
-.att-badge--3 {
-  background-color: var(--color-success);
-}
-
-.att-badge--2 {
-  background-color: var(--color-primary);
-}
-
-.att-badge--1 {
-  background-color: var(--color-warning);
-}
-
-.att-badge--0 {
-  background-color: var(--color-danger);
-}
-
-.att-badge--none {
-  background-color: var(--color-border);
-  color: var(--color-text-muted);
-}
 
 /* ---------------- Empty state ---------------- */
 
@@ -216,4 +190,51 @@
   margin-bottom: var(--space-2);
   color: var(--color-text);
   font-weight: 600;
+}
+
+
+/* ---------------------------------------------------------------
+   SCREEN-ONLY REFINEMENTS
+
+   This screen is not printed, so it is free to be tuned for reading on
+   a display: a sticky header for the long per-student table, and a
+   focus ring on the assessment picker.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* The per-student table runs to the length of the class roll. Capping
+     the wrapper and pinning the header keeps the CO columns labelled
+     while scrolling through it. */
+  .att-table-wrap {
+    max-width: 100%;
+    max-height: 70vh;
+    overflow: auto;
+  }
+
+  .att-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+  }
+
+  .att-table thead th.att-table__group {
+    z-index: 3;
+  }
+
+  .att-field__select:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+
+  .att-summary {
+    gap: var(--space-4) var(--space-6);
+  }
+}
+
+@media screen and (max-width: 720px) {
+  .att-table-wrap {
+    max-height: none;
+  }
 }
