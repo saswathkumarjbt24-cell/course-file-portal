@@ -1,0 +1,1073 @@
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================================
+-- Migration: 014_real_data_22BT009
+--
+-- Replaces ALL sample data with the real course file for
+--   22BT009 BIOPROSPECTING AND QUALITY ANALYSIS
+--   B.Tech. Biotechnology, Batch 2023-2027, AY 2025-2026, Year III Sem V (ODD)
+--   Handled by Dr. PAVITHRA MKS, 35 students.
+--
+-- Source: Copy of 22BT009 Course file - ODD 2025-2026.xlsx
+--
+-- REAL STUDENT DATA. Not sample data. Do not publish, and keep backups.
+--
+-- Two defects in the source workbook are NOT reproduced here, because this
+-- file stores inputs only and the portal computes attainment correctly:
+--   1. 10.e.PT1(AT) divides the achieved count by the CO target (60) instead
+--      of the attended students (35), reporting CO1-CO3 at level 1 when the
+--      real figures are 88.57/88.57/85.71 percent, i.e. level 3.
+--   2. 19.Final Attainment prints the PSO columns under PO12/PSO1/PSO2
+--      headings, because its matrix has no PO12 column.
+--
+-- Faculty email for Dr. PAVITHRA MKS is a PLACEHOLDER and must be confirmed
+-- before she can sign in.
+-- =====================================================================
+
+START TRANSACTION;
+
+-- ---------- remove all sample data ----------
+DELETE FROM `courses` WHERE `code` IN ('19CS502','19CS504','19CS591');
+DELETE FROM `students` WHERE `reg_number` LIKE '7376221CS%';
+DELETE FROM `faculty` WHERE `email` IN ('facultyb@bitsathy.ac.in','facultyc@bitsathy.ac.in','pavithramks@bitsathy.ac.in');
+DELETE FROM `peos` WHERE `department` IS NULL OR `department` = 'Computer Science and Engineering';
+DELETE FROM `program_specific_outcomes` WHERE `department` = 'Computer Science and Engineering';
+DELETE FROM `vision_missions` WHERE `scope` = 'department';
+
+-- ---------- faculty ----------
+INSERT INTO `faculty` (`name`,`email`,`department`,`designation`,`role`,`is_active`) VALUES
+  ('Dr. PAVITHRA MKS','pavithra.mks@bitsathy.ac.in','Biotechnology','Assistant Professor','faculty',TRUE)
+AS `new` ON DUPLICATE KEY UPDATE
+  `name`=`new`.`name`, `department`=`new`.`department`,
+  `designation`=`new`.`designation`, `is_active`=`new`.`is_active`;
+
+-- ---------- course ----------
+INSERT INTO `courses`
+  (`code`,`title`,`nature_id`,`regulation_year`,`department`,`co_count`,
+   `co_target_percent`,`programme`,`batch`,`academic_year`,`year_of_study`,`semester`)
+SELECT '22BT009','BIOPROSPECTING AND QUALITY ANALYSIS',`n`.`id`,2022,'Biotechnology',5,
+       60.00,'B.Tech. Biotechnology','2023 - 2027','2025 - 2026','III','V'
+  FROM `course_natures` `n` WHERE `n`.`name`='Theory & Lab'
+ON DUPLICATE KEY UPDATE
+  `title`='BIOPROSPECTING AND QUALITY ANALYSIS', `department`='Biotechnology',
+  `co_target_percent`=60.00, `programme`='B.Tech. Biotechnology',
+  `batch`='2023 - 2027', `academic_year`='2025 - 2026',
+  `year_of_study`='III', `semester`='V';
+
+-- ---------- allocation: handling + incharge ----------
+INSERT INTO `course_allocations` (`faculty_id`,`course_id`,`role`,`academic_year`,`semester`)
+SELECT `f`.`id`,`c`.`id`,'handling','2025 - 2026','V'
+  FROM `faculty` `f` JOIN `courses` `c` ON `c`.`code`='22BT009'
+ WHERE `f`.`email`='pavithra.mks@bitsathy.ac.in'
+   AND NOT EXISTS (SELECT 1 FROM `course_allocations` `x`
+     WHERE `x`.`faculty_id`=`f`.`id` AND `x`.`course_id`=`c`.`id`
+       AND `x`.`role`='handling' AND `x`.`academic_year`<=>'2025 - 2026'
+       AND `x`.`semester`<=>'V' AND `x`.`section`<=>NULL);
+
+INSERT INTO `course_allocations` (`faculty_id`,`course_id`,`role`,`academic_year`,`semester`)
+SELECT `f`.`id`,`c`.`id`,'incharge','2025 - 2026','V'
+  FROM `faculty` `f` JOIN `courses` `c` ON `c`.`code`='22BT009'
+ WHERE `f`.`email`='pavithra.mks@bitsathy.ac.in'
+   AND NOT EXISTS (SELECT 1 FROM `course_allocations` `x`
+     WHERE `x`.`faculty_id`=`f`.`id` AND `x`.`course_id`=`c`.`id`
+       AND `x`.`role`='incharge' AND `x`.`academic_year`<=>'2025 - 2026'
+       AND `x`.`semester`<=>'V' AND `x`.`section`<=>NULL);
+
+-- ---------- students (35 real) ----------
+INSERT INTO `students` (`reg_number`,`name`,`current_sem`) VALUES
+  ('7376232BT102','ABINAYA S','V'),
+  ('7376232BT103','AFRITH K','V'),
+  ('7376232BT105','ANIS KARTHIK N E','V'),
+  ('7376232BT106','ANISH BALAJI Y','V'),
+  ('7376232BT108','ANUSHA S','V'),
+  ('7376232BT109','ARUN PRASATH M','V'),
+  ('7376232BT115','BARATH ESWARAN RA','V'),
+  ('7376232BT118','CHARU S','V'),
+  ('7376232BT120','DHANUSH P','V'),
+  ('7376232BT122','DHARSHINI P','V'),
+  ('7376232BT123','DHARSSHNI DURAISAMY','V'),
+  ('7376232BT125','DHIVAKAR E U','V'),
+  ('7376232BT126','GNANA DHARSHANA K S','V'),
+  ('7376232BT127','GOPIKA T','V'),
+  ('7376232BT129','HARIESH B','V'),
+  ('7376232BT145','LAKSHANYA S','V'),
+  ('7376232BT149','LIMITHA D','V'),
+  ('7376232BT151','MADHUMITHA B','V'),
+  ('7376232BT152','MAHESHWARAN B','V'),
+  ('7376232BT163','NADHEEM S','V'),
+  ('7376232BT175','RAKHUL PRANAV R K','V'),
+  ('7376232BT176','RANJITH M','V'),
+  ('7376232BT179','RUBIKA S','V'),
+  ('7376232BT181','SABAREESHWARAN S','V'),
+  ('7376232BT189','SHALINI D','V'),
+  ('7376232BT190','SHAMITHA N','V'),
+  ('7376232BT194','SRI BHAGAVATHI R','V'),
+  ('7376232BT195','SRIDHARSANI A','V'),
+  ('7376232BT196','SRIKANTH V S','V'),
+  ('7376232BT198','SRINIKKESH R K','V'),
+  ('7376232BT201','SWATHI A U','V'),
+  ('7376232BT203','THANUJA KONDAYAM PALAYAM RAJENDRAN','V'),
+  ('7376232BT205','THILAK G','V'),
+  ('7376232BT206','UDHAYADURGA D','V'),
+  ('7376232BT214','VIDHYA S S','V')
+AS `new` ON DUPLICATE KEY UPDATE `name`=`new`.`name`, `current_sem`=`new`.`current_sem`;
+
+-- ---------- enrolments ----------
+INSERT INTO `student_enrolments` (`student_id`,`course_id`,`academic_year`,`semester`)
+SELECT `s`.`id`,`c`.`id`,'2025 - 2026','V'
+  FROM `students` `s` JOIN `courses` `c` ON `c`.`code`='22BT009'
+ WHERE `s`.`reg_number` LIKE '7376232BT%'
+   AND NOT EXISTS (SELECT 1 FROM `student_enrolments` `x`
+     WHERE `x`.`student_id`=`s`.`id` AND `x`.`course_id`=`c`.`id`
+       AND `x`.`academic_year`<=>'2025 - 2026' AND `x`.`semester`<=>'V');
+
+-- ---------- course outcomes (statements not present in the workbook) ----------
+INSERT INTO `course_outcomes` (`course_id`,`co_number`,`statement`)
+SELECT `c`.`id`,`n`.`n`,NULL FROM `courses` `c`
+  JOIN (SELECT 1 AS `n` UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) `n`
+ WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `course_outcomes`.`co_number`=`course_outcomes`.`co_number`;
+
+-- ---------- CO-PO/PSO articulation matrix ----------
+DELETE `m` FROM `co_po_matrix` `m` JOIN `courses` `c` ON `c`.`id`=`m`.`course_id` WHERE `c`.`code`='22BT009';
+INSERT INTO `co_po_matrix` (`course_id`,`co_number`,`outcome_type`,`outcome_code`,`value`)
+SELECT `c`.`id`,`v`.`co`,`v`.`t`,`v`.`code`,`v`.`val` FROM `courses` `c` JOIN (
+  SELECT 1 AS `co`, 'PO' AS `t`, 'PO2' AS `code`, 3 AS `val`
+    UNION ALL SELECT 1, 'PO', 'PO6', 2
+    UNION ALL SELECT 1, 'PO', 'PO7', 2
+    UNION ALL SELECT 1, 'PO', 'PO8', 2
+    UNION ALL SELECT 1, 'PO', 'PO11', 2
+    UNION ALL SELECT 1, 'PSO', 'PSO1', 1
+    UNION ALL SELECT 2, 'PO', 'PO2', 3
+    UNION ALL SELECT 2, 'PO', 'PO8', 2
+    UNION ALL SELECT 2, 'PSO', 'PSO1', 2
+    UNION ALL SELECT 2, 'PSO', 'PSO2', 2
+    UNION ALL SELECT 3, 'PO', 'PO4', 3
+    UNION ALL SELECT 3, 'PO', 'PO6', 3
+    UNION ALL SELECT 3, 'PO', 'PO7', 1
+    UNION ALL SELECT 3, 'PO', 'PO8', 2
+    UNION ALL SELECT 3, 'PSO', 'PSO1', 2
+    UNION ALL SELECT 4, 'PO', 'PO3', 2
+    UNION ALL SELECT 4, 'PO', 'PO5', 3
+    UNION ALL SELECT 4, 'PO', 'PO9', 1
+    UNION ALL SELECT 4, 'PO', 'PO11', 1
+    UNION ALL SELECT 4, 'PSO', 'PSO2', 2
+    UNION ALL SELECT 4, 'PSO', 'PSO3', 3
+    UNION ALL SELECT 5, 'PO', 'PO2', 2
+    UNION ALL SELECT 5, 'PO', 'PO3', 2
+    UNION ALL SELECT 5, 'PO', 'PO4', 3
+    UNION ALL SELECT 5, 'PO', 'PO5', 3
+    UNION ALL SELECT 5, 'PO', 'PO6', 2
+    UNION ALL SELECT 5, 'PO', 'PO7', 2
+    UNION ALL SELECT 5, 'PO', 'PO9', 2
+    UNION ALL SELECT 5, 'PO', 'PO11', 2
+    UNION ALL SELECT 5, 'PSO', 'PSO2', 2
+    UNION ALL SELECT 5, 'PSO', 'PSO3', 3
+) `v` WHERE `c`.`code`='22BT009';
+
+-- ---------- assessments ----------
+INSERT INTO `assessments` (`course_id`,`kind`,`max_total`,`conducted_on`,`split_mode`)
+SELECT `c`.`id`,'PT1',50,'2025-07-29','manual' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `max_total`=50, `conducted_on`='2025-07-29', `split_mode`='manual';
+INSERT INTO `assessments` (`course_id`,`kind`,`max_total`,`conducted_on`,`split_mode`)
+SELECT `c`.`id`,'PT2',50,'2025-10-18','manual' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `max_total`=50, `conducted_on`='2025-10-18', `split_mode`='manual';
+INSERT INTO `assessments` (`course_id`,`kind`,`max_total`,`conducted_on`,`split_mode`)
+SELECT `c`.`id`,'IP1',10,NULL,'manual' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `max_total`=10, `conducted_on`=NULL, `split_mode`='manual';
+INSERT INTO `assessments` (`course_id`,`kind`,`max_total`,`conducted_on`,`split_mode`)
+SELECT `c`.`id`,'IP2',10,NULL,'manual' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `max_total`=10, `conducted_on`=NULL, `split_mode`='manual';
+INSERT INTO `assessments` (`course_id`,`kind`,`max_total`,`conducted_on`,`split_mode`)
+SELECT `c`.`id`,'SEE',100,NULL,'manual' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `max_total`=100, `conducted_on`=NULL, `split_mode`='manual';
+
+-- ---------- CO allocations per assessment ----------
+INSERT INTO `co_allocations` (`assessment_id`,`co_number`,`marks_allocated`)
+SELECT `a`.`id`,`new`.`co`,`new`.`al` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 1 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 2 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 3 AS `co`, 10.0 AS `al`
+) `new` WHERE `a`.`kind`='PT1'
+ON DUPLICATE KEY UPDATE `marks_allocated`=`new`.`al`;
+INSERT INTO `co_allocations` (`assessment_id`,`co_number`,`marks_allocated`)
+SELECT `a`.`id`,`new`.`co`,`new`.`al` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 3 AS `co`, 10.0 AS `al`
+    UNION ALL SELECT 4 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 5 AS `co`, 20.0 AS `al`
+) `new` WHERE `a`.`kind`='PT2'
+ON DUPLICATE KEY UPDATE `marks_allocated`=`new`.`al`;
+INSERT INTO `co_allocations` (`assessment_id`,`co_number`,`marks_allocated`)
+SELECT `a`.`id`,`new`.`co`,`new`.`al` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 2 AS `co`, 10.0 AS `al`
+) `new` WHERE `a`.`kind`='IP1'
+ON DUPLICATE KEY UPDATE `marks_allocated`=`new`.`al`;
+INSERT INTO `co_allocations` (`assessment_id`,`co_number`,`marks_allocated`)
+SELECT `a`.`id`,`new`.`co`,`new`.`al` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 4 AS `co`, 10.0 AS `al`
+) `new` WHERE `a`.`kind`='IP2'
+ON DUPLICATE KEY UPDATE `marks_allocated`=`new`.`al`;
+INSERT INTO `co_allocations` (`assessment_id`,`co_number`,`marks_allocated`)
+SELECT `a`.`id`,`new`.`co`,`new`.`al` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 1 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 2 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 3 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 4 AS `co`, 20.0 AS `al`
+    UNION ALL SELECT 5 AS `co`, 20.0 AS `al`
+) `new` WHERE `a`.`kind`='SEE'
+ON DUPLICATE KEY UPDATE `marks_allocated`=`new`.`al`;
+
+-- ---------- student assessments (totals) ----------
+INSERT INTO `student_assessments` (`assessment_id`,`student_id`,`total_obtained`,`is_absent`)
+SELECT `a`.`id`,`s`.`id`,`new`.`tot`,`new`.`ab` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 35.0 AS `tot`, 0 AS `ab`
+    UNION ALL SELECT '7376232BT103', 40.0, 0
+    UNION ALL SELECT '7376232BT105', 35.0, 0
+    UNION ALL SELECT '7376232BT106', 38.75, 0
+    UNION ALL SELECT '7376232BT108', 39.58, 0
+    UNION ALL SELECT '7376232BT109', 37.92, 0
+    UNION ALL SELECT '7376232BT115', 16.25, 0
+    UNION ALL SELECT '7376232BT118', 41.67, 0
+    UNION ALL SELECT '7376232BT120', 37.5, 0
+    UNION ALL SELECT '7376232BT122', 40.42, 0
+    UNION ALL SELECT '7376232BT123', 42.5, 0
+    UNION ALL SELECT '7376232BT125', 41.25, 0
+    UNION ALL SELECT '7376232BT126', 35.83, 0
+    UNION ALL SELECT '7376232BT127', 41.25, 0
+    UNION ALL SELECT '7376232BT129', 36.67, 0
+    UNION ALL SELECT '7376232BT145', 42.5, 0
+    UNION ALL SELECT '7376232BT149', 40.42, 0
+    UNION ALL SELECT '7376232BT151', 39.58, 0
+    UNION ALL SELECT '7376232BT152', 7.92, 0
+    UNION ALL SELECT '7376232BT163', 17.08, 0
+    UNION ALL SELECT '7376232BT175', 38.75, 0
+    UNION ALL SELECT '7376232BT176', 16.25, 0
+    UNION ALL SELECT '7376232BT179', 40.0, 0
+    UNION ALL SELECT '7376232BT181', 38.33, 0
+    UNION ALL SELECT '7376232BT189', 34.17, 0
+    UNION ALL SELECT '7376232BT190', 42.92, 0
+    UNION ALL SELECT '7376232BT194', 42.92, 0
+    UNION ALL SELECT '7376232BT195', 30.42, 0
+    UNION ALL SELECT '7376232BT196', 35.42, 0
+    UNION ALL SELECT '7376232BT198', 37.5, 0
+    UNION ALL SELECT '7376232BT201', 40.0, 0
+    UNION ALL SELECT '7376232BT203', 35.42, 0
+    UNION ALL SELECT '7376232BT205', 35.83, 0
+    UNION ALL SELECT '7376232BT206', 32.5, 0
+    UNION ALL SELECT '7376232BT214', 36.25, 0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+ WHERE `a`.`kind`='PT1'
+ON DUPLICATE KEY UPDATE `total_obtained`=`new`.`tot`, `is_absent`=`new`.`ab`;
+
+INSERT INTO `student_assessments` (`assessment_id`,`student_id`,`total_obtained`,`is_absent`)
+SELECT `a`.`id`,`s`.`id`,`new`.`tot`,`new`.`ab` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 35.83 AS `tot`, 0 AS `ab`
+    UNION ALL SELECT '7376232BT103', 37.5, 0
+    UNION ALL SELECT '7376232BT105', 29.58, 0
+    UNION ALL SELECT '7376232BT106', 40.0, 0
+    UNION ALL SELECT '7376232BT108', 37.5, 0
+    UNION ALL SELECT '7376232BT109', 32.92, 0
+    UNION ALL SELECT '7376232BT115', 22.08, 0
+    UNION ALL SELECT '7376232BT118', 40.42, 0
+    UNION ALL SELECT '7376232BT120', 34.17, 0
+    UNION ALL SELECT '7376232BT122', 36.25, 0
+    UNION ALL SELECT '7376232BT123', 41.67, 0
+    UNION ALL SELECT '7376232BT125', 39.17, 0
+    UNION ALL SELECT '7376232BT126', 29.17, 0
+    UNION ALL SELECT '7376232BT127', 40.42, 0
+    UNION ALL SELECT '7376232BT129', 40.83, 0
+    UNION ALL SELECT '7376232BT145', 40.0, 0
+    UNION ALL SELECT '7376232BT149', 39.17, 0
+    UNION ALL SELECT '7376232BT151', 33.33, 0
+    UNION ALL SELECT '7376232BT152', 27.92, 0
+    UNION ALL SELECT '7376232BT163', 27.92, 0
+    UNION ALL SELECT '7376232BT175', 38.75, 0
+    UNION ALL SELECT '7376232BT176', 25.42, 0
+    UNION ALL SELECT '7376232BT179', 36.25, 0
+    UNION ALL SELECT '7376232BT181', 36.67, 0
+    UNION ALL SELECT '7376232BT189', 31.67, 0
+    UNION ALL SELECT '7376232BT190', 35.0, 0
+    UNION ALL SELECT '7376232BT194', 39.58, 0
+    UNION ALL SELECT '7376232BT195', 31.25, 0
+    UNION ALL SELECT '7376232BT196', 28.33, 0
+    UNION ALL SELECT '7376232BT198', 33.75, 0
+    UNION ALL SELECT '7376232BT201', 36.25, 0
+    UNION ALL SELECT '7376232BT203', 40.0, 0
+    UNION ALL SELECT '7376232BT205', 33.75, 0
+    UNION ALL SELECT '7376232BT206', 28.33, 0
+    UNION ALL SELECT '7376232BT214', 31.67, 0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+ WHERE `a`.`kind`='PT2'
+ON DUPLICATE KEY UPDATE `total_obtained`=`new`.`tot`, `is_absent`=`new`.`ab`;
+
+INSERT INTO `student_assessments` (`assessment_id`,`student_id`,`total_obtained`,`is_absent`)
+SELECT `a`.`id`,`s`.`id`,`new`.`tot`,`new`.`ab` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 7.0 AS `tot`, 0 AS `ab`
+    UNION ALL SELECT '7376232BT103', 9.0, 0
+    UNION ALL SELECT '7376232BT105', 9.0, 0
+    UNION ALL SELECT '7376232BT106', 8.0, 0
+    UNION ALL SELECT '7376232BT108', 8.0, 0
+    UNION ALL SELECT '7376232BT109', 9.0, 0
+    UNION ALL SELECT '7376232BT115', 9.0, 0
+    UNION ALL SELECT '7376232BT118', 9.0, 0
+    UNION ALL SELECT '7376232BT120', 9.0, 0
+    UNION ALL SELECT '7376232BT122', 9.0, 0
+    UNION ALL SELECT '7376232BT123', 9.0, 0
+    UNION ALL SELECT '7376232BT125', 9.0, 0
+    UNION ALL SELECT '7376232BT126', 9.0, 0
+    UNION ALL SELECT '7376232BT127', 9.0, 0
+    UNION ALL SELECT '7376232BT129', 6.0, 0
+    UNION ALL SELECT '7376232BT145', 8.0, 0
+    UNION ALL SELECT '7376232BT149', 8.0, 0
+    UNION ALL SELECT '7376232BT151', 9.0, 0
+    UNION ALL SELECT '7376232BT152', 9.0, 0
+    UNION ALL SELECT '7376232BT163', 8.0, 0
+    UNION ALL SELECT '7376232BT175', 10.0, 0
+    UNION ALL SELECT '7376232BT176', 9.0, 0
+    UNION ALL SELECT '7376232BT179', 9.0, 0
+    UNION ALL SELECT '7376232BT181', 6.0, 0
+    UNION ALL SELECT '7376232BT189', 8.0, 0
+    UNION ALL SELECT '7376232BT190', 8.0, 0
+    UNION ALL SELECT '7376232BT194', 9.0, 0
+    UNION ALL SELECT '7376232BT195', 8.0, 0
+    UNION ALL SELECT '7376232BT196', 9.0, 0
+    UNION ALL SELECT '7376232BT198', 8.0, 0
+    UNION ALL SELECT '7376232BT201', 8.0, 0
+    UNION ALL SELECT '7376232BT203', 9.0, 0
+    UNION ALL SELECT '7376232BT205', 9.0, 0
+    UNION ALL SELECT '7376232BT206', 5.0, 0
+    UNION ALL SELECT '7376232BT214', 9.0, 0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+ WHERE `a`.`kind`='IP1'
+ON DUPLICATE KEY UPDATE `total_obtained`=`new`.`tot`, `is_absent`=`new`.`ab`;
+
+INSERT INTO `student_assessments` (`assessment_id`,`student_id`,`total_obtained`,`is_absent`)
+SELECT `a`.`id`,`s`.`id`,`new`.`tot`,`new`.`ab` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 7.0 AS `tot`, 0 AS `ab`
+    UNION ALL SELECT '7376232BT103', 9.0, 0
+    UNION ALL SELECT '7376232BT105', 8.0, 0
+    UNION ALL SELECT '7376232BT106', 9.0, 0
+    UNION ALL SELECT '7376232BT108', 9.0, 0
+    UNION ALL SELECT '7376232BT109', 9.0, 0
+    UNION ALL SELECT '7376232BT115', 9.0, 0
+    UNION ALL SELECT '7376232BT118', 9.0, 0
+    UNION ALL SELECT '7376232BT120', 8.0, 0
+    UNION ALL SELECT '7376232BT122', 8.0, 0
+    UNION ALL SELECT '7376232BT123', 9.0, 0
+    UNION ALL SELECT '7376232BT125', 9.0, 0
+    UNION ALL SELECT '7376232BT126', 9.0, 0
+    UNION ALL SELECT '7376232BT127', 9.0, 0
+    UNION ALL SELECT '7376232BT129', 6.0, 0
+    UNION ALL SELECT '7376232BT145', 8.0, 0
+    UNION ALL SELECT '7376232BT149', 9.0, 0
+    UNION ALL SELECT '7376232BT151', 9.0, 0
+    UNION ALL SELECT '7376232BT152', 8.0, 0
+    UNION ALL SELECT '7376232BT163', 8.0, 0
+    UNION ALL SELECT '7376232BT175', 9.0, 0
+    UNION ALL SELECT '7376232BT176', 8.0, 0
+    UNION ALL SELECT '7376232BT179', 10.0, 0
+    UNION ALL SELECT '7376232BT181', 6.0, 0
+    UNION ALL SELECT '7376232BT189', 8.0, 0
+    UNION ALL SELECT '7376232BT190', 7.0, 0
+    UNION ALL SELECT '7376232BT194', 9.0, 0
+    UNION ALL SELECT '7376232BT195', 8.0, 0
+    UNION ALL SELECT '7376232BT196', 9.0, 0
+    UNION ALL SELECT '7376232BT198', 8.0, 0
+    UNION ALL SELECT '7376232BT201', 8.0, 0
+    UNION ALL SELECT '7376232BT203', 8.0, 0
+    UNION ALL SELECT '7376232BT205', 9.0, 0
+    UNION ALL SELECT '7376232BT206', 6.0, 0
+    UNION ALL SELECT '7376232BT214', 9.0, 0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+ WHERE `a`.`kind`='IP2'
+ON DUPLICATE KEY UPDATE `total_obtained`=`new`.`tot`, `is_absent`=`new`.`ab`;
+
+INSERT INTO `student_assessments` (`assessment_id`,`student_id`,`total_obtained`,`is_absent`)
+SELECT `a`.`id`,`s`.`id`,`new`.`tot`,`new`.`ab` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 63.0 AS `tot`, 0 AS `ab`
+    UNION ALL SELECT '7376232BT103', 66.0, 0
+    UNION ALL SELECT '7376232BT105', 55.0, 0
+    UNION ALL SELECT '7376232BT106', 66.0, 0
+    UNION ALL SELECT '7376232BT108', 69.0, 0
+    UNION ALL SELECT '7376232BT109', 65.0, 0
+    UNION ALL SELECT '7376232BT115', 46.0, 0
+    UNION ALL SELECT '7376232BT118', 64.0, 0
+    UNION ALL SELECT '7376232BT120', 49.0, 0
+    UNION ALL SELECT '7376232BT122', 72.0, 0
+    UNION ALL SELECT '7376232BT123', 67.0, 0
+    UNION ALL SELECT '7376232BT125', 65.0, 0
+    UNION ALL SELECT '7376232BT126', 55.0, 0
+    UNION ALL SELECT '7376232BT127', 70.0, 0
+    UNION ALL SELECT '7376232BT129', 58.0, 0
+    UNION ALL SELECT '7376232BT145', 69.0, 0
+    UNION ALL SELECT '7376232BT149', 69.0, 0
+    UNION ALL SELECT '7376232BT151', 67.0, 0
+    UNION ALL SELECT '7376232BT152', 58.0, 0
+    UNION ALL SELECT '7376232BT163', 58.0, 0
+    UNION ALL SELECT '7376232BT175', 71.0, 0
+    UNION ALL SELECT '7376232BT176', 47.0, 0
+    UNION ALL SELECT '7376232BT179', 63.0, 0
+    UNION ALL SELECT '7376232BT181', 66.0, 0
+    UNION ALL SELECT '7376232BT189', 71.0, 0
+    UNION ALL SELECT '7376232BT190', 80.0, 0
+    UNION ALL SELECT '7376232BT194', 68.0, 0
+    UNION ALL SELECT '7376232BT195', 58.0, 0
+    UNION ALL SELECT '7376232BT196', 66.0, 0
+    UNION ALL SELECT '7376232BT198', 67.0, 0
+    UNION ALL SELECT '7376232BT201', 66.0, 0
+    UNION ALL SELECT '7376232BT203', 67.0, 0
+    UNION ALL SELECT '7376232BT205', 66.0, 0
+    UNION ALL SELECT '7376232BT206', 60.0, 0
+    UNION ALL SELECT '7376232BT214', 59.0, 0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+ WHERE `a`.`kind`='SEE'
+ON DUPLICATE KEY UPDATE `total_obtained`=`new`.`tot`, `is_absent`=`new`.`ab`;
+
+-- ---------- per-CO marks (taken from the workbook, not derived) ----------
+INSERT INTO `student_co_marks` (`student_assessment_id`,`co_number`,`marks_obtained`)
+SELECT `sa`.`id`,`new`.`co`,`new`.`mk` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 1 AS `co`, 14.0 AS `mk`
+    UNION ALL SELECT '7376232BT102', 2, 14.0
+    UNION ALL SELECT '7376232BT102', 3, 7.0
+    UNION ALL SELECT '7376232BT103', 1, 15.0
+    UNION ALL SELECT '7376232BT103', 2, 16.0
+    UNION ALL SELECT '7376232BT103', 3, 9.0
+    UNION ALL SELECT '7376232BT105', 1, 14.0
+    UNION ALL SELECT '7376232BT105', 2, 14.0
+    UNION ALL SELECT '7376232BT105', 3, 7.0
+    UNION ALL SELECT '7376232BT106', 1, 15.0
+    UNION ALL SELECT '7376232BT106', 2, 16.0
+    UNION ALL SELECT '7376232BT106', 3, 8.0
+    UNION ALL SELECT '7376232BT108', 1, 15.0
+    UNION ALL SELECT '7376232BT108', 2, 16.0
+    UNION ALL SELECT '7376232BT108', 3, 9.0
+    UNION ALL SELECT '7376232BT109', 1, 15.0
+    UNION ALL SELECT '7376232BT109', 2, 15.0
+    UNION ALL SELECT '7376232BT109', 3, 8.0
+    UNION ALL SELECT '7376232BT115', 1, 6.0
+    UNION ALL SELECT '7376232BT115', 2, 7.0
+    UNION ALL SELECT '7376232BT115', 3, 3.0
+    UNION ALL SELECT '7376232BT118', 1, 17.0
+    UNION ALL SELECT '7376232BT118', 2, 16.0
+    UNION ALL SELECT '7376232BT118', 3, 9.0
+    UNION ALL SELECT '7376232BT120', 1, 15.0
+    UNION ALL SELECT '7376232BT120', 2, 15.0
+    UNION ALL SELECT '7376232BT120', 3, 8.0
+    UNION ALL SELECT '7376232BT122', 1, 15.0
+    UNION ALL SELECT '7376232BT122', 2, 16.0
+    UNION ALL SELECT '7376232BT122', 3, 9.0
+    UNION ALL SELECT '7376232BT123', 1, 18.0
+    UNION ALL SELECT '7376232BT123', 2, 18.0
+    UNION ALL SELECT '7376232BT123', 3, 7.0
+    UNION ALL SELECT '7376232BT125', 1, 16.0
+    UNION ALL SELECT '7376232BT125', 2, 16.0
+    UNION ALL SELECT '7376232BT125', 3, 9.0
+    UNION ALL SELECT '7376232BT126', 1, 15.0
+    UNION ALL SELECT '7376232BT126', 2, 14.0
+    UNION ALL SELECT '7376232BT126', 3, 7.0
+    UNION ALL SELECT '7376232BT127', 1, 16.0
+    UNION ALL SELECT '7376232BT127', 2, 16.0
+    UNION ALL SELECT '7376232BT127', 3, 9.0
+    UNION ALL SELECT '7376232BT129', 1, 16.0
+    UNION ALL SELECT '7376232BT129', 2, 15.0
+    UNION ALL SELECT '7376232BT129', 3, 6.0
+    UNION ALL SELECT '7376232BT145', 1, 18.0
+    UNION ALL SELECT '7376232BT145', 2, 18.0
+    UNION ALL SELECT '7376232BT145', 3, 7.0
+    UNION ALL SELECT '7376232BT149', 1, 15.0
+    UNION ALL SELECT '7376232BT149', 2, 16.0
+    UNION ALL SELECT '7376232BT149', 3, 9.0
+    UNION ALL SELECT '7376232BT151', 1, 15.0
+    UNION ALL SELECT '7376232BT151', 2, 16.0
+    UNION ALL SELECT '7376232BT151', 3, 9.0
+    UNION ALL SELECT '7376232BT152', 1, 3.0
+    UNION ALL SELECT '7376232BT152', 2, 3.0
+    UNION ALL SELECT '7376232BT152', 3, 2.0
+    UNION ALL SELECT '7376232BT163', 1, 6.0
+    UNION ALL SELECT '7376232BT163', 2, 7.0
+    UNION ALL SELECT '7376232BT163', 3, 4.0
+    UNION ALL SELECT '7376232BT175', 1, 15.0
+    UNION ALL SELECT '7376232BT175', 2, 16.0
+    UNION ALL SELECT '7376232BT175', 3, 8.0
+    UNION ALL SELECT '7376232BT176', 1, 6.0
+    UNION ALL SELECT '7376232BT176', 2, 7.0
+    UNION ALL SELECT '7376232BT176', 3, 3.0
+    UNION ALL SELECT '7376232BT179', 1, 15.0
+    UNION ALL SELECT '7376232BT179', 2, 16.0
+    UNION ALL SELECT '7376232BT179', 3, 9.0
+    UNION ALL SELECT '7376232BT181', 1, 15.0
+    UNION ALL SELECT '7376232BT181', 2, 15.0
+    UNION ALL SELECT '7376232BT181', 3, 8.0
+    UNION ALL SELECT '7376232BT189', 1, 14.0
+    UNION ALL SELECT '7376232BT189', 2, 14.0
+    UNION ALL SELECT '7376232BT189', 3, 6.0
+    UNION ALL SELECT '7376232BT190', 1, 18.0
+    UNION ALL SELECT '7376232BT190', 2, 18.0
+    UNION ALL SELECT '7376232BT190', 3, 7.0
+    UNION ALL SELECT '7376232BT194', 1, 18.0
+    UNION ALL SELECT '7376232BT194', 2, 18.0
+    UNION ALL SELECT '7376232BT194', 3, 7.0
+    UNION ALL SELECT '7376232BT195', 1, 12.0
+    UNION ALL SELECT '7376232BT195', 2, 13.0
+    UNION ALL SELECT '7376232BT195', 3, 5.0
+    UNION ALL SELECT '7376232BT196', 1, 14.0
+    UNION ALL SELECT '7376232BT196', 2, 14.0
+    UNION ALL SELECT '7376232BT196', 3, 7.0
+    UNION ALL SELECT '7376232BT198', 1, 15.0
+    UNION ALL SELECT '7376232BT198', 2, 15.0
+    UNION ALL SELECT '7376232BT198', 3, 8.0
+    UNION ALL SELECT '7376232BT201', 1, 15.0
+    UNION ALL SELECT '7376232BT201', 2, 16.0
+    UNION ALL SELECT '7376232BT201', 3, 9.0
+    UNION ALL SELECT '7376232BT203', 1, 14.0
+    UNION ALL SELECT '7376232BT203', 2, 14.0
+    UNION ALL SELECT '7376232BT203', 3, 7.0
+    UNION ALL SELECT '7376232BT205', 1, 15.0
+    UNION ALL SELECT '7376232BT205', 2, 14.0
+    UNION ALL SELECT '7376232BT205', 3, 7.0
+    UNION ALL SELECT '7376232BT206', 1, 13.0
+    UNION ALL SELECT '7376232BT206', 2, 13.0
+    UNION ALL SELECT '7376232BT206', 3, 7.0
+    UNION ALL SELECT '7376232BT214', 1, 15.0
+    UNION ALL SELECT '7376232BT214', 2, 14.0
+    UNION ALL SELECT '7376232BT214', 3, 7.0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+  JOIN `student_assessments` `sa` ON `sa`.`assessment_id`=`a`.`id` AND `sa`.`student_id`=`s`.`id`
+ WHERE `a`.`kind`='PT1'
+ON DUPLICATE KEY UPDATE `marks_obtained`=`new`.`mk`;
+
+INSERT INTO `student_co_marks` (`student_assessment_id`,`co_number`,`marks_obtained`)
+SELECT `sa`.`id`,`new`.`co`,`new`.`mk` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 3 AS `co`, 7.0 AS `mk`
+    UNION ALL SELECT '7376232BT102', 4, 14.0
+    UNION ALL SELECT '7376232BT102', 5, 15.0
+    UNION ALL SELECT '7376232BT103', 3, 8.0
+    UNION ALL SELECT '7376232BT103', 4, 15.0
+    UNION ALL SELECT '7376232BT103', 5, 15.0
+    UNION ALL SELECT '7376232BT105', 3, 5.0
+    UNION ALL SELECT '7376232BT105', 4, 13.0
+    UNION ALL SELECT '7376232BT105', 5, 12.0
+    UNION ALL SELECT '7376232BT106', 3, 9.0
+    UNION ALL SELECT '7376232BT106', 4, 16.0
+    UNION ALL SELECT '7376232BT106', 5, 15.0
+    UNION ALL SELECT '7376232BT108', 3, 8.0
+    UNION ALL SELECT '7376232BT108', 4, 15.0
+    UNION ALL SELECT '7376232BT108', 5, 15.0
+    UNION ALL SELECT '7376232BT109', 3, 7.0
+    UNION ALL SELECT '7376232BT109', 4, 13.0
+    UNION ALL SELECT '7376232BT109', 5, 13.0
+    UNION ALL SELECT '7376232BT115', 3, 3.0
+    UNION ALL SELECT '7376232BT115', 4, 8.0
+    UNION ALL SELECT '7376232BT115', 5, 11.0
+    UNION ALL SELECT '7376232BT118', 3, 9.0
+    UNION ALL SELECT '7376232BT118', 4, 16.0
+    UNION ALL SELECT '7376232BT118', 5, 15.0
+    UNION ALL SELECT '7376232BT120', 3, 6.0
+    UNION ALL SELECT '7376232BT120', 4, 14.0
+    UNION ALL SELECT '7376232BT120', 5, 14.0
+    UNION ALL SELECT '7376232BT122', 3, 7.0
+    UNION ALL SELECT '7376232BT122', 4, 14.0
+    UNION ALL SELECT '7376232BT122', 5, 15.0
+    UNION ALL SELECT '7376232BT123', 3, 9.0
+    UNION ALL SELECT '7376232BT123', 4, 16.0
+    UNION ALL SELECT '7376232BT123', 5, 17.0
+    UNION ALL SELECT '7376232BT125', 3, 8.0
+    UNION ALL SELECT '7376232BT125', 4, 16.0
+    UNION ALL SELECT '7376232BT125', 5, 15.0
+    UNION ALL SELECT '7376232BT126', 3, 6.0
+    UNION ALL SELECT '7376232BT126', 4, 11.0
+    UNION ALL SELECT '7376232BT126', 5, 12.0
+    UNION ALL SELECT '7376232BT127', 3, 9.0
+    UNION ALL SELECT '7376232BT127', 4, 16.0
+    UNION ALL SELECT '7376232BT127', 5, 15.0
+    UNION ALL SELECT '7376232BT129', 3, 9.0
+    UNION ALL SELECT '7376232BT129', 4, 16.0
+    UNION ALL SELECT '7376232BT129', 5, 16.0
+    UNION ALL SELECT '7376232BT145', 3, 9.0
+    UNION ALL SELECT '7376232BT145', 4, 16.0
+    UNION ALL SELECT '7376232BT145', 5, 15.0
+    UNION ALL SELECT '7376232BT149', 3, 8.0
+    UNION ALL SELECT '7376232BT149', 4, 16.0
+    UNION ALL SELECT '7376232BT149', 5, 15.0
+    UNION ALL SELECT '7376232BT151', 3, 7.0
+    UNION ALL SELECT '7376232BT151', 4, 13.0
+    UNION ALL SELECT '7376232BT151', 5, 13.0
+    UNION ALL SELECT '7376232BT152', 3, 6.0
+    UNION ALL SELECT '7376232BT152', 4, 11.0
+    UNION ALL SELECT '7376232BT152', 5, 11.0
+    UNION ALL SELECT '7376232BT163', 3, 6.0
+    UNION ALL SELECT '7376232BT163', 4, 11.0
+    UNION ALL SELECT '7376232BT163', 5, 11.0
+    UNION ALL SELECT '7376232BT175', 3, 8.0
+    UNION ALL SELECT '7376232BT175', 4, 16.0
+    UNION ALL SELECT '7376232BT175', 5, 15.0
+    UNION ALL SELECT '7376232BT176', 3, 6.0
+    UNION ALL SELECT '7376232BT176', 4, 10.0
+    UNION ALL SELECT '7376232BT176', 5, 9.0
+    UNION ALL SELECT '7376232BT179', 3, 7.0
+    UNION ALL SELECT '7376232BT179', 4, 14.0
+    UNION ALL SELECT '7376232BT179', 5, 15.0
+    UNION ALL SELECT '7376232BT181', 3, 6.0
+    UNION ALL SELECT '7376232BT181', 4, 15.0
+    UNION ALL SELECT '7376232BT181', 5, 16.0
+    UNION ALL SELECT '7376232BT189', 3, 6.0
+    UNION ALL SELECT '7376232BT189', 4, 13.0
+    UNION ALL SELECT '7376232BT189', 5, 13.0
+    UNION ALL SELECT '7376232BT190', 3, 7.0
+    UNION ALL SELECT '7376232BT190', 4, 14.0
+    UNION ALL SELECT '7376232BT190', 5, 14.0
+    UNION ALL SELECT '7376232BT194', 3, 9.0
+    UNION ALL SELECT '7376232BT194', 4, 16.0
+    UNION ALL SELECT '7376232BT194', 5, 15.0
+    UNION ALL SELECT '7376232BT195', 3, 6.0
+    UNION ALL SELECT '7376232BT195', 4, 12.0
+    UNION ALL SELECT '7376232BT195', 5, 13.0
+    UNION ALL SELECT '7376232BT196', 3, 6.0
+    UNION ALL SELECT '7376232BT196', 4, 11.0
+    UNION ALL SELECT '7376232BT196', 5, 11.0
+    UNION ALL SELECT '7376232BT198', 3, 6.0
+    UNION ALL SELECT '7376232BT198', 4, 14.0
+    UNION ALL SELECT '7376232BT198', 5, 14.0
+    UNION ALL SELECT '7376232BT201', 3, 7.0
+    UNION ALL SELECT '7376232BT201', 4, 14.0
+    UNION ALL SELECT '7376232BT201', 5, 15.0
+    UNION ALL SELECT '7376232BT203', 3, 9.0
+    UNION ALL SELECT '7376232BT203', 4, 16.0
+    UNION ALL SELECT '7376232BT203', 5, 15.0
+    UNION ALL SELECT '7376232BT205', 3, 6.0
+    UNION ALL SELECT '7376232BT205', 4, 14.0
+    UNION ALL SELECT '7376232BT205', 5, 14.0
+    UNION ALL SELECT '7376232BT206', 3, 6.0
+    UNION ALL SELECT '7376232BT206', 4, 11.0
+    UNION ALL SELECT '7376232BT206', 5, 11.0
+    UNION ALL SELECT '7376232BT214', 3, 6.0
+    UNION ALL SELECT '7376232BT214', 4, 13.0
+    UNION ALL SELECT '7376232BT214', 5, 13.0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+  JOIN `student_assessments` `sa` ON `sa`.`assessment_id`=`a`.`id` AND `sa`.`student_id`=`s`.`id`
+ WHERE `a`.`kind`='PT2'
+ON DUPLICATE KEY UPDATE `marks_obtained`=`new`.`mk`;
+
+INSERT INTO `student_co_marks` (`student_assessment_id`,`co_number`,`marks_obtained`)
+SELECT `sa`.`id`,`new`.`co`,`new`.`mk` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 2 AS `co`, 7.0 AS `mk`
+    UNION ALL SELECT '7376232BT103', 2, 9.0
+    UNION ALL SELECT '7376232BT105', 2, 9.0
+    UNION ALL SELECT '7376232BT106', 2, 8.0
+    UNION ALL SELECT '7376232BT108', 2, 8.0
+    UNION ALL SELECT '7376232BT109', 2, 9.0
+    UNION ALL SELECT '7376232BT115', 2, 9.0
+    UNION ALL SELECT '7376232BT118', 2, 9.0
+    UNION ALL SELECT '7376232BT120', 2, 9.0
+    UNION ALL SELECT '7376232BT122', 2, 9.0
+    UNION ALL SELECT '7376232BT123', 2, 9.0
+    UNION ALL SELECT '7376232BT125', 2, 9.0
+    UNION ALL SELECT '7376232BT126', 2, 9.0
+    UNION ALL SELECT '7376232BT127', 2, 9.0
+    UNION ALL SELECT '7376232BT129', 2, 6.0
+    UNION ALL SELECT '7376232BT145', 2, 8.0
+    UNION ALL SELECT '7376232BT149', 2, 8.0
+    UNION ALL SELECT '7376232BT151', 2, 9.0
+    UNION ALL SELECT '7376232BT152', 2, 9.0
+    UNION ALL SELECT '7376232BT163', 2, 8.0
+    UNION ALL SELECT '7376232BT175', 2, 10.0
+    UNION ALL SELECT '7376232BT176', 2, 9.0
+    UNION ALL SELECT '7376232BT179', 2, 9.0
+    UNION ALL SELECT '7376232BT181', 2, 6.0
+    UNION ALL SELECT '7376232BT189', 2, 8.0
+    UNION ALL SELECT '7376232BT190', 2, 8.0
+    UNION ALL SELECT '7376232BT194', 2, 9.0
+    UNION ALL SELECT '7376232BT195', 2, 8.0
+    UNION ALL SELECT '7376232BT196', 2, 9.0
+    UNION ALL SELECT '7376232BT198', 2, 8.0
+    UNION ALL SELECT '7376232BT201', 2, 8.0
+    UNION ALL SELECT '7376232BT203', 2, 9.0
+    UNION ALL SELECT '7376232BT205', 2, 9.0
+    UNION ALL SELECT '7376232BT206', 2, 5.0
+    UNION ALL SELECT '7376232BT214', 2, 9.0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+  JOIN `student_assessments` `sa` ON `sa`.`assessment_id`=`a`.`id` AND `sa`.`student_id`=`s`.`id`
+ WHERE `a`.`kind`='IP1'
+ON DUPLICATE KEY UPDATE `marks_obtained`=`new`.`mk`;
+
+INSERT INTO `student_co_marks` (`student_assessment_id`,`co_number`,`marks_obtained`)
+SELECT `sa`.`id`,`new`.`co`,`new`.`mk` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 4 AS `co`, 7.0 AS `mk`
+    UNION ALL SELECT '7376232BT103', 4, 9.0
+    UNION ALL SELECT '7376232BT105', 4, 8.0
+    UNION ALL SELECT '7376232BT106', 4, 9.0
+    UNION ALL SELECT '7376232BT108', 4, 9.0
+    UNION ALL SELECT '7376232BT109', 4, 9.0
+    UNION ALL SELECT '7376232BT115', 4, 9.0
+    UNION ALL SELECT '7376232BT118', 4, 9.0
+    UNION ALL SELECT '7376232BT120', 4, 8.0
+    UNION ALL SELECT '7376232BT122', 4, 8.0
+    UNION ALL SELECT '7376232BT123', 4, 9.0
+    UNION ALL SELECT '7376232BT125', 4, 9.0
+    UNION ALL SELECT '7376232BT126', 4, 9.0
+    UNION ALL SELECT '7376232BT127', 4, 9.0
+    UNION ALL SELECT '7376232BT129', 4, 6.0
+    UNION ALL SELECT '7376232BT145', 4, 8.0
+    UNION ALL SELECT '7376232BT149', 4, 9.0
+    UNION ALL SELECT '7376232BT151', 4, 9.0
+    UNION ALL SELECT '7376232BT152', 4, 8.0
+    UNION ALL SELECT '7376232BT163', 4, 8.0
+    UNION ALL SELECT '7376232BT175', 4, 9.0
+    UNION ALL SELECT '7376232BT176', 4, 8.0
+    UNION ALL SELECT '7376232BT179', 4, 10.0
+    UNION ALL SELECT '7376232BT181', 4, 6.0
+    UNION ALL SELECT '7376232BT189', 4, 8.0
+    UNION ALL SELECT '7376232BT190', 4, 7.0
+    UNION ALL SELECT '7376232BT194', 4, 9.0
+    UNION ALL SELECT '7376232BT195', 4, 8.0
+    UNION ALL SELECT '7376232BT196', 4, 9.0
+    UNION ALL SELECT '7376232BT198', 4, 8.0
+    UNION ALL SELECT '7376232BT201', 4, 8.0
+    UNION ALL SELECT '7376232BT203', 4, 8.0
+    UNION ALL SELECT '7376232BT205', 4, 9.0
+    UNION ALL SELECT '7376232BT206', 4, 6.0
+    UNION ALL SELECT '7376232BT214', 4, 9.0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+  JOIN `student_assessments` `sa` ON `sa`.`assessment_id`=`a`.`id` AND `sa`.`student_id`=`s`.`id`
+ WHERE `a`.`kind`='IP2'
+ON DUPLICATE KEY UPDATE `marks_obtained`=`new`.`mk`;
+
+INSERT INTO `student_co_marks` (`student_assessment_id`,`co_number`,`marks_obtained`)
+SELECT `sa`.`id`,`new`.`co`,`new`.`mk` FROM `assessments` `a`
+  JOIN `courses` `c` ON `c`.`id`=`a`.`course_id` AND `c`.`code`='22BT009'
+  JOIN (
+    SELECT '7376232BT102' AS `reg`, 1 AS `co`, 11.0 AS `mk`
+    UNION ALL SELECT '7376232BT102', 2, 16.0
+    UNION ALL SELECT '7376232BT102', 3, 13.0
+    UNION ALL SELECT '7376232BT102', 4, 11.0
+    UNION ALL SELECT '7376232BT102', 5, 12.0
+    UNION ALL SELECT '7376232BT103', 1, 15.0
+    UNION ALL SELECT '7376232BT103', 2, 13.0
+    UNION ALL SELECT '7376232BT103', 3, 14.0
+    UNION ALL SELECT '7376232BT103', 4, 12.0
+    UNION ALL SELECT '7376232BT103', 5, 12.0
+    UNION ALL SELECT '7376232BT105', 1, 15.0
+    UNION ALL SELECT '7376232BT105', 2, 11.0
+    UNION ALL SELECT '7376232BT105', 3, 9.0
+    UNION ALL SELECT '7376232BT105', 4, 10.0
+    UNION ALL SELECT '7376232BT105', 5, 10.0
+    UNION ALL SELECT '7376232BT106', 1, 16.0
+    UNION ALL SELECT '7376232BT106', 2, 15.0
+    UNION ALL SELECT '7376232BT106', 3, 9.0
+    UNION ALL SELECT '7376232BT106', 4, 14.0
+    UNION ALL SELECT '7376232BT106', 5, 12.0
+    UNION ALL SELECT '7376232BT108', 1, 16.0
+    UNION ALL SELECT '7376232BT108', 2, 15.0
+    UNION ALL SELECT '7376232BT108', 3, 13.0
+    UNION ALL SELECT '7376232BT108', 4, 12.0
+    UNION ALL SELECT '7376232BT108', 5, 13.0
+    UNION ALL SELECT '7376232BT109', 1, 15.0
+    UNION ALL SELECT '7376232BT109', 2, 12.0
+    UNION ALL SELECT '7376232BT109', 3, 14.0
+    UNION ALL SELECT '7376232BT109', 4, 11.0
+    UNION ALL SELECT '7376232BT109', 5, 13.0
+    UNION ALL SELECT '7376232BT115', 1, 13.0
+    UNION ALL SELECT '7376232BT115', 2, 9.0
+    UNION ALL SELECT '7376232BT115', 3, 7.0
+    UNION ALL SELECT '7376232BT115', 4, 10.0
+    UNION ALL SELECT '7376232BT115', 5, 7.0
+    UNION ALL SELECT '7376232BT118', 1, 13.0
+    UNION ALL SELECT '7376232BT118', 2, 13.0
+    UNION ALL SELECT '7376232BT118', 3, 12.0
+    UNION ALL SELECT '7376232BT118', 4, 14.0
+    UNION ALL SELECT '7376232BT118', 5, 12.0
+    UNION ALL SELECT '7376232BT120', 1, 11.0
+    UNION ALL SELECT '7376232BT120', 2, 11.0
+    UNION ALL SELECT '7376232BT120', 3, 7.0
+    UNION ALL SELECT '7376232BT120', 4, 11.0
+    UNION ALL SELECT '7376232BT120', 5, 9.0
+    UNION ALL SELECT '7376232BT122', 1, 16.0
+    UNION ALL SELECT '7376232BT122', 2, 12.0
+    UNION ALL SELECT '7376232BT122', 3, 15.0
+    UNION ALL SELECT '7376232BT122', 4, 14.0
+    UNION ALL SELECT '7376232BT122', 5, 15.0
+    UNION ALL SELECT '7376232BT123', 1, 16.0
+    UNION ALL SELECT '7376232BT123', 2, 10.0
+    UNION ALL SELECT '7376232BT123', 3, 14.0
+    UNION ALL SELECT '7376232BT123', 4, 12.0
+    UNION ALL SELECT '7376232BT123', 5, 15.0
+    UNION ALL SELECT '7376232BT125', 1, 15.0
+    UNION ALL SELECT '7376232BT125', 2, 13.0
+    UNION ALL SELECT '7376232BT125', 3, 12.0
+    UNION ALL SELECT '7376232BT125', 4, 13.0
+    UNION ALL SELECT '7376232BT125', 5, 12.0
+    UNION ALL SELECT '7376232BT126', 1, 13.0
+    UNION ALL SELECT '7376232BT126', 2, 11.0
+    UNION ALL SELECT '7376232BT126', 3, 8.0
+    UNION ALL SELECT '7376232BT126', 4, 13.0
+    UNION ALL SELECT '7376232BT126', 5, 10.0
+    UNION ALL SELECT '7376232BT127', 1, 15.0
+    UNION ALL SELECT '7376232BT127', 2, 15.0
+    UNION ALL SELECT '7376232BT127', 3, 13.0
+    UNION ALL SELECT '7376232BT127', 4, 14.0
+    UNION ALL SELECT '7376232BT127', 5, 13.0
+    UNION ALL SELECT '7376232BT129', 1, 15.0
+    UNION ALL SELECT '7376232BT129', 2, 13.0
+    UNION ALL SELECT '7376232BT129', 3, 8.0
+    UNION ALL SELECT '7376232BT129', 4, 9.0
+    UNION ALL SELECT '7376232BT129', 5, 13.0
+    UNION ALL SELECT '7376232BT145', 1, 12.0
+    UNION ALL SELECT '7376232BT145', 2, 12.0
+    UNION ALL SELECT '7376232BT145', 3, 12.0
+    UNION ALL SELECT '7376232BT145', 4, 15.0
+    UNION ALL SELECT '7376232BT145', 5, 18.0
+    UNION ALL SELECT '7376232BT149', 1, 17.0
+    UNION ALL SELECT '7376232BT149', 2, 15.0
+    UNION ALL SELECT '7376232BT149', 3, 12.0
+    UNION ALL SELECT '7376232BT149', 4, 14.0
+    UNION ALL SELECT '7376232BT149', 5, 11.0
+    UNION ALL SELECT '7376232BT151', 1, 13.0
+    UNION ALL SELECT '7376232BT151', 2, 13.0
+    UNION ALL SELECT '7376232BT151', 3, 13.0
+    UNION ALL SELECT '7376232BT151', 4, 16.0
+    UNION ALL SELECT '7376232BT151', 5, 12.0
+    UNION ALL SELECT '7376232BT152', 1, 12.0
+    UNION ALL SELECT '7376232BT152', 2, 16.0
+    UNION ALL SELECT '7376232BT152', 3, 12.0
+    UNION ALL SELECT '7376232BT152', 4, 13.0
+    UNION ALL SELECT '7376232BT152', 5, 5.0
+    UNION ALL SELECT '7376232BT163', 1, 14.0
+    UNION ALL SELECT '7376232BT163', 2, 12.0
+    UNION ALL SELECT '7376232BT163', 3, 10.0
+    UNION ALL SELECT '7376232BT163', 4, 10.0
+    UNION ALL SELECT '7376232BT163', 5, 12.0
+    UNION ALL SELECT '7376232BT175', 1, 14.0
+    UNION ALL SELECT '7376232BT175', 2, 14.0
+    UNION ALL SELECT '7376232BT175', 3, 14.0
+    UNION ALL SELECT '7376232BT175', 4, 14.0
+    UNION ALL SELECT '7376232BT175', 5, 15.0
+    UNION ALL SELECT '7376232BT176', 1, 11.0
+    UNION ALL SELECT '7376232BT176', 2, 12.0
+    UNION ALL SELECT '7376232BT176', 3, 10.0
+    UNION ALL SELECT '7376232BT176', 4, 10.0
+    UNION ALL SELECT '7376232BT176', 5, 4.0
+    UNION ALL SELECT '7376232BT179', 1, 13.0
+    UNION ALL SELECT '7376232BT179', 2, 13.0
+    UNION ALL SELECT '7376232BT179', 3, 14.0
+    UNION ALL SELECT '7376232BT179', 4, 10.0
+    UNION ALL SELECT '7376232BT179', 5, 13.0
+    UNION ALL SELECT '7376232BT181', 1, 12.0
+    UNION ALL SELECT '7376232BT181', 2, 15.0
+    UNION ALL SELECT '7376232BT181', 3, 12.0
+    UNION ALL SELECT '7376232BT181', 4, 14.0
+    UNION ALL SELECT '7376232BT181', 5, 13.0
+    UNION ALL SELECT '7376232BT189', 1, 16.0
+    UNION ALL SELECT '7376232BT189', 2, 15.0
+    UNION ALL SELECT '7376232BT189', 3, 15.0
+    UNION ALL SELECT '7376232BT189', 4, 12.0
+    UNION ALL SELECT '7376232BT189', 5, 13.0
+    UNION ALL SELECT '7376232BT190', 1, 16.0
+    UNION ALL SELECT '7376232BT190', 2, 19.0
+    UNION ALL SELECT '7376232BT190', 3, 14.0
+    UNION ALL SELECT '7376232BT190', 4, 15.0
+    UNION ALL SELECT '7376232BT190', 5, 16.0
+    UNION ALL SELECT '7376232BT194', 1, 15.0
+    UNION ALL SELECT '7376232BT194', 2, 13.0
+    UNION ALL SELECT '7376232BT194', 3, 11.0
+    UNION ALL SELECT '7376232BT194', 4, 16.0
+    UNION ALL SELECT '7376232BT194', 5, 13.0
+    UNION ALL SELECT '7376232BT195', 1, 14.0
+    UNION ALL SELECT '7376232BT195', 2, 9.0
+    UNION ALL SELECT '7376232BT195', 3, 12.0
+    UNION ALL SELECT '7376232BT195', 4, 11.0
+    UNION ALL SELECT '7376232BT195', 5, 12.0
+    UNION ALL SELECT '7376232BT196', 1, 15.0
+    UNION ALL SELECT '7376232BT196', 2, 12.0
+    UNION ALL SELECT '7376232BT196', 3, 12.0
+    UNION ALL SELECT '7376232BT196', 4, 14.0
+    UNION ALL SELECT '7376232BT196', 5, 13.0
+    UNION ALL SELECT '7376232BT198', 1, 14.0
+    UNION ALL SELECT '7376232BT198', 2, 15.0
+    UNION ALL SELECT '7376232BT198', 3, 12.0
+    UNION ALL SELECT '7376232BT198', 4, 12.0
+    UNION ALL SELECT '7376232BT198', 5, 14.0
+    UNION ALL SELECT '7376232BT201', 1, 13.0
+    UNION ALL SELECT '7376232BT201', 2, 13.0
+    UNION ALL SELECT '7376232BT201', 3, 10.0
+    UNION ALL SELECT '7376232BT201', 4, 12.0
+    UNION ALL SELECT '7376232BT201', 5, 18.0
+    UNION ALL SELECT '7376232BT203', 1, 13.0
+    UNION ALL SELECT '7376232BT203', 2, 13.0
+    UNION ALL SELECT '7376232BT203', 3, 11.0
+    UNION ALL SELECT '7376232BT203', 4, 15.0
+    UNION ALL SELECT '7376232BT203', 5, 15.0
+    UNION ALL SELECT '7376232BT205', 1, 16.0
+    UNION ALL SELECT '7376232BT205', 2, 12.0
+    UNION ALL SELECT '7376232BT205', 3, 10.0
+    UNION ALL SELECT '7376232BT205', 4, 14.0
+    UNION ALL SELECT '7376232BT205', 5, 14.0
+    UNION ALL SELECT '7376232BT206', 1, 15.0
+    UNION ALL SELECT '7376232BT206', 2, 13.0
+    UNION ALL SELECT '7376232BT206', 3, 11.0
+    UNION ALL SELECT '7376232BT206', 4, 11.0
+    UNION ALL SELECT '7376232BT206', 5, 10.0
+    UNION ALL SELECT '7376232BT214', 1, 15.0
+    UNION ALL SELECT '7376232BT214', 2, 12.0
+    UNION ALL SELECT '7376232BT214', 3, 10.0
+    UNION ALL SELECT '7376232BT214', 4, 13.0
+    UNION ALL SELECT '7376232BT214', 5, 9.0
+  ) `new` JOIN `students` `s` ON `s`.`reg_number`=`new`.`reg`
+  JOIN `student_assessments` `sa` ON `sa`.`assessment_id`=`a`.`id` AND `sa`.`student_id`=`s`.`id`
+ WHERE `a`.`kind`='SEE'
+ON DUPLICATE KEY UPDATE `marks_obtained`=`new`.`mk`;
+
+-- ---------- attendance ----------
+INSERT INTO `attendance` (`student_id`,`course_id`,`percentage`,`academic_year`,`semester`)
+SELECT `s`.`id`,`c`.`id`,`v`.`pc`,'2025 - 2026','V' FROM `courses` `c` JOIN (
+    SELECT '7376232BT102' AS `reg`, 90.31 AS `pc`
+    UNION ALL SELECT '7376232BT103', 87.76
+    UNION ALL SELECT '7376232BT105', 90.82
+    UNION ALL SELECT '7376232BT106', 90.31
+    UNION ALL SELECT '7376232BT108', 90.82
+    UNION ALL SELECT '7376232BT109', 90.82
+    UNION ALL SELECT '7376232BT115', 81.63
+    UNION ALL SELECT '7376232BT118', 87.76
+    UNION ALL SELECT '7376232BT120', 86.73
+    UNION ALL SELECT '7376232BT122', 87.76
+    UNION ALL SELECT '7376232BT123', 77.55
+    UNION ALL SELECT '7376232BT125', 91.33
+    UNION ALL SELECT '7376232BT126', 88.78
+    UNION ALL SELECT '7376232BT127', 88.27
+    UNION ALL SELECT '7376232BT129', 80.1
+    UNION ALL SELECT '7376232BT145', 89.8
+    UNION ALL SELECT '7376232BT149', 84.18
+    UNION ALL SELECT '7376232BT151', 83.16
+    UNION ALL SELECT '7376232BT152', 80.61
+    UNION ALL SELECT '7376232BT163', 82.14
+    UNION ALL SELECT '7376232BT175', 88.78
+    UNION ALL SELECT '7376232BT176', 87.76
+    UNION ALL SELECT '7376232BT179', 89.8
+    UNION ALL SELECT '7376232BT181', 90.31
+    UNION ALL SELECT '7376232BT189', 91.33
+    UNION ALL SELECT '7376232BT190', 90.82
+    UNION ALL SELECT '7376232BT194', 88.27
+    UNION ALL SELECT '7376232BT195', 90.31
+    UNION ALL SELECT '7376232BT196', 83.67
+    UNION ALL SELECT '7376232BT198', 89.8
+    UNION ALL SELECT '7376232BT201', 84.18
+    UNION ALL SELECT '7376232BT203', 90.82
+    UNION ALL SELECT '7376232BT205', 90.82
+    UNION ALL SELECT '7376232BT206', 98.47
+    UNION ALL SELECT '7376232BT214', 96.94
+) `v` JOIN `students` `s` ON `s`.`reg_number`=`v`.`reg`
+ WHERE `c`.`code`='22BT009'
+   AND NOT EXISTS (SELECT 1 FROM `attendance` `x` WHERE `x`.`student_id`=`s`.`id`
+     AND `x`.`course_id`=`c`.`id` AND `x`.`academic_year`<=>'2025 - 2026'
+     AND `x`.`semester`<=>'V');
+
+-- ---------- internal marks ----------
+INSERT INTO `internal_marks` (`student_id`,`course_id`,`pt1`,`pt2`,`ip`,`total`,`academic_year`,`semester`)
+SELECT `s`.`id`,`c`.`id`,`v`.`pt1`,`v`.`pt2`,`v`.`ip`,`v`.`tot`,'2025 - 2026','V'
+  FROM `courses` `c` JOIN (
+    SELECT '7376232BT102' AS `reg`, 35.0 AS `pt1`, 35.83 AS `pt2`, 14.3 AS `ip`, 31.0 AS `tot`
+    UNION ALL SELECT '7376232BT103', 40.0, 37.5, 14.6, 33.0
+    UNION ALL SELECT '7376232BT105', 35.0, 29.58, 13.3, 29.0
+    UNION ALL SELECT '7376232BT106', 38.75, 40.0, 14.1, 33.0
+    UNION ALL SELECT '7376232BT108', 39.58, 37.5, 14.6, 33.0
+    UNION ALL SELECT '7376232BT109', 37.92, 32.92, 13.3, 30.0
+    UNION ALL SELECT '7376232BT115', 16.25, 22.08, 9.3, 19.0
+    UNION ALL SELECT '7376232BT118', 41.67, 40.42, 14.6, 34.0
+    UNION ALL SELECT '7376232BT120', 37.5, 34.17, 13.5, 31.0
+    UNION ALL SELECT '7376232BT122', 40.42, 36.25, 13.8, 32.0
+    UNION ALL SELECT '7376232BT123', 42.5, 41.67, 14.9, 35.0
+    UNION ALL SELECT '7376232BT125', 41.25, 39.17, 14.3, 34.0
+    UNION ALL SELECT '7376232BT126', 35.83, 29.17, 13.5, 29.0
+    UNION ALL SELECT '7376232BT127', 41.25, 40.42, 14.6, 34.0
+    UNION ALL SELECT '7376232BT129', 36.67, 40.83, 14.9, 34.0
+    UNION ALL SELECT '7376232BT145', 42.5, 40.0, 14.6, 34.0
+    UNION ALL SELECT '7376232BT149', 40.42, 39.17, 14.1, 33.0
+    UNION ALL SELECT '7376232BT151', 39.58, 33.33, 13.0, 31.0
+    UNION ALL SELECT '7376232BT152', 7.92, 27.92, 7.9, 17.0
+    UNION ALL SELECT '7376232BT163', 17.08, 27.92, 9.3, 20.0
+    UNION ALL SELECT '7376232BT175', 38.75, 38.75, 13.3, 32.0
+    UNION ALL SELECT '7376232BT176', 16.25, 25.42, 10.1, 20.0
+    UNION ALL SELECT '7376232BT179', 40.0, 36.25, 13.3, 32.0
+    UNION ALL SELECT '7376232BT181', 38.33, 36.67, 13.5, 32.0
+    UNION ALL SELECT '7376232BT189', 34.17, 31.67, 13.8, 30.0
+    UNION ALL SELECT '7376232BT190', 42.92, 35.0, 12.7, 31.0
+    UNION ALL SELECT '7376232BT194', 42.92, 39.58, 14.3, 34.0
+    UNION ALL SELECT '7376232BT195', 30.42, 31.25, 13.3, 28.0
+    UNION ALL SELECT '7376232BT196', 35.42, 28.33, 11.9, 27.0
+    UNION ALL SELECT '7376232BT198', 37.5, 33.75, 13.5, 31.0
+    UNION ALL SELECT '7376232BT201', 40.0, 36.25, 13.3, 32.0
+    UNION ALL SELECT '7376232BT203', 35.42, 40.0, 14.3, 32.0
+    UNION ALL SELECT '7376232BT205', 35.83, 33.75, 13.8, 31.0
+    UNION ALL SELECT '7376232BT206', 32.5, 28.33, 11.7, 26.0
+    UNION ALL SELECT '7376232BT214', 36.25, 31.67, 13.3, 30.0
+) `v` JOIN `students` `s` ON `s`.`reg_number`=`v`.`reg`
+ WHERE `c`.`code`='22BT009'
+   AND NOT EXISTS (SELECT 1 FROM `internal_marks` `x` WHERE `x`.`student_id`=`s`.`id`
+     AND `x`.`course_id`=`c`.`id` AND `x`.`academic_year`<=>'2025 - 2026'
+     AND `x`.`semester`<=>'V');
+
+-- ---------- course exit survey ----------
+INSERT INTO `course_exit_survey` (`course_id`,`co_number`,`value`)
+SELECT `c`.`id`,`new`.`co`,`new`.`val` FROM `courses` `c` JOIN (
+  SELECT 1 AS `co`, 2.59 AS `val`
+    UNION ALL SELECT 2 AS `co`, 2.57 AS `val`
+    UNION ALL SELECT 3 AS `co`, 2.57 AS `val`
+    UNION ALL SELECT 4 AS `co`, 2.57 AS `val`
+    UNION ALL SELECT 5 AS `co`, 2.56 AS `val`
+) `new` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `value`=`new`.`val`;
+
+-- ---------- remedial schedule ----------
+INSERT INTO `remedial_schedules` (`course_id`,`assessment_kind`,`venue`)
+SELECT `c`.`id`,'PT1','BT Meeting Hall' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `venue`='BT Meeting Hall';
+INSERT INTO `remedial_classes` (`schedule_id`,`co_number`,`class_date`,`timing`)
+SELECT `rs`.`id`,`new`.`co`,`new`.`dt`,`new`.`tm` FROM `remedial_schedules` `rs`
+  JOIN `courses` `c` ON `c`.`id`=`rs`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 1 AS `co`, '2025-08-19' AS `dt`, '4:30PM to 5:30PM' AS `tm`
+    UNION ALL SELECT 2 AS `co`, '2025-08-20' AS `dt`, '4:30PM to 5:30PM' AS `tm`
+    UNION ALL SELECT 3 AS `co`, '2025-08-21' AS `dt`, '4:30PM to 5:00PM' AS `tm`
+) `new` WHERE `rs`.`assessment_kind`='PT1'
+ON DUPLICATE KEY UPDATE `class_date`=`new`.`dt`, `timing`=`new`.`tm`;
+
+INSERT INTO `remedial_schedules` (`course_id`,`assessment_kind`,`venue`)
+SELECT `c`.`id`,'PT2','BT Meeting Hall' FROM `courses` `c` WHERE `c`.`code`='22BT009'
+ON DUPLICATE KEY UPDATE `venue`='BT Meeting Hall';
+INSERT INTO `remedial_classes` (`schedule_id`,`co_number`,`class_date`,`timing`)
+SELECT `rs`.`id`,`new`.`co`,`new`.`dt`,`new`.`tm` FROM `remedial_schedules` `rs`
+  JOIN `courses` `c` ON `c`.`id`=`rs`.`course_id` AND `c`.`code`='22BT009' JOIN (
+  SELECT 3 AS `co`, '2025-10-29' AS `dt`, '8:45 AM to 10:15 AM' AS `tm`
+    UNION ALL SELECT 4 AS `co`, '2025-10-29' AS `dt`, '10:30 AM to 12:00 Noon' AS `tm`
+    UNION ALL SELECT 5 AS `co`, '2025-10-29' AS `dt`, '1:30 PM to 3:00 PM' AS `tm`
+) `new` WHERE `rs`.`assessment_kind`='PT2'
+ON DUPLICATE KEY UPDATE `class_date`=`new`.`dt`, `timing`=`new`.`tm`;
+
+COMMIT;
+
+-- Expected after running:
+--   students 35 | courses 1 | faculty 2 | assessments 5
+--   student_enrolments 35 | attendance 35 | internal_marks 35
+--   course_exit_survey 5 | co_po_matrix 31
+
