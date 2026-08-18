@@ -34,6 +34,7 @@ const { OAuth2Client } = require("google-auth-library");
 const pool = require("../db");
 const { asyncHandler, HttpError, isPlainObject } = require("../helpers");
 const { signToken } = require("../auth");
+const { recordLogin } = require("../loginTracking");
 
 const router = express.Router();
 
@@ -166,6 +167,25 @@ router.post(
     if (!row.is_active) {
       throw new HttpError(403, "That faculty account is no longer active");
     }
+
+    // ---------------------------------------------------------------
+    // Sign-in succeeded. Write it down.
+    //
+    // Reached only past every check above, so a row is only ever recorded
+    // for somebody Google verified, in the allowed domain, on staff, and
+    // active. A rejected attempt writes nothing.
+    //
+    // Awaited so it happens inside this request rather than after the
+    // response has gone, and safe to await bare BECAUSE recordLogin cannot
+    // throw or reject -- it catches everything itself. Nothing about the
+    // verification above, or the response below, depends on it having
+    // worked: if the write fails, the sign-in still succeeds and the caller
+    // still gets its token.
+    //
+    // It is handed the faculty id and the request, and NOT the credential
+    // or the token, so neither can reach a log line from in there.
+    // ---------------------------------------------------------------
+    await recordLogin(row.id, req);
 
     // ---------------------------------------------------------------
     // The faculty fields, plus the session token.
