@@ -320,6 +320,20 @@ export default function Layout() {
               </NavLink>
             )}
             {/* END REMOVABLE -- admin Users screen */}
+            {/* BEGIN REMOVABLE -- Courses and Allocations screens. Admin only,
+                for the same reason and with the same caveat: this hides the
+                links, it does not secure anything. */}
+            {faculty.role === 'admin' && (
+              <NavLink to="/courses" className={navClass}>
+                Courses
+              </NavLink>
+            )}
+            {faculty.role === 'admin' && (
+              <NavLink to="/allocations" className={navClass}>
+                Allocations
+              </NavLink>
+            )}
+            {/* END REMOVABLE -- Courses and Allocations screens */}
           </div>
 
           {courseId && (

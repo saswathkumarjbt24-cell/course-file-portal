@@ -21,6 +21,10 @@ import FullCourseFile from './pages/FullCourseFile'
 // BEGIN REMOVABLE -- admin Users screen
 import Users from './pages/Users'
 // END REMOVABLE -- admin Users screen
+// BEGIN REMOVABLE -- Courses and Allocations screens
+import Courses from './pages/Courses'
+import Allocations from './pages/Allocations'
+// END REMOVABLE -- Courses and Allocations screens
 
 // With nobody signed in there is nothing to show, so every route falls
 // back to the sign-in screen.
@@ -58,6 +62,13 @@ export default function App() {
                   redirected somewhere that does not explain why. */}
               <Route path="/users" element={<Users />} />
               {/* END REMOVABLE -- admin Users screen */}
+              {/* BEGIN REMOVABLE -- Courses and Allocations screens.
+                  The ROLE guard is inside each page, so a faculty member who
+                  types the URL is refused in words rather than redirected
+                  somewhere that does not explain why. */}
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/allocations" element={<Allocations />} />
+              {/* END REMOVABLE -- Courses and Allocations screens */}
             </Route>
           </Route>
           {/* Unknown paths go to the dashboard, which itself requires a session. */}

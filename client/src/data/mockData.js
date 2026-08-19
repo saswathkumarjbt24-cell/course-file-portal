@@ -664,6 +664,122 @@ export const departments = [
 ]
 // END REMOVABLE -- admin Users screen
 
+// BEGIN REMOVABLE -- Courses and Allocations screens
+//
+// What GET /api/admin/courses returns, exactly. Shaped to the API response and
+// NOT to `courses` above, which is the list every other screen reads: this one
+// adds the nature name, the migration-012 offering columns and the allocation
+// count, and it is not narrowed to what the caller may reach.
+//
+// The ids and codes match `courses` so the two fixtures describe one
+// institution rather than two.
+export const adminCourses = [
+  {
+    id: 1,
+    code: '22CS101',
+    title: 'DATA STRUCTURES AND ALGORITHMS',
+    natureId: 2,
+    natureName: 'Theory & Lab',
+    coTargetPercent: 60,
+    coCount: 5,
+    department: 'Computer Science and Engineering',
+    programme: 'B.E. Computer Science and Engineering',
+    batch: '2022-2026',
+    academicYear: '2025 - 2026',
+    yearOfStudy: 'III',
+    semester: 'V',
+    section: 'A',
+    allocationCount: 2,
+  },
+  {
+    id: 2,
+    code: '22CS102',
+    title: 'OPERATING SYSTEMS',
+    natureId: 1,
+    natureName: 'Theory',
+    coTargetPercent: 60,
+    coCount: 5,
+    department: 'Computer Science and Engineering',
+    programme: 'B.E. Computer Science and Engineering',
+    batch: '2022-2026',
+    academicYear: '2025 - 2026',
+    yearOfStudy: 'III',
+    semester: 'V',
+    section: 'A',
+    allocationCount: 1,
+  },
+  // A course with nothing recorded beyond the required fields, and nobody
+  // allocated to it. Both are real states the screen has to render: null
+  // columns show a placeholder, and an allocation count of 0 is a warning,
+  // not a blank.
+  {
+    id: 3,
+    code: '22AD201',
+    title: 'MACHINE LEARNING',
+    natureId: 1,
+    natureName: 'Theory',
+    coTargetPercent: 60,
+    coCount: 5,
+    department: 'Artificial Intelligence and Data Science',
+    programme: null,
+    batch: null,
+    academicYear: null,
+    yearOfStudy: null,
+    semester: null,
+    section: null,
+    allocationCount: 0,
+  },
+]
+
+// What GET /api/admin/allocations returns, exactly: both sides joined in,
+// ordered by course code then faculty name. The faculty ids and names match
+// `facultyList` and `adminUsers`, and the course ids match `adminCourses`.
+export const adminAllocations = [
+  {
+    id: 1,
+    facultyId: 1,
+    facultyName: 'Faculty A',
+    facultyEmail: 'facultya@bitsathy.ac.in',
+    facultyIsActive: true,
+    courseId: 1,
+    courseCode: '22CS101',
+    courseTitle: 'DATA STRUCTURES AND ALGORITHMS',
+    role: 'handling',
+    academicYear: '2025 - 2026',
+    semester: 'V',
+    section: 'A',
+  },
+  {
+    id: 2,
+    facultyId: 2,
+    facultyName: 'Faculty B',
+    facultyEmail: 'facultyb@bitsathy.ac.in',
+    facultyIsActive: true,
+    courseId: 1,
+    courseCode: '22CS101',
+    courseTitle: 'DATA STRUCTURES AND ALGORITHMS',
+    role: 'incharge',
+    academicYear: '2025 - 2026',
+    semester: 'V',
+    section: 'A',
+  },
+  {
+    id: 3,
+    facultyId: 2,
+    facultyName: 'Faculty B',
+    facultyEmail: 'facultyb@bitsathy.ac.in',
+    facultyIsActive: true,
+    courseId: 2,
+    courseCode: '22CS102',
+    courseTitle: 'OPERATING SYSTEMS',
+    role: 'handling',
+    academicYear: '2025 - 2026',
+    semester: 'V',
+    section: 'A',
+  },
+]
+// END REMOVABLE -- Courses and Allocations screens
+
 // Mirrors table: institution_vision_mission
 export const institutionVisionMission = {
   vision:

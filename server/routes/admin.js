@@ -50,6 +50,10 @@ const {
   requireId,
   isPlainObject,
   optionalString,
+  // BEGIN REMOVABLE -- Courses and Allocations screens
+  num,
+  optionalNumber,
+  // END REMOVABLE -- Courses and Allocations screens
 } = require("../helpers");
 const { requireRole } = require("../auth");
 
@@ -544,6 +548,747 @@ router.put(
     res.json(mapUser(updated));
   })
 );
+
+// =====================================================================
+// BEGIN REMOVABLE BLOCK -- Courses and Allocations screens (server half)
+//
+//   GET    /api/admin/courses          - every course, with allocation count
+//   POST   /api/admin/courses          - create a course
+//   PUT    /api/admin/courses/:id      - edit one, partially
+//   GET    /api/admin/allocations      - every allocation, with both sides
+//   POST   /api/admin/allocations      - assign a faculty member to a course
+//   DELETE /api/admin/allocations/:id  - remove one assignment
+//
+// Admin only, every one of them, for the same reasons as the Users routes
+// above: authentication is settled by the requireAuth gate in index.js, and
+// requireRole('admin') is written on each route rather than once with
+// router.use so a route added later has to say what it needs.
+//
+// WHY THERE IS NO DELETE FOR A COURSE
+//   course_allocations, student_enrolments, assessments and every mark row
+//   hang off a course, several of them ON DELETE CASCADE. A delete button
+//   here would therefore be a button that silently destroys a term's marks,
+//   and no confirmation dialog makes that safe. Retiring a course is a
+//   different feature -- it needs a flag and a decision about what the
+//   printed file shows -- and it is not this one.
+//
+// WHY co_target_percent IS REQUIRED ON CREATE
+//   The column has NO default, deliberately: every attainment figure in the
+//   app is computed against it, and a guessed target would silently change
+//   what every CO level reads. A missing value is refused here with a 400
+//   naming the field rather than being filled in.
+// =====================================================================
+
+// Column widths from migrations 003 and 012.
+const CODE_MAX = 20;
+const TITLE_MAX = 200;
+const PROGRAMME_MAX = 120;
+const BATCH_MAX = 20;
+const ACADEMIC_YEAR_MAX = 20;
+const YEAR_OF_STUDY_MAX = 20;
+const SEMESTER_MAX = 10;
+const SECTION_MAX = 10;
+
+// The ENUM migration 006 declared on course_allocations.role. Checked here so
+// a bad value is a 400 naming the field rather than a 500 from a refused write.
+const ALLOCATION_ROLES = ["handling", "incharge"];
+
+// The optional text columns a course carries, all NULLable, all "not recorded
+// yet" when absent. One table so create and update cannot disagree about
+// which fields exist or how long they may be.
+const COURSE_TEXT_FIELDS = [
+  { body: "programme", column: "programme", max: PROGRAMME_MAX },
+  { body: "batch", column: "batch", max: BATCH_MAX },
+  { body: "academicYear", column: "academic_year", max: ACADEMIC_YEAR_MAX },
+  { body: "yearOfStudy", column: "year_of_study", max: YEAR_OF_STUDY_MAX },
+  { body: "semester", column: "semester", max: SEMESTER_MAX },
+  { body: "section", column: "section", max: SECTION_MAX },
+];
+
+const ADMIN_COURSE_SELECT = `
+  c.id, c.code, c.title, c.nature_id, n.name AS nature_name,
+  c.co_target_percent, c.co_count, c.department, c.programme, c.batch,
+  c.academic_year, c.year_of_study, c.semester, c.section,
+  (SELECT COUNT(*) FROM course_allocations AS ca WHERE ca.course_id = c.id)
+    AS allocation_count
+`;
+
+/** A courses row joined to its nature -> the JSON the Courses screen reads. */
+function mapAdminCourse(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.title,
+    natureId: row.nature_id,
+    natureName: row.nature_name,
+    coTargetPercent: num(row.co_target_percent),
+    coCount: row.co_count,
+    department: row.department,
+    programme: row.programme,
+    batch: row.batch,
+    academicYear: row.academic_year,
+    yearOfStudy: row.year_of_study,
+    semester: row.semester,
+    section: row.section,
+    allocationCount: Number(row.allocation_count),
+  };
+}
+
+/** Read one course by id in the caller's transaction, or throw 404. */
+async function loadCourse(conn, id) {
+  const [rows] = await conn.execute(
+    `SELECT ${ADMIN_COURSE_SELECT}
+       FROM courses AS c
+       JOIN course_natures AS n ON n.id = c.nature_id
+      WHERE c.id = ?`,
+    [id]
+  );
+  if (rows.length === 0) throw new HttpError(404, `No course with id ${id}`);
+  return rows[0];
+}
+
+/**
+ * Validate a nature id against course_natures.
+ *
+ * A foreign key would refuse a bad one anyway, but as a 500 from a rejected
+ * write. This turns it into a 400 that names the field and lists what is
+ * actually on offer.
+ */
+async function readNature(conn, natureId) {
+  const [rows] = await conn.execute(
+    "SELECT id, name FROM course_natures WHERE id = ?",
+    [natureId]
+  );
+  return rows.length === 0 ? null : rows[0];
+}
+
+// ---------------------------------------------------------------------
+// GET /api/admin/courses
+//
+// EVERY course. Unlike GET /api/courses, which narrows to what the caller may
+// reach, this one is the management view and an admin sees everything anyway.
+//
+// allocationCount is a correlated COUNT rather than a JOIN with GROUP BY: the
+// join would multiply each course by its allocation count before collapsing
+// it, and every other column would have to be carried through the GROUP BY
+// for no gain. course_allocations is indexed on course_id.
+//
+// A count of 0 means nobody is assigned to teach it, which is a real and
+// visible state -- the screen says so rather than leaving the cell blank.
+// ---------------------------------------------------------------------
+router.get(
+  "/courses",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT ${ADMIN_COURSE_SELECT}
+         FROM courses AS c
+         JOIN course_natures AS n ON n.id = c.nature_id
+        ORDER BY c.code`
+    );
+    res.json(rows.map(mapAdminCourse));
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/courses
+//
+// Body: { code, title, natureId, coTargetPercent, department, programme,
+//         batch, academicYear, yearOfStudy, semester, section }
+//
+//   400  a field failed validation. Carries `issues`, built BEFORE the insert.
+//   409  that code already belongs to a course. An ordinary thing for an
+//        admin to try, so it is the sentence saying so and not a 500.
+//
+// co_count and regulation_year are deliberately NOT settable here. Both have
+// sensible column defaults, neither appears on the screen, and inventing a
+// route for them would mean guessing what an admin meant by leaving them out.
+// ---------------------------------------------------------------------
+router.post(
+  "/courses",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+
+    const code = optionalString(body.code, CODE_MAX);
+    if (!code.ok) {
+      issues.push({ field: "code", message: `code must be text of at most ${CODE_MAX} characters` });
+    } else if (code.value === null) {
+      issues.push({ field: "code", message: "code is required" });
+    }
+
+    const title = optionalString(body.title, TITLE_MAX);
+    if (!title.ok) {
+      issues.push({ field: "title", message: `title must be text of at most ${TITLE_MAX} characters` });
+    } else if (title.value === null) {
+      issues.push({ field: "title", message: "title is required" });
+    }
+
+    // ---- natureId: required, and must name a real course_natures row ----
+    const nature = optionalNumber(body.natureId);
+    if (!nature.ok || (nature.value !== null && !Number.isInteger(nature.value))) {
+      issues.push({ field: "natureId", message: "natureId must be a whole number" });
+    } else if (nature.value === null) {
+      issues.push({ field: "natureId", message: "natureId is required" });
+    }
+
+    // ---- coTargetPercent: required, 1 to 100. NO DEFAULT, ever. ----
+    const target = optionalNumber(body.coTargetPercent);
+    if (!target.ok) {
+      issues.push({ field: "coTargetPercent", message: "coTargetPercent must be a number" });
+    } else if (target.value === null) {
+      issues.push({
+        field: "coTargetPercent",
+        message:
+          "coTargetPercent is required. Every attainment figure is computed against it, so it is never defaulted.",
+      });
+    } else if (target.value < 1 || target.value > 100) {
+      issues.push({ field: "coTargetPercent", message: "coTargetPercent must be between 1 and 100" });
+    }
+
+    const department = optionalString(body.department, DEPARTMENT_MAX);
+    if (!department.ok) {
+      issues.push({
+        field: "department",
+        message: `department must be text of at most ${DEPARTMENT_MAX} characters`,
+      });
+    }
+
+    const text = {};
+    for (const field of COURSE_TEXT_FIELDS) {
+      const parsed = optionalString(body[field.body], field.max);
+      if (!parsed.ok) {
+        issues.push({
+          field: field.body,
+          message: `${field.body} must be text of at most ${field.max} characters`,
+        });
+      } else {
+        text[field.column] = parsed.value;
+      }
+    }
+
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const created = await withTransaction(async (conn) => {
+      if ((await readNature(conn, nature.value)) === null) {
+        const [all] = await conn.execute("SELECT id, name FROM course_natures ORDER BY id");
+        throw new ValidationError([
+          {
+            field: "natureId",
+            message: `No course nature with id ${nature.value}. Available: ${all
+              .map((n) => `${n.id} (${n.name})`)
+              .join(", ")}`,
+          },
+        ]);
+      }
+
+      const [clash] = await conn.execute("SELECT id FROM courses WHERE code = ? LIMIT 1", [
+        code.value,
+      ]);
+      if (clash.length > 0) {
+        throw new HttpError(409, `A course already exists with code ${code.value}`);
+      }
+
+      // Same canonicalisation the Users screen writes through, so a course and
+      // a faculty row can never disagree about how a department is spelt --
+      // which is what hod scoping compares.
+      const storedDepartment = await canonicalDepartment(conn, department.value);
+
+      let result;
+      try {
+        [result] = await conn.execute(
+          `INSERT INTO courses
+             (code, title, nature_id, co_target_percent, department,
+              programme, batch, academic_year, year_of_study, semester, section)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            code.value,
+            title.value,
+            nature.value,
+            target.value,
+            storedDepartment,
+            text.programme,
+            text.batch,
+            text.academic_year,
+            text.year_of_study,
+            text.semester,
+            text.section,
+          ]
+        );
+      } catch (err) {
+        // Two admins creating the same code at once; the unique key caught it.
+        if (err && err.code === "ER_DUP_ENTRY") {
+          throw new HttpError(409, `A course already exists with code ${code.value}`);
+        }
+        throw err;
+      }
+
+      return loadCourse(conn, result.insertId);
+    });
+
+    res.status(201).json(mapAdminCourse(created));
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/admin/courses/:id
+//
+// Partial: an absent field is left alone, so the inline editor can send the
+// three fields it shows without having to round-trip the rest.
+//
+// CODE IS REFUSED, NOT IGNORED.
+//   The code is what every printed course file, every report and every human
+//   uses to name this course. Renaming it silently through an edit box would
+//   be indistinguishable from creating a different course, so sending `code`
+//   is a 400 rather than a quietly dropped field.
+//
+// CHANGING THE NATURE IS ALLOWED AND IS REPORTED BACK.
+//   The nature carries the mark scale -- pt1Max, pt2Max, ipMax, intTotal,
+//   seeTotal and the low-internal-mark threshold. Changing it re-scales every
+//   attainment figure already computed for this course WITHOUT touching a
+//   single stored mark, so the numbers on the printed file move while the mark
+//   sheets stay as they were. That is a legitimate correction and it is
+//   allowed, but the response carries `natureChanged` so the screen can say
+//   out loud what just happened rather than letting it pass as an ordinary
+//   field edit.
+// ---------------------------------------------------------------------
+router.put(
+  "/courses/:id",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const id = requireId(req);
+
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+
+    if (body.code !== undefined) {
+      issues.push({
+        field: "code",
+        message:
+          "code cannot be changed. It names this course on every printed file and report; create a new course instead.",
+      });
+    }
+
+    let title;
+    if (body.title !== undefined) {
+      const parsed = optionalString(body.title, TITLE_MAX);
+      if (!parsed.ok) {
+        issues.push({ field: "title", message: `title must be text of at most ${TITLE_MAX} characters` });
+      } else if (parsed.value === null) {
+        issues.push({ field: "title", message: "title is required" });
+      } else {
+        title = parsed.value;
+      }
+    }
+
+    let natureId;
+    if (body.natureId !== undefined) {
+      const parsed = optionalNumber(body.natureId);
+      if (!parsed.ok || parsed.value === null || !Number.isInteger(parsed.value)) {
+        issues.push({ field: "natureId", message: "natureId must be a whole number" });
+      } else {
+        natureId = parsed.value;
+      }
+    }
+
+    let coTargetPercent;
+    if (body.coTargetPercent !== undefined) {
+      const parsed = optionalNumber(body.coTargetPercent);
+      if (!parsed.ok || parsed.value === null) {
+        issues.push({
+          field: "coTargetPercent",
+          message: "coTargetPercent must be a number, and is never cleared",
+        });
+      } else if (parsed.value < 1 || parsed.value > 100) {
+        issues.push({ field: "coTargetPercent", message: "coTargetPercent must be between 1 and 100" });
+      } else {
+        coTargetPercent = parsed.value;
+      }
+    }
+
+    let department;
+    if (body.department !== undefined) {
+      const parsed = optionalString(body.department, DEPARTMENT_MAX);
+      if (!parsed.ok) {
+        issues.push({
+          field: "department",
+          message: `department must be text of at most ${DEPARTMENT_MAX} characters`,
+        });
+      } else {
+        department = parsed.value;
+      }
+    }
+
+    const text = {};
+    for (const field of COURSE_TEXT_FIELDS) {
+      if (body[field.body] === undefined) continue;
+      const parsed = optionalString(body[field.body], field.max);
+      if (!parsed.ok) {
+        issues.push({
+          field: field.body,
+          message: `${field.body} must be text of at most ${field.max} characters`,
+        });
+      } else {
+        text[field.column] = parsed.value;
+      }
+    }
+
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const result = await withTransaction(async (conn) => {
+      const before = await loadCourse(conn, id);
+
+      let natureChanged = null;
+      if (natureId !== undefined && natureId !== before.nature_id) {
+        const target = await readNature(conn, natureId);
+        if (target === null) {
+          const [all] = await conn.execute("SELECT id, name FROM course_natures ORDER BY id");
+          throw new ValidationError([
+            {
+              field: "natureId",
+              message: `No course nature with id ${natureId}. Available: ${all
+                .map((n) => `${n.id} (${n.name})`)
+                .join(", ")}`,
+            },
+          ]);
+        }
+        natureChanged = {
+          from: { id: before.nature_id, name: before.nature_name },
+          to: { id: target.id, name: target.name },
+        };
+      }
+
+      const sets = [];
+      const params = [];
+      if (title !== undefined) {
+        sets.push("title = ?");
+        params.push(title);
+      }
+      if (natureId !== undefined) {
+        sets.push("nature_id = ?");
+        params.push(natureId);
+      }
+      if (coTargetPercent !== undefined) {
+        sets.push("co_target_percent = ?");
+        params.push(coTargetPercent);
+      }
+      if (department !== undefined) {
+        sets.push("department = ?");
+        params.push(await canonicalDepartment(conn, department));
+      }
+      for (const field of COURSE_TEXT_FIELDS) {
+        if (!(field.column in text)) continue;
+        sets.push(`${field.column} = ?`);
+        params.push(text[field.column]);
+      }
+
+      // An empty body asked for no change and gets none. Skipping the UPDATE
+      // also leaves updated_at alone, which is honest.
+      if (sets.length > 0) {
+        await conn.execute(`UPDATE courses SET ${sets.join(", ")} WHERE id = ?`, [...params, id]);
+      }
+
+      return { course: await loadCourse(conn, id), natureChanged };
+    });
+
+    res.json({ ...mapAdminCourse(result.course), natureChanged: result.natureChanged });
+  })
+);
+
+// ---------------------------------------------------------------------
+// GET /api/admin/allocations
+//
+// Both sides joined in, because an allocation is meaningless as two integers:
+// the screen has to show WHO is assigned to WHAT.
+//
+// INNER JOINs are safe here -- both columns are NOT NULL with foreign keys, so
+// an allocation without a faculty row or without a course cannot exist.
+//
+// Ordered by course code then faculty name, so a course's people sit together
+// and the screen needs no client-side grouping.
+// ---------------------------------------------------------------------
+router.get(
+  "/allocations",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT ca.id, ca.faculty_id, f.name AS faculty_name, f.email AS faculty_email,
+              f.is_active AS faculty_is_active,
+              ca.course_id, c.code AS course_code, c.title AS course_title,
+              ca.role, ca.academic_year, ca.semester, ca.section
+         FROM course_allocations AS ca
+         JOIN faculty AS f ON f.id = ca.faculty_id
+         JOIN courses AS c ON c.id = ca.course_id
+        ORDER BY c.code, f.name`
+    );
+
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        facultyId: r.faculty_id,
+        facultyName: r.faculty_name,
+        facultyEmail: r.faculty_email,
+        facultyIsActive: bool(r.faculty_is_active),
+        courseId: r.course_id,
+        courseCode: r.course_code,
+        courseTitle: r.course_title,
+        role: r.role,
+        academicYear: r.academic_year,
+        semester: r.semester,
+        section: r.section,
+      }))
+    );
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/allocations
+//
+// Body: { facultyId, courseId, role, academicYear, semester, section }
+//
+//   404  the faculty member, or the course, does not exist. The message names
+//        WHICH one, because "not found" on a two-sided write is useless.
+//   400  the faculty member exists but is not active, or a field is invalid.
+//   409  that exact allocation already exists.
+//
+// WHY AN INACTIVE MEMBER IS REFUSED
+//   requireAuth rejects an inactive account on every request, so allocating
+//   one creates a course nobody can open: it would show a name on the cover
+//   sheet and grant access to a person who cannot sign in. Reactivate the
+//   account first.
+//
+// WHY THE DUPLICATE CHECK IS NULL-SAFE AND NOT LEFT TO THE UNIQUE KEY
+//   uq_course_allocations spans (faculty_id, course_id, role, academic_year,
+//   semester, section), and THREE of those are NULLable. MySQL treats NULLs as
+//   distinct in a unique key, so two rows with the same faculty, course and
+//   role and a NULL academic_year both insert happily -- the key does not stop
+//   them. The check below uses <=> on all six columns, which IS null-safe, so
+//   a real duplicate is a 409 rather than a silent second row.
+//
+//   It matches the key's six columns exactly, and no fewer: the same person
+//   may legitimately hold the same role on the same course in a different
+//   academic year, and refusing that would be inventing a rule.
+// ---------------------------------------------------------------------
+router.post(
+  "/allocations",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+
+    const facultyId = optionalNumber(body.facultyId);
+    if (!facultyId.ok || facultyId.value === null || !Number.isInteger(facultyId.value)) {
+      issues.push({ field: "facultyId", message: "facultyId is required and must be a whole number" });
+    }
+
+    const courseId = optionalNumber(body.courseId);
+    if (!courseId.ok || courseId.value === null || !Number.isInteger(courseId.value)) {
+      issues.push({ field: "courseId", message: "courseId is required and must be a whole number" });
+    }
+
+    let role = "handling";
+    if (body.role !== undefined && body.role !== null && body.role !== "") {
+      if (typeof body.role !== "string" || !ALLOCATION_ROLES.includes(body.role)) {
+        issues.push({ field: "role", message: `role must be one of ${ALLOCATION_ROLES.join(", ")}` });
+      } else {
+        role = body.role;
+      }
+    }
+
+    const academicYear = optionalString(body.academicYear, ACADEMIC_YEAR_MAX);
+    if (!academicYear.ok) {
+      issues.push({
+        field: "academicYear",
+        message: `academicYear must be text of at most ${ACADEMIC_YEAR_MAX} characters`,
+      });
+    }
+    const semester = optionalString(body.semester, SEMESTER_MAX);
+    if (!semester.ok) {
+      issues.push({ field: "semester", message: `semester must be text of at most ${SEMESTER_MAX} characters` });
+    }
+    const section = optionalString(body.section, SECTION_MAX);
+    if (!section.ok) {
+      issues.push({ field: "section", message: `section must be text of at most ${SECTION_MAX} characters` });
+    }
+
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const created = await withTransaction(async (conn) => {
+      const [facultyRows] = await conn.execute(
+        "SELECT id, name, is_active FROM faculty WHERE id = ?",
+        [facultyId.value]
+      );
+      if (facultyRows.length === 0) {
+        throw new HttpError(404, `No faculty member with id ${facultyId.value}`);
+      }
+      if (!facultyRows[0].is_active) {
+        throw new ValidationError([
+          {
+            field: "facultyId",
+            message: `${facultyRows[0].name} is not an active account and cannot be allocated. Reactivate it on the Users screen first.`,
+          },
+        ]);
+      }
+
+      const [courseRows] = await conn.execute("SELECT id, code FROM courses WHERE id = ?", [
+        courseId.value,
+      ]);
+      if (courseRows.length === 0) {
+        throw new HttpError(404, `No course with id ${courseId.value}`);
+      }
+
+      // Null-safe on every column of the unique key -- see the note above.
+      const [clash] = await conn.execute(
+        `SELECT id FROM course_allocations
+          WHERE faculty_id = ? AND course_id = ? AND role = ?
+            AND academic_year <=> ? AND semester <=> ? AND section <=> ?
+          LIMIT 1`,
+        [facultyId.value, courseId.value, role, academicYear.value, semester.value, section.value]
+      );
+      if (clash.length > 0) {
+        throw new HttpError(
+          409,
+          `${facultyRows[0].name} is already allocated to ${courseRows[0].code} as '${role}' for that term.`
+        );
+      }
+
+      let result;
+      try {
+        [result] = await conn.execute(
+          `INSERT INTO course_allocations
+             (faculty_id, course_id, role, academic_year, semester, section)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [facultyId.value, courseId.value, role, academicYear.value, semester.value, section.value]
+        );
+      } catch (err) {
+        if (err && err.code === "ER_DUP_ENTRY") {
+          throw new HttpError(
+            409,
+            `${facultyRows[0].name} is already allocated to ${courseRows[0].code} as '${role}' for that term.`
+          );
+        }
+        throw err;
+      }
+
+      const [rows] = await conn.execute(
+        `SELECT ca.id, ca.faculty_id, f.name AS faculty_name, f.email AS faculty_email,
+                f.is_active AS faculty_is_active,
+                ca.course_id, c.code AS course_code, c.title AS course_title,
+                ca.role, ca.academic_year, ca.semester, ca.section
+           FROM course_allocations AS ca
+           JOIN faculty AS f ON f.id = ca.faculty_id
+           JOIN courses AS c ON c.id = ca.course_id
+          WHERE ca.id = ?`,
+        [result.insertId]
+      );
+      return rows[0];
+    });
+
+    res.status(201).json({
+      id: created.id,
+      facultyId: created.faculty_id,
+      facultyName: created.faculty_name,
+      facultyEmail: created.faculty_email,
+      facultyIsActive: bool(created.faculty_is_active),
+      courseId: created.course_id,
+      courseCode: created.course_code,
+      courseTitle: created.course_title,
+      role: created.role,
+      academicYear: created.academic_year,
+      semester: created.semester,
+      section: created.section,
+    });
+  })
+);
+
+// ---------------------------------------------------------------------
+// DELETE /api/admin/allocations/:id
+//
+// The one destructive action in this file, and it is safe to expose because
+// an allocation carries no data of its own -- it is a link, and re-adding it
+// restores exactly what was removed. Nothing cascades from it.
+//
+// THE LAST-HANDLING GUARD
+//   courseScope() in ../auth.js grants an ordinary faculty member access to a
+//   course through course_allocations. Remove the last 'handling' row and the
+//   course becomes reachable by nobody except an admin and the department's
+//   hod: it vanishes from every faculty member's dashboard, its mark sheets
+//   stop being editable, and NOTHING in the app reports that this has
+//   happened. There is no screen anywhere that lists orphaned courses.
+//
+//   So the last one is refused with a 400 that says what to do instead:
+//   allocate the replacement first, then remove the outgoing member. That
+//   ordering leaves the course reachable at every moment.
+//
+//   'incharge' is deliberately NOT guarded. It records who owns the course
+//   FILE, not who may reach the course, so a course without one is untidy
+//   rather than invisible -- and the cover sheet already prints a placeholder
+//   for it.
+// ---------------------------------------------------------------------
+router.delete(
+  "/allocations/:id",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const id = requireId(req);
+
+    const removed = await withTransaction(async (conn) => {
+      const [rows] = await conn.execute(
+        `SELECT ca.id, ca.faculty_id, f.name AS faculty_name,
+                ca.course_id, c.code AS course_code, ca.role
+           FROM course_allocations AS ca
+           JOIN faculty AS f ON f.id = ca.faculty_id
+           JOIN courses AS c ON c.id = ca.course_id
+          WHERE ca.id = ?`,
+        [id]
+      );
+      if (rows.length === 0) throw new HttpError(404, `No allocation with id ${id}`);
+      const row = rows[0];
+
+      if (row.role === "handling") {
+        const [[counted]] = await conn.execute(
+          `SELECT COUNT(*) AS n FROM course_allocations
+            WHERE course_id = ? AND role = 'handling'`,
+          [row.course_id]
+        );
+        if (Number(counted.n) <= 1) {
+          throw new ValidationError(
+            [
+              {
+                field: "id",
+                message: `${row.faculty_name} is the last handling faculty for ${row.course_code}.`,
+              },
+            ],
+            `Removing this would leave ${row.course_code} with no handling faculty, which hides it from everyone except an admin. Allocate the replacement first, then remove this one.`
+          );
+        }
+      }
+
+      await conn.execute("DELETE FROM course_allocations WHERE id = ?", [id]);
+      return row;
+    });
+
+    res.json({
+      removed: {
+        id: removed.id,
+        facultyId: removed.faculty_id,
+        facultyName: removed.faculty_name,
+        courseId: removed.course_id,
+        courseCode: removed.course_code,
+        role: removed.role,
+      },
+    });
+  })
+);
+
+// END REMOVABLE BLOCK -- Courses and Allocations screens (server half)
+// =====================================================================
 
 module.exports = router;
 

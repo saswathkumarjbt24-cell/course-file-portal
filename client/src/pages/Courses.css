@@ -1,0 +1,100 @@
+/* ---------------------------------------------------------------
+   BEGIN REMOVABLE -- Courses and Allocations screens
+
+   Layout only, and only what pages/Users.css does not already carry.
+   Courses.jsx and Allocations.jsx import RiskReport.css for the table and
+   Users.css for the toolbar, panel and field styles; nothing here redefines
+   either. Inventing a second table style would leave two to keep in step.
+
+   EVERY RULE IS INSIDE @media screen.
+     Managing courses and allocations is not part of a course file and is
+     never printed. Nothing here can reach a printed sheet, so no existing
+     @media print block had to be touched, or was.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* The mark-scale warning after a nature change. Deliberately persistent
+     rather than a toast: it changes every attainment figure for the course,
+     and the reader has to be able to finish reading it. */
+  .courses-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-4);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+  }
+
+  .courses-notice__dismiss {
+    margin-left: auto;
+  }
+
+  /* A CO target is at most three digits and a decimal; a full-width field
+     would push the ten columns beside it off screen. */
+  .courses-number {
+    width: 6rem;
+    text-align: right;
+  }
+
+  /* A course nobody is allocated to. Not an error -- a course can legitimately
+     sit unallocated between terms -- but it is invisible to every faculty
+     member while it stays that way, so it is not left looking like a plain 0. */
+  .courses-warn {
+    display: inline-block;
+    min-width: 1.75rem;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-pill);
+    background-color: #fdf3e2;
+    color: var(--color-warning);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  /* ---------------- Allocations ---------------- */
+
+  /* The remove confirmation, shown in place of the Remove button. A course
+     losing its last handling faculty is refused by the server, so this step
+     is about intent, not safety. */
+  .alloc-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .alloc-confirm__question {
+    max-width: 18rem;
+    white-space: normal;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* The role a person holds on a course. 'incharge' owns the course FILE;
+     'handling' is who may reach the course at all. */
+  .alloc-role {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+  }
+
+  .alloc-role--incharge {
+    background-color: #e9f4ef;
+    color: var(--color-success);
+  }
+
+  /* The first row of each course group, so a reader can see where one
+     course's people end and the next begin. */
+  .alloc-group-start td {
+    border-top: 2px solid var(--color-border);
+  }
+}
+
+/* END REMOVABLE -- Courses and Allocations screens */

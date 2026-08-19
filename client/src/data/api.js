@@ -220,6 +220,42 @@ async function post(path, body) {
 // END REMOVABLE -- admin Users screen
 
 // ---------------------------------------------------------------
+// BEGIN REMOVABLE -- Courses and Allocations screens
+//
+// `del` exists for one caller: removing an allocation. An allocation is a
+// LINK and carries no data of its own, so removing it destroys nothing that
+// re-adding it would not restore -- which is why it is the only DELETE in the
+// app. Courses, marks and sheets are never deleted from a UI.
+//
+// Shaped like `put` and `post`, including detailStandsAlone, so the
+// last-handling guard's 400 reaches SaveFeedback with its issues intact.
+// ---------------------------------------------------------------
+async function del(path) {
+  let res
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: 'DELETE',
+      headers: withAuth({}),
+    })
+  } catch {
+    throw new Error(`Cannot reach the API at ${API_URL}${path}. Is the server running?`)
+  }
+
+  if (!res.ok) {
+    throw await failure(res, `DELETE ${path}`, true)
+  }
+
+  let json = null
+  try {
+    json = await res.json()
+  } catch {
+    // non-JSON body; the status alone will have to do
+  }
+  return json
+}
+// END REMOVABLE -- Courses and Allocations screens
+
+// ---------------------------------------------------------------
 // Sign-in
 //
 // The ID token is passed through UNTOUCHED and is never decoded here. Every
@@ -506,6 +542,92 @@ export async function updateAdminUser(id, body) {
   return result
 }
 // END REMOVABLE -- admin Users screen
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- Courses and Allocations screens
+//
+// ADMIN ONLY, all six. A faculty or hod token is refused with 403, which
+// failure() turns into the server's own sentence.
+//
+// DIFFERENT FROM fetchCourses ABOVE. That one is the course list every screen
+// reads, narrowed to what the caller may reach and carrying no allocation
+// count. These are the management views.
+// ---------------------------------------------------------------
+
+/** Every course, with its nature, offering columns and allocation count. */
+export async function fetchAdminCourses() {
+  if (!API_URL) return mock.adminCourses
+  return get('/api/admin/courses')
+}
+
+/**
+ * Create a course. `body` is { code, title, natureId, coTargetPercent,
+ * department, programme, batch, academicYear, yearOfStudy, semester, section }.
+ *
+ * Rejects with the server's sentence on 409 (that code is taken) and with
+ * `.issues` on a 400 -- a missing coTargetPercent is reported per field
+ * rather than being quietly defaulted.
+ */
+export async function createAdminCourse(body) {
+  if (!API_URL) return { mock: true }
+  const result = await post('/api/admin/courses', body)
+  invalidate()
+  return result
+}
+
+/**
+ * Edit a course. `body` may carry any of { title, natureId, coTargetPercent,
+ * department, programme, batch, academicYear, yearOfStudy, semester, section };
+ * an absent field is left unchanged.
+ *
+ * `code` is NOT updatable and sending it is a 400.
+ *
+ * The response carries `natureChanged` -- null normally, or { from, to } when
+ * the mark scale moved. The caller must show that: it re-scales every
+ * attainment figure for the course without touching a stored mark.
+ */
+export async function updateAdminCourse(id, body) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/admin/courses/${id}`, body)
+  invalidate()
+  return result
+}
+
+/** Every allocation, with both the faculty member and the course joined in. */
+export async function fetchAdminAllocations() {
+  if (!API_URL) return mock.adminAllocations
+  return get('/api/admin/allocations')
+}
+
+/**
+ * Assign a faculty member to a course. `body` is { facultyId, courseId, role,
+ * academicYear, semester, section }.
+ *
+ * 404 names which side was not found; 400 covers an inactive account; 409 is
+ * an allocation that already exists.
+ */
+export async function createAdminAllocation(body) {
+  if (!API_URL) return { mock: true }
+  const result = await post('/api/admin/allocations', body)
+  invalidate()
+  return result
+}
+
+/**
+ * Remove one allocation.
+ *
+ * Rejects with a 400 carrying `.issues` when it is the last 'handling'
+ * allocation for its course -- removing it would hide the course from
+ * everyone but an admin. The caller must show that rather than swallow it:
+ * nothing was removed.
+ */
+export async function deleteAdminAllocation(id) {
+  if (!API_URL) return { mock: true }
+  const result = await del(`/api/admin/allocations/${id}`)
+  invalidate()
+  return result
+}
+// END REMOVABLE -- Courses and Allocations screens
 
 export async function fetchAttainmentBands() {
   if (!API_URL) return mock.attainmentBands

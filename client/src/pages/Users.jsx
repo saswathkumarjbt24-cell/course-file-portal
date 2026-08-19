@@ -42,6 +42,11 @@ import {
 } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import { useSession } from '../context/sessionStore'
+// BEGIN REMOVABLE -- department picker. Moved out of this file unchanged when
+// the Courses screen needed the same control; see the note in that module.
+import { DepartmentField } from '../components/DepartmentField'
+import { departmentToSend, listHas } from '../components/departments'
+// END REMOVABLE -- department picker
 // The table style, which already exists. Not redefined here -- see Users.css.
 import './RiskReport.css'
 import './Users.css'
@@ -51,101 +56,6 @@ const LOADERS = { users: fetchAdminUsers, departments: fetchDepartments }
 
 // The ENUM migration 013 declared, in the same order the server accepts.
 const ROLES = ['faculty', 'hod', 'admin']
-
-// BEGIN REMOVABLE -- department picker
-//
-// The select's "Add new department..." option. It is a SENTINEL, not a
-// department: `departmentIsNew` beside it is what the rest of the code reads,
-// so this string only ever has to survive the round trip through the DOM
-// select and is never sent anywhere.
-const NEW_DEPARTMENT = '__add_new_department__'
-
-/** Case-insensitive membership, matching how the server de-duplicates. */
-function listHas(departments, value) {
-  const needle = value.trim().toLowerCase()
-  return departments.some((d) => d.trim().toLowerCase() === needle)
-}
-
-/**
- * The department control: a select of what already exists, plus a way in for
- * one that does not.
- *
- * WHY A SELECT AT ALL
- *   Free text allowed 'Biotechnology' and 'biotechnology' to coexist, and hod
- *   scoping compares faculty.department to courses.department by equality --
- *   so a typo silently changed which courses a hod could reach, with no error
- *   raised anywhere. The list removes the ordinary route to that mistake.
- *
- *   It does NOT remove the mistake itself. The new-department box below
- *   accepts anything, and nothing stops a client posting whatever it likes.
- *   The server canonicalises every write against the departments it already
- *   knows; this control is the convenience, not the guarantee.
- *
- * AN UNKNOWN CURRENT VALUE IS OFFERED, NOT DISCARDED.
- *   A row whose department is not in the list -- entered before this control
- *   existed, or created since this screen loaded -- gets its own option so it
- *   shows as the current selection. Falling back to empty would mean opening
- *   the editor and saving silently cleared a department nobody meant to touch.
- */
-function DepartmentField({ departments, value, isNew, onChange, inTable = false }) {
-  const trimmed = value.trim()
-
-  // The row's own value, when the list does not carry it. Not merged into the
-  // shared list: it belongs to this control only.
-  const unlisted = !isNew && trimmed !== '' && !listHas(departments, trimmed)
-
-  const inputClass = inTable ? 'users-select users-table-input' : 'users-select'
-
-  return (
-    <div className="users-dept">
-      <select
-        className={inputClass}
-        aria-label="Department"
-        value={isNew ? NEW_DEPARTMENT : value}
-        onChange={(event) => {
-          const picked = event.target.value
-          if (picked === NEW_DEPARTMENT) {
-            // Start the new name empty rather than carrying the previous
-            // department's text in, which would read as a rename.
-            onChange({ value: '', isNew: true })
-          } else {
-            onChange({ value: picked, isNew: false })
-          }
-        }}
-      >
-        <option value="">No department</option>
-        {unlisted && <option value={value}>{value}</option>}
-        {departments.map((department) => (
-          <option key={department} value={department}>
-            {department}
-          </option>
-        ))}
-        <option value={NEW_DEPARTMENT}>Add new department...</option>
-      </select>
-
-      {isNew && (
-        <input
-          className={inTable ? 'users-input users-table-input' : 'users-input'}
-          type="text"
-          aria-label="New department name"
-          placeholder="New department name"
-          value={value}
-          onChange={(event) => onChange({ value: event.target.value, isNew: true })}
-        />
-      )}
-    </div>
-  )
-}
-
-/**
- * What to send for the department: trimmed, with '' meaning "not recorded",
- * which the column holds as NULL.
- */
-function departmentToSend(value) {
-  const trimmed = value.trim()
-  return trimmed === '' ? null : trimmed
-}
-// END REMOVABLE -- department picker
 
 const EMPTY_DRAFT = {
   name: '',
