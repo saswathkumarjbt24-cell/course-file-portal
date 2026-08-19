@@ -13,6 +13,10 @@ import {
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './Documents.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditReference, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const LOADERS = {
   courses: fetchCourses,
@@ -45,6 +49,9 @@ function StatementList({ items }) {
  * still-in-use check below able to catch it.
  */
 function StatementEditor({ title, prefix, items, onSave }) {
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  // END REMOVABLE -- edit permission scope
   const [editing, setEditing] = useState(false)
   const [rows, setRows] = useState(items)
   const [savedNonce, setSavedNonce] = useState(0)
@@ -93,9 +100,18 @@ function StatementEditor({ title, prefix, items, onSave }) {
     return (
       <>
         <div className="doc-edit-bar">
-          <button type="button" className="doc-button" onClick={() => setEditing(true)}>
-            Edit {title}
-          </button>
+          {/* BEGIN REMOVABLE -- edit permission scope. These endpoints were
+              ALREADY hod+admin, so this button could only ever have failed for
+              an ordinary faculty member. Nothing about the permission changed;
+              the screen simply stopped offering it. */}
+          {canEditReference(faculty) ? (
+            <button type="button" className="doc-button" onClick={() => setEditing(true)}>
+              Edit {title}
+            </button>
+          ) : (
+            <span className="doc-status">{READ_ONLY_NOTE}</span>
+          )}
+          {/* END REMOVABLE -- edit permission scope */}
           {savedNonce > 0 ? (
             <span className="doc-status doc-status--saved">{savedLabel}</span>
           ) : (

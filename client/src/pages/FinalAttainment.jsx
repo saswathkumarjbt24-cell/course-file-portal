@@ -30,6 +30,10 @@ import {
   poLevelFromCO,
 } from '../utils/finalAttainment'
 import './Reports.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
 
@@ -136,6 +140,9 @@ function FinalAttainmentView({
 
   const weights = useMemo(() => componentWeights(nature), [nature])
 
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  // END REMOVABLE -- edit permission scope
   const [editingSurvey, setEditingSurvey] = useState(false)
   const [survey, setSurvey] = useState(() =>
     seedSurvey(courseExitSurvey, courseId, coNumbers),
@@ -425,7 +432,7 @@ function FinalAttainmentView({
                 Cancel
               </button>
             </>
-          ) : (
+          ) : canEditCourseFile(faculty) ? (
             <button
               type="button"
               className="rep-button"
@@ -433,6 +440,10 @@ function FinalAttainmentView({
             >
               Edit course exit survey
             </button>
+          ) : (
+            /* BEGIN REMOVABLE -- edit permission scope */
+            <span className="rep-status">{READ_ONLY_NOTE}</span>
+            /* END REMOVABLE -- edit permission scope */
           )}
 
           {surveyInvalid > 0 ? (

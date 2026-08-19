@@ -11,6 +11,10 @@ import {
 import { DataError, DataLoading, EmptyState, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './Documents.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 // Institutional minimum attendance for exam eligibility.
 const MINIMUM_PERCENT = 75
@@ -67,6 +71,9 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
     [courseStudents, courseId],
   )
 
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  // END REMOVABLE -- edit permission scope
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState(() => seedValues(attendance, courseId, roll))
   const [savedNonce, setSavedNonce] = useState(0)
@@ -190,10 +197,15 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
                   Cancel
                 </button>
               </>
-            ) : (
+            ) : canEditCourseFile(faculty) ? (
               <button type="button" className="doc-button" onClick={() => setEditing(true)}>
                 Edit attendance
               </button>
+            ) : (
+              /* BEGIN REMOVABLE -- edit permission scope. The figures above are
+                 still shown in full; only the control that writes them is gone. */
+              <span className="doc-status doc-value--muted">{READ_ONLY_NOTE}</span>
+              /* END REMOVABLE -- edit permission scope */
             )}
 
             {invalidCount > 0 ? (

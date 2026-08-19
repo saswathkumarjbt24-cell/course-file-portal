@@ -9,6 +9,10 @@ import {
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './Documents.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditReference, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const LOADERS = {
   departmentVisionMission: fetchDepartmentVisionMission,
@@ -38,6 +42,9 @@ function MissionList({ missions }) {
  * statement is NOT NULL -- there is no such thing as a blank mission.
  */
 function VisionMissionEditor({ title, scope, department, vision, missions, onSaved }) {
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  // END REMOVABLE -- edit permission scope
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ vision, missions })
   const [savedNonce, setSavedNonce] = useState(0)
@@ -127,10 +134,15 @@ function VisionMissionEditor({ title, scope, department, vision, missions, onSav
               Cancel
             </button>
           </>
-        ) : (
+        ) : canEditReference(faculty) ? (
           <button type="button" className="doc-button" onClick={() => setEditing(true)}>
             Edit {title}
           </button>
+        ) : (
+          /* BEGIN REMOVABLE -- edit permission scope. Already hod+admin on the
+             server; this only stops the screen offering a certain failure. */
+          <span className="doc-status">{READ_ONLY_NOTE}</span>
+          /* END REMOVABLE -- edit permission scope */
         )}
 
         {editing && visionEmpty ? (

@@ -18,6 +18,10 @@ import { useSave } from '../data/useSave'
 import { splitIndex } from '../utils/coSplit'
 import { coPercent, needsRemedial } from '../utils/attainment'
 import './Remedial.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const TABS = [
   { key: 'names', label: 'Name list' },
@@ -102,6 +106,10 @@ function RemedialView({
   const [attendanceEdits, setAttendanceEdits] = useState({})
   const [afterMarks, setAfterMarks] = useState({})
   const [savedTab, setSavedTab] = useState('')
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  const canEdit = canEditCourseFile(faculty)
+  // END REMOVABLE -- edit permission scope
   const [attendanceSave, runAttendanceSave] = useSave()
   const [reportSave, runReportSave] = useSave()
 
@@ -576,6 +584,10 @@ function RemedialView({
                                   return (
                                     <td key={cls.coNumber} className="rem-table__center">
                                       <select
+                                        /* BEGIN REMOVABLE -- edit permission
+                                           scope */
+                                        disabled={!canEdit}
+                                        /* END REMOVABLE */
                                         className={`rem-select${modifier}`}
                                         value={value}
                                         aria-label={`CO${cls.coNumber} attendance for ${row.student.name}`}
@@ -610,14 +622,20 @@ function RemedialView({
                   )}
 
                   <div className="rem-actions">
-                    <button
-                      type="button"
-                      className="rem-button"
-                      disabled={attendanceSave.saving}
-                      onClick={handleSaveAttendance}
-                    >
-                      {attendanceSave.saving ? 'Saving...' : 'Save attendance'}
-                    </button>
+                    {/* BEGIN REMOVABLE -- edit permission scope */}
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="rem-button"
+                        disabled={attendanceSave.saving}
+                        onClick={handleSaveAttendance}
+                      >
+                        {attendanceSave.saving ? 'Saving...' : 'Save attendance'}
+                      </button>
+                    ) : (
+                      <span className="rem-status">{READ_ONLY_NOTE}</span>
+                    )}
+                    {/* END REMOVABLE -- edit permission scope */}
                     {printButton}
                     {savedTab === 'attendance' ? (
                       <span className="rem-status rem-status--saved">{savedLabel}</span>
@@ -703,6 +721,10 @@ function RemedialView({
                                     </td>,
                                     <td key={`a-${alloc.coNumber}`} className="rem-table__center">
                                       <input
+                                        /* BEGIN REMOVABLE -- edit permission
+                                           scope */
+                                        readOnly={!canEdit}
+                                        /* END REMOVABLE */
                                         type="text"
                                         inputMode="numeric"
                                         autoComplete="off"
@@ -739,14 +761,20 @@ function RemedialView({
                   )}
 
                   <div className="rem-actions">
-                    <button
-                      type="button"
-                      className="rem-button"
-                      disabled={invalidCount > 0 || reportSave.saving}
-                      onClick={handleSaveReport}
-                    >
-                      {reportSave.saving ? 'Saving...' : 'Save report'}
-                    </button>
+                    {/* BEGIN REMOVABLE -- edit permission scope */}
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="rem-button"
+                        disabled={invalidCount > 0 || reportSave.saving}
+                        onClick={handleSaveReport}
+                      >
+                        {reportSave.saving ? 'Saving...' : 'Save report'}
+                      </button>
+                    ) : (
+                      <span className="rem-status">{READ_ONLY_NOTE}</span>
+                    )}
+                    {/* END REMOVABLE -- edit permission scope */}
                     {printButton}
                     {invalidCount > 0 ? (
                       <span className="rem-status rem-status--error">

@@ -13,6 +13,10 @@ import {
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './CourseDetail.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const MATRIX_VALUES = ['1', '2', '3']
 
@@ -95,6 +99,10 @@ function CourseDetailView({
   const [matrix, setMatrix] = useState(() => seedMatrix(coPoMatrix, courseId))
   const [savedOutcomes, setSavedOutcomes] = useState(0)
   const [savedMatrix, setSavedMatrix] = useState(0)
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  const canEdit = canEditCourseFile(faculty)
+  // END REMOVABLE -- edit permission scope
   const [outcomeSave, runOutcomeSave] = useSave()
   const [matrixSave, runMatrixSave] = useSave()
 
@@ -283,6 +291,10 @@ function CourseDetailView({
                 rows={2}
                 placeholder={`Statement for CO${co}`}
                 value={statements[co] ?? ''}
+                /* BEGIN REMOVABLE -- edit permission scope. Read-only rather
+                   than hidden: the statement must still be readable. */
+                readOnly={!canEdit}
+                /* END REMOVABLE -- edit permission scope */
                 onChange={(event) =>
                   setStatements((prev) => ({ ...prev, [co]: event.target.value }))
                 }
@@ -292,14 +304,20 @@ function CourseDetailView({
         </div>
 
         <div className="cd-actions">
-          <button
-            type="button"
-            className="cd-button"
-            disabled={outcomeSave.saving}
-            onClick={handleSaveOutcomes}
-          >
-            {outcomeSave.saving ? 'Saving…' : 'Save outcomes'}
-          </button>
+          {/* BEGIN REMOVABLE -- edit permission scope */}
+          {canEdit ? (
+            <button
+              type="button"
+              className="cd-button"
+              disabled={outcomeSave.saving}
+              onClick={handleSaveOutcomes}
+            >
+              {outcomeSave.saving ? 'Saving…' : 'Save outcomes'}
+            </button>
+          ) : (
+            <span className="cd-status">{READ_ONLY_NOTE}</span>
+          )}
+          {/* END REMOVABLE -- edit permission scope */}
           {savedOutcomes > 0 ? (
             <span className="cd-status cd-status--saved">{savedLabel}</span>
           ) : (
@@ -352,6 +370,9 @@ function CourseDetailView({
                           }
                           value={value}
                           aria-label={`CO${co} to ${col.code}`}
+                          /* BEGIN REMOVABLE -- edit permission scope */
+                          disabled={!canEdit}
+                          /* END REMOVABLE -- edit permission scope */
                           onChange={(event) =>
                             setMatrix((prev) => ({ ...prev, [key]: event.target.value }))
                           }
@@ -386,14 +407,20 @@ function CourseDetailView({
         </div>
 
         <div className="cd-actions">
-          <button
-            type="button"
-            className="cd-button"
-            disabled={matrixSave.saving}
-            onClick={handleSaveMatrix}
-          >
-            {matrixSave.saving ? 'Saving…' : 'Save matrix'}
-          </button>
+          {/* BEGIN REMOVABLE -- edit permission scope */}
+          {canEdit ? (
+            <button
+              type="button"
+              className="cd-button"
+              disabled={matrixSave.saving}
+              onClick={handleSaveMatrix}
+            >
+              {matrixSave.saving ? 'Saving…' : 'Save matrix'}
+            </button>
+          ) : (
+            <span className="cd-status">{READ_ONLY_NOTE}</span>
+          )}
+          {/* END REMOVABLE -- edit permission scope */}
           {savedMatrix > 0 ? (
             <span className="cd-status cd-status--saved">{savedLabel}</span>
           ) : (

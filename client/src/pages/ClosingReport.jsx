@@ -26,6 +26,10 @@ import {
   finalLevel,
 } from '../utils/finalAttainment'
 import './Reports.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
 
@@ -99,6 +103,10 @@ function ClosingReportView({
 
   const [actions, setActions] = useState(() => seedActions(closingActions, courseId))
   const [savedNonce, setSavedNonce] = useState(0)
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  const canEdit = canEditCourseFile(faculty)
+  // END REMOVABLE -- edit permission scope
   const [saveState, runSave] = useSave()
 
   // Reseed when the route points at a different course.
@@ -308,6 +316,10 @@ function ClosingReportView({
                     rows={2}
                     value={actions[index] ?? ''}
                     aria-label={`Action ${index + 1}`}
+                    /* BEGIN REMOVABLE -- edit permission scope. Read-only, not
+                       hidden: the printed report must still show the text. */
+                    readOnly={!canEdit}
+                    /* END REMOVABLE -- edit permission scope */
                     placeholder={`Action ${index + 1}`}
                     onChange={(event) =>
                       setActions((prev) => {
@@ -325,22 +337,30 @@ function ClosingReportView({
             </div>
 
             <div className="rep-edit-bar">
-              <button
-                type="button"
-                className="rep-button btn--primary"
-                disabled={saveState.saving}
-                onClick={handleSaveActions}
-              >
-                {saveState.saving ? 'Saving…' : 'Save actions'}
-              </button>
-              <button
-                type="button"
-                className="rep-button"
-                disabled={saveState.saving}
-                onClick={handleCancelActions}
-              >
-                Revert
-              </button>
+              {/* BEGIN REMOVABLE -- edit permission scope */}
+              {canEdit ? (
+                <>
+                  <button
+                    type="button"
+                    className="rep-button btn--primary"
+                    disabled={saveState.saving}
+                    onClick={handleSaveActions}
+                  >
+                    {saveState.saving ? 'Saving…' : 'Save actions'}
+                  </button>
+                  <button
+                    type="button"
+                    className="rep-button"
+                    disabled={saveState.saving}
+                    onClick={handleCancelActions}
+                  >
+                    Revert
+                  </button>
+                </>
+              ) : (
+                <span className="rep-status">{READ_ONLY_NOTE}</span>
+              )}
+              {/* END REMOVABLE -- edit permission scope */}
               {savedNonce > 0 ? (
                 <span className="rep-status rep-status--saved">{savedLabel}</span>
               ) : (

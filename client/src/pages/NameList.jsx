@@ -10,6 +10,10 @@ import {
 import { DataError, DataLoading, EmptyState, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './Documents.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const LOADERS = {
   courseStudents: fetchCourseStudents,
@@ -39,6 +43,9 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
     [courseStudents, courseId],
   )
 
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  // END REMOVABLE -- edit permission scope
   const [editing, setEditing] = useState(false)
   // The list as edited: entries the save will send. An entry has no id until
   // the server creates the student row.
@@ -195,10 +202,14 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
                   Cancel
                 </button>
               </>
-            ) : (
+            ) : canEditCourseFile(faculty) ? (
               <button type="button" className="doc-button" onClick={() => setEditing(true)}>
                 Edit name list
               </button>
+            ) : (
+              /* BEGIN REMOVABLE -- edit permission scope */
+              <span className="doc-status">{READ_ONLY_NOTE}</span>
+              /* END REMOVABLE -- edit permission scope */
             )}
 
             {editing && dirty ? (

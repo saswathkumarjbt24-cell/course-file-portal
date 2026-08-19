@@ -10,6 +10,10 @@ import {
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './Documents.css'
+// BEGIN REMOVABLE -- edit permission scope
+import { useSession } from '../context/sessionStore'
+import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+// END REMOVABLE -- edit permission scope
 
 const LOADERS = {
   courseMeta: fetchCourseMeta,
@@ -89,6 +93,9 @@ function CoverView({ embedded, courseMeta, courses, institution }) {
   const course = courses.find((c) => c.id === courseId)
   const meta = courseMeta.find((m) => m.courseId === courseId) ?? EMPTY_META
 
+  // BEGIN REMOVABLE -- edit permission scope
+  const { faculty } = useSession()
+  // END REMOVABLE -- edit permission scope
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState(() => seedForm(meta))
   const [savedNonce, setSavedNonce] = useState(0)
@@ -189,10 +196,14 @@ function CoverView({ embedded, courseMeta, courses, institution }) {
                   Cancel
                 </button>
               </>
-            ) : (
+            ) : canEditCourseFile(faculty) ? (
               <button type="button" className="doc-button" onClick={() => setEditing(true)}>
                 Edit cover details
               </button>
+            ) : (
+              /* BEGIN REMOVABLE -- edit permission scope */
+              <span className="doc-status">{READ_ONLY_NOTE}</span>
+              /* END REMOVABLE -- edit permission scope */
             )}
             {savedNonce > 0 ? (
               <span className="doc-status doc-status--saved">{savedLabel}</span>

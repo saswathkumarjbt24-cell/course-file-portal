@@ -62,6 +62,61 @@ const router = express.Router();
 // ---------------------------------------------------------------------
 router.use("/:id", requireCourseAccess);
 
+// ---------------------------------------------------------------------
+// BEGIN REMOVABLE -- edit permission scope
+//
+// WHO MAY WRITE A COURSE FILE.
+//
+// requireCourseAccess above answers WHICH courses you may touch. This answers
+// WHETHER you may change one at all, and it is deliberately a second, separate
+// gate: an ordinary faculty member still READS every sheet of a course they
+// are allocated to, and still enters marks on it. What they no longer do is
+// rewrite the file around those marks.
+//
+// APPLIED TO WRITES ONLY, ROUTE BY ROUTE.
+//   Not with router.use, which would catch the GETs above and turn a
+//   read-only screen into a refusal. Every PUT in this file names it
+//   explicitly; a write added later must do the same, and the test suite
+//   counts the writes to make sure none is missed.
+//
+// MARK ENTRY IS NOT HERE.
+//   PUT /api/assessments/:id/marks lives in routes/assessments.js and is
+//   untouched, ownership check and all. That is the one write an ordinary
+//   faculty member keeps, and it is the reason this gate is per-route rather
+//   than global.
+//
+// WHY hod IS ALLOWED THROUGH.
+//   This scope restricts FACULTY. A hod could write their own department's
+//   course files before it existed and can still do so afterwards --
+//   requireCourseAccess continues to narrow them to that department, exactly
+//   as it did. Nothing here widens or narrows a hod.
+//
+// THE 403 SAYS WHAT TO DO.
+//   requireRole's generic sentence names roles; this one names the situation,
+//   because the reader is a lecturer looking at a save button that stopped
+//   working, not an integrator reading role names.
+// ---------------------------------------------------------------------
+function requireCourseFileEditor(req, res, next) {
+  // A missing req.faculty means this was mounted somewhere requireAuth is not,
+  // which is a wiring bug and must be loud rather than silently denying.
+  if (!req.faculty) {
+    next(new HttpError(500, "requireCourseFileEditor was reached without requireAuth"));
+    return;
+  }
+  if (req.faculty.role === "admin" || req.faculty.role === "hod") {
+    next();
+    return;
+  }
+  next(
+    new HttpError(
+      403,
+      "Only an administrator can change this part of the course file. " +
+        "Your account can enter marks; ask an administrator for anything else."
+    )
+  );
+}
+// END REMOVABLE -- edit permission scope
+
 const ASSESSMENT_KINDS = ["PT1", "PT2", "IP1", "IP2", "OT", "SEE"];
 const REMEDIAL_STATUSES = ["PR", "AB", "NA"];
 
@@ -562,6 +617,9 @@ router.get(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/outcomes",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const body = req.body;
@@ -713,6 +771,9 @@ router.put(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/exit-survey",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const body = req.body;
@@ -783,6 +844,9 @@ router.put(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/attendance",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const body = req.body;
@@ -894,6 +958,9 @@ router.put(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/remedial/:kind",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const kind = String(req.params.kind || "").toUpperCase();
@@ -1223,6 +1290,9 @@ router.put(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/meta",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const body = req.body;
@@ -1333,6 +1403,9 @@ router.put(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/closing",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const body = req.body;
@@ -1436,6 +1509,9 @@ router.put(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/students",
+  // BEGIN REMOVABLE -- edit permission scope
+  requireCourseFileEditor,
+  // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const body = req.body;
