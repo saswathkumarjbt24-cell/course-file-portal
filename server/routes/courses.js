@@ -618,7 +618,30 @@ router.get(
 router.put(
   "/:id/outcomes",
   // BEGIN REMOVABLE -- edit permission scope
-  requireCourseFileEditor,
+  //
+  // DELIBERATELY NOT GATED BY requireCourseFileEditor.
+  //
+  // Course setup -- the CO statements and the articulation matrix -- is the
+  // one part of the course file an ordinary faculty member still writes. It
+  // describes the course THEY teach, and it is the input to the attainment
+  // figures they are responsible for, so requiring an administrator for it
+  // would put a queue in front of the work rather than a control on it.
+  //
+  // Ownership is still enforced, by requireCourseAccess on the `/:id` prefix
+  // above: a faculty member reaches only the courses allocated to them, and a
+  // token for anyone else's course is refused there before this handler runs.
+  // That is exactly the arrangement PUT /api/assessments/:id/marks relies on,
+  // and the two are now the only writes an ordinary faculty member has.
+  //
+  // THE OTHER SIX COURSE-FILE WRITES ARE UNCHANGED and still carry
+  // requireCourseFileEditor: exit-survey, attendance, remedial, meta, closing
+  // and students. Removing the guard here narrows the restriction by one
+  // endpoint; it does not weaken any of those.
+  //
+  // WHAT THIS HANDLER CAN REACH, and why that made it safe to open: it writes
+  // course_outcomes and co_po_matrix and nothing else, both scoped to the one
+  // course id in the path. It cannot touch marks, enrolments or another
+  // course's rows.
   // END REMOVABLE -- edit permission scope
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);

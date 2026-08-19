@@ -15,7 +15,7 @@ import { useSave } from '../data/useSave'
 import './CourseDetail.css'
 // BEGIN REMOVABLE -- edit permission scope
 import { useSession } from '../context/sessionStore'
-import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+import { canEditCourseOutcomes, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
 
 const MATRIX_VALUES = ['1', '2', '3']
@@ -101,7 +101,11 @@ function CourseDetailView({
   const [savedMatrix, setSavedMatrix] = useState(0)
   // BEGIN REMOVABLE -- edit permission scope
   const { faculty } = useSession()
-  const canEdit = canEditCourseFile(faculty)
+  // Course setup uses its OWN permission, not canEditCourseFile: this one
+  // screen is writable by an allocated faculty member again, while the other
+  // six course-file sheets stay hod-or-admin. The server decides -- see the
+  // note on PUT /:id/outcomes in routes/courses.js.
+  const canEdit = canEditCourseOutcomes(faculty)
   // END REMOVABLE -- edit permission scope
   const [outcomeSave, runOutcomeSave] = useSave()
   const [matrixSave, runMatrixSave] = useSave()

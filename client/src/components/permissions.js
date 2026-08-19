@@ -43,6 +43,31 @@ export function canEditCourseFile(faculty) {
 }
 
 /**
+ * May this person change a course's SETUP -- the CO statements and the
+ * CO-PO/PSO articulation matrix?
+ *
+ * DELIBERATELY SEPARATE FROM canEditCourseFile ABOVE, and not a synonym for
+ * it. Course setup is the one part of the course file an ordinary faculty
+ * member still writes: it describes the course they teach and is the input to
+ * the attainment figures they answer for. The other six sheets stay with
+ * canEditCourseFile, which still means hod-or-admin, and widening this must
+ * not widen those.
+ *
+ * TRUE FOR ANY SIGNED-IN ACCOUNT, and that is not an oversight. The real rule
+ * is "a course allocated to you", and the browser cannot evaluate it -- the
+ * allocation lives in course_allocations and only the server can read it.
+ * requireCourseAccess enforces it on every request to /api/courses/:id, so a
+ * faculty member who opens someone else's course is refused there whatever
+ * this returns. Mark entry is gated the same way, by the server alone.
+ *
+ * A screen calling this is therefore saying "show the control"; it is never
+ * saying "this will be allowed".
+ */
+export function canEditCourseOutcomes(faculty) {
+  return Boolean(faculty)
+}
+
+/**
  * May this person change institution or department reference data -- vision,
  * mission, PEOs, PSOs?
  *
