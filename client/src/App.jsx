@@ -18,6 +18,9 @@ import NameList from './pages/NameList'
 import Attendance from './pages/Attendance'
 import InternalMarks from './pages/InternalMarks'
 import FullCourseFile from './pages/FullCourseFile'
+// BEGIN REMOVABLE -- admin Users screen
+import Users from './pages/Users'
+// END REMOVABLE -- admin Users screen
 
 // With nobody signed in there is nothing to show, so every route falls
 // back to the sign-in screen.
@@ -49,6 +52,12 @@ export default function App() {
               <Route path="/course/:id/internal" element={<InternalMarks />} />
               <Route path="/course/:id/full" element={<FullCourseFile />} />
               <Route path="/reports" element={<Reports />} />
+              {/* BEGIN REMOVABLE -- admin Users screen.
+                  The ROLE guard is inside Users itself, so a faculty member
+                  who types this URL is refused in words rather than being
+                  redirected somewhere that does not explain why. */}
+              <Route path="/users" element={<Users />} />
+              {/* END REMOVABLE -- admin Users screen */}
             </Route>
           </Route>
           {/* Unknown paths go to the dashboard, which itself requires a session. */}

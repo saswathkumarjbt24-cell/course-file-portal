@@ -310,6 +310,16 @@ export default function Layout() {
             <NavLink to="/reports" className={navClass}>
               Reports
             </NavLink>
+            {/* BEGIN REMOVABLE -- admin Users screen.
+                Rendered for an admin and nobody else. This hides the link; it
+                does not secure anything. The route guards itself and the API
+                answers 403 to a faculty or hod token either way. */}
+            {faculty.role === 'admin' && (
+              <NavLink to="/users" className={navClass}>
+                Users
+              </NavLink>
+            )}
+            {/* END REMOVABLE -- admin Users screen */}
           </div>
 
           {courseId && (

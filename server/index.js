@@ -11,6 +11,9 @@ const referenceRoutes = require("./routes/reference");
 const reportRoutes = require("./routes/reports");
 const studentRoutes = require("./routes/students");
 const authRoutes = require("./routes/auth");
+// BEGIN REMOVABLE -- admin Users screen
+const adminRoutes = require("./routes/admin");
+// END REMOVABLE -- admin Users screen
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5175" }));
@@ -67,6 +70,11 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/reference", referenceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/students", studentRoutes);
+// BEGIN REMOVABLE -- admin Users screen. Mounted INSIDE the gate above, so a
+// request with no bearer token is a 401 from requireAuth before it gets here;
+// the routes themselves each carry requireRole('admin') for the 403.
+app.use("/api/admin", adminRoutes);
+// END REMOVABLE -- admin Users screen
 
 // ---------------------------------------------------------------------
 // Unknown /api path -> JSON 404, so the frontend never has to parse an HTML

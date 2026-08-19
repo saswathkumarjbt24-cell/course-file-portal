@@ -184,6 +184,42 @@ async function put(path, body) {
 }
 
 // ---------------------------------------------------------------
+// BEGIN REMOVABLE -- admin Users screen
+//
+// `post` exists for exactly one caller: creating a faculty account. Every
+// other write in this app replaces a whole sheet at a known address, which is
+// what PUT means; a new account has no address yet, so it is a POST.
+//
+// Shaped exactly like `put` above, including `detailStandsAlone` on the
+// failure, so a 400's per-field list reaches SaveFeedback the same way.
+// ---------------------------------------------------------------
+async function post(path, body) {
+  let res
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw new Error(`Cannot reach the API at ${API_URL}${path}. Is the server running?`)
+  }
+
+  if (!res.ok) {
+    throw await failure(res, `POST ${path}`, true)
+  }
+
+  let json = null
+  try {
+    json = await res.json()
+  } catch {
+    // non-JSON body; the status alone will have to do
+  }
+  return json
+}
+// END REMOVABLE -- admin Users screen
+
+// ---------------------------------------------------------------
 // Sign-in
 //
 // The ID token is passed through UNTOUCHED and is never decoded here. Every
@@ -400,6 +436,76 @@ export async function fetchInstitution() {
   if (!API_URL) return mock.institution
   return get('/api/reference/institution')
 }
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- admin Users screen
+//
+// ADMIN ONLY. All three reject a faculty or hod token with 403, which
+// failure() above turns into the server's own sentence. The screen guards
+// itself as well, so an ordinary faculty member is refused before a request
+// is ever sent -- but the server is what decides.
+//
+// DIFFERENT FROM fetchFacultyList ABOVE. That one is the DIRECTORY: active
+// members only, and no role, status or sign-in information. This one is the
+// management view -- every row, active and inactive alike.
+// ---------------------------------------------------------------
+
+/** Every faculty account, with role, status, last sign-in and sign-in count. */
+export async function fetchAdminUsers() {
+  if (!API_URL) return mock.adminUsers
+  const rows = await get('/api/admin/users')
+  return rows.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    department: u.department,
+    role: u.role,
+    isActive: u.isActive,
+    lastLoginAt: u.lastLoginAt,
+    signInCount: u.signInCount,
+  }))
+}
+
+/**
+ * Every department already in use, on a faculty row or on a course, trimmed
+ * and case-insensitively unique. A plain array of strings, sorted.
+ *
+ * Courses are included deliberately: hod scoping compares the two columns, so
+ * a department that exists only on a course still has to be offerable.
+ */
+export async function fetchDepartments() {
+  if (!API_URL) return mock.departments
+  return get('/api/admin/departments')
+}
+
+/**
+ * Create one faculty account. `body` is { name, email, department, role }.
+ *
+ * Rejects with the server's own sentence on 409 (that email already has an
+ * account) and with `.issues` on a 400, so a bad domain or a missing name is
+ * reported per field. The form keeps whatever was typed either way.
+ */
+export async function createAdminUser(body) {
+  if (!API_URL) return { mock: true }
+  const result = await post('/api/admin/users', body)
+  invalidate()
+  return result
+}
+
+/**
+ * Edit one faculty account. `body` may carry any of
+ * { name, department, role, isActive }; an absent field is left unchanged.
+ *
+ * Email is NOT updatable and sending it is a 400 -- see the note on the PUT
+ * handler in server/routes/admin.js.
+ */
+export async function updateAdminUser(id, body) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/admin/users/${id}`, body)
+  invalidate()
+  return result
+}
+// END REMOVABLE -- admin Users screen
 
 export async function fetchAttainmentBands() {
   if (!API_URL) return mock.attainmentBands

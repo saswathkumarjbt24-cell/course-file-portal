@@ -1,0 +1,171 @@
+/* ---------------------------------------------------------------
+   BEGIN REMOVABLE -- admin Users screen
+
+   Layout only. There is deliberately NO table rule in this file: the
+   Users table reuses .risk-table / .risk-table-wrap, which already exist
+   and which Users.jsx imports alongside this file. Inventing a second
+   table style would leave the app with two that had to be kept in step.
+
+   EVERY RULE IS INSIDE @media screen.
+     Managing accounts is not part of a course file and is never printed.
+     Nothing here can reach a printed sheet, so no existing @media print
+     block had to be touched, or was.
+
+   Delete this file, its two imports in Users.jsx, and the page itself to
+   remove the feature.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* ---------------- The bar above the table ---------------- */
+
+  .users-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .users-toolbar__count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* ---------------- The "Add user" panel ---------------- */
+
+  .users-panel {
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .users-panel__title {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+  }
+
+  .users-panel__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+
+  .users-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .users-field__label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  /* ---------------- Fields ----------------
+     Shaped after the existing .rep-input / .doc-input, which cannot be
+     reused here: both live in stylesheets that also carry @media print
+     rules for the sheets they belong to. */
+
+  .users-input,
+  .users-select {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .users-input:focus,
+  .users-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+
+  .users-input:disabled,
+  .users-select:disabled {
+    color: var(--color-text-muted);
+    background-color: var(--color-background);
+    cursor: not-allowed;
+  }
+
+  /* The same field inside a table cell: narrower, so eight columns still
+     fit without the row growing taller than the ones around it. */
+  .users-table-input {
+    min-width: 8rem;
+    max-width: 14rem;
+  }
+
+  /* ---------------- BEGIN REMOVABLE: department picker ----------------
+     The select, and the new-name box that appears under it when "Add new
+     department..." is chosen. Stacked rather than side by side so the row
+     grows downward and the seven columns beside it keep their widths. */
+
+  .users-dept {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  /* ---------------- END REMOVABLE: department picker ---------------- */
+
+  /* ---------------- Row actions ---------------- */
+
+  .users-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  /* ---------------- Status ---------------- */
+
+  .users-status {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+
+  .users-status--active {
+    background-color: #e9f4ef;
+    color: var(--color-success);
+  }
+
+  .users-status--inactive {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+
+  /* ---------------- The self-lockout explanation ----------------
+     Why a control is disabled, said on the row itself. A disabled button
+     with no reason beside it reads as a bug. */
+
+  .users-note {
+    display: block;
+    margin-top: var(--space-1);
+    max-width: 16rem;
+    white-space: normal;
+    font-size: var(--font-size-sm);
+    font-style: italic;
+    color: var(--color-text-muted);
+  }
+
+  .users-feedback {
+    margin-top: var(--space-3);
+  }
+}
+
+/* END REMOVABLE -- admin Users screen */

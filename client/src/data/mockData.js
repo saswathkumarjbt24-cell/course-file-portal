@@ -592,6 +592,78 @@ export const facultyList = [
   },
 ]
 
+// BEGIN REMOVABLE -- admin Users screen
+//
+// What GET /api/admin/users returns, exactly: every faculty row including the
+// inactive ones, with role, status, last sign-in and sign-in count. Shaped to
+// the API response and NOT to `facultyList` above, which is the directory --
+// active members only, and no role or status at all.
+//
+// `lastLoginAt` is a STRING in 'YYYY-MM-DD HH:MM:SS' form, because the API
+// sends it through DATE_FORMAT and the screen renders the characters as they
+// arrive. null means "has not signed in since login tracking was switched on",
+// which is not the same as never having used the portal -- and a signInCount
+// of 0 means the same thing. See migration 018.
+//
+// The three ids and addresses match facultyList so the two fixtures describe
+// one institution rather than two. The fourth row is deliberately inactive and
+// has never signed in, so the screen's status column and its empty states can
+// be seen without a server.
+export const adminUsers = [
+  {
+    id: 1,
+    name: 'Faculty A',
+    email: 'facultya@bitsathy.ac.in',
+    department: 'Computer Science and Engineering',
+    role: 'admin',
+    isActive: true,
+    lastLoginAt: '2026-08-18 09:12:40',
+    signInCount: 24,
+  },
+  {
+    id: 2,
+    name: 'Faculty B',
+    email: 'facultyb@bitsathy.ac.in',
+    department: 'Computer Science and Engineering',
+    role: 'hod',
+    isActive: true,
+    lastLoginAt: '2026-08-17 14:05:11',
+    signInCount: 9,
+  },
+  {
+    id: 3,
+    name: 'Faculty C',
+    email: 'facultyc@bitsathy.ac.in',
+    department: 'Artificial Intelligence and Data Science',
+    role: 'faculty',
+    isActive: true,
+    lastLoginAt: null,
+    signInCount: 0,
+  },
+  {
+    id: 4,
+    name: 'Faculty D',
+    email: 'facultyd@bitsathy.ac.in',
+    department: null,
+    role: 'faculty',
+    isActive: false,
+    lastLoginAt: null,
+    signInCount: 0,
+  },
+]
+// What GET /api/admin/departments returns, exactly: a plain array of strings,
+// trimmed, case-insensitively unique and sorted. Not an array of objects --
+// the screen drops it straight into a select.
+//
+// These are the departments used by `adminUsers` above and by the course
+// fixtures, which is what the endpoint merges: faculty departments and course
+// departments together, because hod scoping compares the two columns.
+export const departments = [
+  'Artificial Intelligence and Data Science',
+  'Computer Science and Engineering',
+]
+// END REMOVABLE -- admin Users screen
+
 // Mirrors table: institution_vision_mission
 export const institutionVisionMission = {
   vision:
