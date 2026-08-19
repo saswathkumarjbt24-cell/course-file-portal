@@ -334,6 +334,14 @@ export default function Layout() {
               </NavLink>
             )}
             {/* END REMOVABLE -- Courses and Allocations screens */}
+            {/* BEGIN REMOVABLE -- Activity screen. Admin only, same caveat:
+                this hides the link, it does not secure anything. */}
+            {faculty.role === 'admin' && (
+              <NavLink to="/activity" className={navClass}>
+                Activity
+              </NavLink>
+            )}
+            {/* END REMOVABLE -- Activity screen */}
           </div>
 
           {courseId && (

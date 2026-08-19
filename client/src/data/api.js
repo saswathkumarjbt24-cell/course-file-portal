@@ -629,6 +629,31 @@ export async function deleteAdminAllocation(id) {
 }
 // END REMOVABLE -- Courses and Allocations screens
 
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- Activity screen
+//
+// ADMIN ONLY. Read-only: there is no write, delete or purge counterpart, and
+// none should be added -- login_events is an append-only record.
+// ---------------------------------------------------------------
+
+/**
+ * Who has signed in, and who never has.
+ *
+ * Resolves { signIns, neverSignedIn }. Timestamps are STRINGS in
+ * 'YYYY-MM-DD HH:MM:SS' form -- the server sends them through DATE_FORMAT and
+ * the screen renders the characters as they arrive. Never build a Date from
+ * them: that would reintroduce the timezone shift the format exists to avoid.
+ *
+ * An entry in `neverSignedIn` means no sign-in has been RECORDED, which is not
+ * the same as never having used the portal. Nothing before login tracking was
+ * switched on is in the table.
+ */
+export async function fetchActivity() {
+  if (!API_URL) return mock.activity
+  return get('/api/admin/activity')
+}
+// END REMOVABLE -- Activity screen
+
 export async function fetchAttainmentBands() {
   if (!API_URL) return mock.attainmentBands
   const rows = await get('/api/reference/attainment-bands')

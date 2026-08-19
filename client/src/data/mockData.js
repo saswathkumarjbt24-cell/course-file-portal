@@ -780,6 +780,58 @@ export const adminAllocations = [
 ]
 // END REMOVABLE -- Courses and Allocations screens
 
+// BEGIN REMOVABLE -- Activity screen
+//
+// What GET /api/admin/activity returns, exactly: two lists, not one.
+//
+// Timestamps are STRINGS in 'YYYY-MM-DD HH:MM:SS' form, because the API sends
+// them through DATE_FORMAT and the screen renders the characters as they
+// arrive. The 00:30 value on Faculty A is the case that would slip to the
+// previous day if anything built a Date from it.
+//
+// `lastIp` is null on one row on purpose: the site sits behind a proxy, and
+// the sign-in endpoint records an address only when it can show it came from a
+// forwarded-client header. NULL means "not known", never "same as the server".
+//
+// The two lists deliberately do NOT add up to the whole faculty table:
+// signIns carries anyone with an event, active or not, while neverSignedIn
+// carries ACTIVE accounts only. Faculty D is inactive and appears in neither.
+export const activity = {
+  signIns: [
+    {
+      id: 1,
+      name: 'Faculty A',
+      email: 'facultya@bitsathy.ac.in',
+      department: 'Computer Science and Engineering',
+      isActive: true,
+      signInCount: 24,
+      firstSeen: '2026-07-02 09:41:03',
+      lastSeen: '2026-08-19 00:30:00',
+      lastIp: '10.14.2.87',
+    },
+    {
+      id: 2,
+      name: 'Faculty B',
+      email: 'facultyb@bitsathy.ac.in',
+      department: 'Computer Science and Engineering',
+      isActive: true,
+      signInCount: 9,
+      firstSeen: '2026-07-15 11:20:44',
+      lastSeen: '2026-08-17 14:05:11',
+      lastIp: null,
+    },
+  ],
+  neverSignedIn: [
+    {
+      id: 3,
+      name: 'Faculty C',
+      email: 'facultyc@bitsathy.ac.in',
+      department: 'Artificial Intelligence and Data Science',
+    },
+  ],
+}
+// END REMOVABLE -- Activity screen
+
 // Mirrors table: institution_vision_mission
 export const institutionVisionMission = {
   vision:

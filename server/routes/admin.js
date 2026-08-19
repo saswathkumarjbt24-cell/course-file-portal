@@ -1290,6 +1290,117 @@ router.delete(
 // END REMOVABLE BLOCK -- Courses and Allocations screens (server half)
 // =====================================================================
 
+// =====================================================================
+// BEGIN REMOVABLE BLOCK -- Activity screen (server half)
+//
+//   GET /api/admin/activity - who has signed in, and who never has
+//
+// READ-ONLY, AND DELIBERATELY SO.
+//   There is no write, no delete and no purge here, and none should be added.
+//   login_events is an append-only record of who reached the portal and when;
+//   a screen that could edit or clear it would make it worthless as a record
+//   while still looking like one. Retention is a database decision, not a
+//   button.
+//
+// WHAT A ZERO DOES NOT MEAN
+//   Migration 018 seeded nothing. Nothing that happened before login tracking
+//   was switched on is in this table, so an account in `neverSignedIn` has
+//   "no sign-in RECORDED", which is not the same as "never used the portal".
+//   The screen says so in as many words; this comment exists so that whoever
+//   reads the endpoint next does not quietly start treating it as proof.
+//
+// EVERY TIMESTAMP GOES THROUGH DATE_FORMAT
+//   occurred_at is DATETIME, and mysql2 turns a DATETIME into a JavaScript
+//   Date built in the SERVER PROCESS's zone; JSON.stringify then writes it as
+//   UTC. A 00:30 IST sign-in would arrive at the browser as the PREVIOUS day.
+//   DATE_FORMAT keeps it a string the whole way: the characters the database
+//   holds, unshifted and unparsed. The screen renders them as-is and never
+//   builds a Date from them.
+// =====================================================================
+
+// The one timestamp format this endpoint speaks. Written once so the two
+// aggregates below cannot drift apart.
+const ACTIVITY_TIME = "'%Y-%m-%d %H:%i:%s'";
+
+// ---------------------------------------------------------------------
+// GET /api/admin/activity
+//
+// Two lists, because "who has used this" and "who has not" are different
+// questions and neither is the other's complement:
+//
+//   signIns        one row per faculty member WITH at least one login event,
+//                  active or not. An account that was deactivated after
+//                  signing in still belongs in the record of who signed in --
+//                  hiding it would quietly rewrite history.
+//   neverSignedIn  ACTIVE accounts only. An inactive account with no events
+//                  is not a person who has yet to sign in; it is a closed
+//                  account, and listing it as an outstanding one would be
+//                  wrong. This is the one place the two lists deliberately do
+//                  not add up to the whole faculty table.
+//
+// last_ip is a correlated subquery rather than an aggregate: MAX(ip) would
+// return the largest STRING, which is not the most recent address. Ordered by
+// occurred_at then id so two events in the same second still resolve to one
+// deterministic answer.
+//
+// The address may be NULL and often will be. The site sits behind Cloudflare,
+// and the sign-in endpoint records an address only when it can show it came
+// from a forwarded-client header -- see migration 018. NULL means "not known",
+// never "same as the server".
+// ---------------------------------------------------------------------
+router.get(
+  "/activity",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const [signIns] = await pool.execute(
+      `SELECT f.id, f.name, f.email, f.department, f.is_active,
+              COUNT(e.id) AS sign_in_count,
+              DATE_FORMAT(MIN(e.occurred_at), ${ACTIVITY_TIME}) AS first_seen,
+              DATE_FORMAT(MAX(e.occurred_at), ${ACTIVITY_TIME}) AS last_seen,
+              (SELECT e2.ip
+                 FROM login_events AS e2
+                WHERE e2.faculty_id = f.id
+                ORDER BY e2.occurred_at DESC, e2.id DESC
+                LIMIT 1) AS last_ip
+         FROM faculty AS f
+         JOIN login_events AS e ON e.faculty_id = f.id
+        GROUP BY f.id, f.name, f.email, f.department, f.is_active
+        ORDER BY MAX(e.occurred_at) DESC`
+    );
+
+    const [neverSignedIn] = await pool.execute(
+      `SELECT f.id, f.name, f.email, f.department
+         FROM faculty AS f
+        WHERE f.is_active = 1
+          AND NOT EXISTS (SELECT 1 FROM login_events AS e WHERE e.faculty_id = f.id)
+        ORDER BY f.name`
+    );
+
+    res.json({
+      signIns: signIns.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        department: r.department,
+        isActive: bool(r.is_active),
+        signInCount: Number(r.sign_in_count),
+        firstSeen: r.first_seen,
+        lastSeen: r.last_seen,
+        lastIp: r.last_ip,
+      })),
+      neverSignedIn: neverSignedIn.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        department: r.department,
+      })),
+    });
+  })
+);
+
+// END REMOVABLE BLOCK -- Activity screen (server half)
+// =====================================================================
+
 module.exports = router;
 
 // END REMOVABLE BLOCK -- admin Users screen (server half)
