@@ -376,6 +376,25 @@ export async function saveRemedial(courseId, kind, body) {
   return result
 }
 
+// BEGIN REMOVABLE -- remedial question paper
+/**
+ * One remedial class's question paper, replaced whole.
+ *
+ * The server returns its co_allocations comparison in `warnings`, and the
+ * screen shows it. A warning is NOT a failure: the save already happened, so
+ * this resolves normally and the caller reads `warnings` off the result.
+ */
+export async function saveRemedialPaper(courseId, kind, coNumber, body) {
+  if (!API_URL) return { mock: true, warnings: [] }
+  const result = await put(
+    `/api/courses/${courseId}/remedial/${kind}/papers/${coNumber}`,
+    body,
+  )
+  invalidate()
+  return result
+}
+// END REMOVABLE -- remedial question paper
+
 /**
  * The cover-page offering details.
  * `body` is { programme, batch, academicYear, yearOfStudy, semester, section }
@@ -927,6 +946,50 @@ export async function fetchRemedialSchedule() {
     })),
   }))
 }
+
+// BEGIN REMOVABLE -- remedial question paper
+/**
+ * Every remedial question paper, flattened across courses and plans the same
+ * way every other loader here flattens - one array the screens filter by
+ * courseId and assessmentKind.
+ *
+ * FANS OUT FROM THE SCHEDULES, not from the courses. A plan that was never
+ * announced has no classes, so there is no paper to ask about and no request
+ * worth making. fetchRemedialSchedule's responses are already in the shared
+ * cache, so this adds no second read of them.
+ *
+ * A class with no paper still comes back, with hasPaper false and an empty
+ * questions array, so the screen can list every class of the plan.
+ */
+export async function fetchRemedialPapers() {
+  if (!API_URL) return mock.remedialPapers
+  const schedules = await fetchRemedialSchedule()
+  const per = await Promise.all(
+    schedules.map((s) =>
+      get(`/api/courses/${s.courseId}/remedial/${s.assessmentKind}/papers`).then((rows) =>
+        rows.map((r) => ({
+          courseId: s.courseId,
+          assessmentKind: s.assessmentKind,
+          coNumber: r.coNumber,
+          classDate: r.classDate,
+          timing: r.timing,
+          hasPaper: r.hasPaper,
+          totalMarks: r.totalMarks,
+          durationMinutes: r.durationMinutes,
+          allocatedMarks: r.allocatedMarks,
+          questions: r.questions.map((q) => ({
+            qNo: q.qNo,
+            text: q.text,
+            marksAllotted: q.marksAllotted,
+            coNumber: q.coNumber,
+          })),
+        })),
+      ),
+    ),
+  )
+  return per.flat()
+}
+// END REMOVABLE -- remedial question paper
 
 /**
  * The internal-mark rows WITH the derived component states the printed mark

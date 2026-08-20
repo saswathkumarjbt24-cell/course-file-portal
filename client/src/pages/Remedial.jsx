@@ -4,13 +4,16 @@ import {
   fetchAssessments,
   fetchCoAllocations,
   fetchCoSplitValues,
+  fetchCourseMeta,
   fetchCourses,
+  fetchRemedialPapers,
   fetchRemedialSchedule,
   fetchStudentAssessments,
   fetchStudentCoMarks,
   fetchStudents,
   isApiMode,
   saveRemedial,
+  saveRemedialPaper,
 } from '../data/api'
 import { coMarksToShow } from '../data/coMarks'
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
@@ -28,6 +31,9 @@ const TABS = [
   { key: 'circular', label: 'Circular' },
   { key: 'attendance', label: 'Attendance' },
   { key: 'report', label: 'Assessment report' },
+  // BEGIN REMOVABLE -- remedial question paper
+  { key: 'paper', label: 'Question paper' },
+  // END REMOVABLE -- remedial question paper
 ]
 
 const ATTENDANCE_OPTIONS = ['--', 'PR', 'AB']
@@ -41,6 +47,10 @@ const LOADERS = {
   students: fetchStudents,
   studentAssessments: fetchStudentAssessments,
   studentCoMarks: fetchStudentCoMarks,
+  // BEGIN REMOVABLE -- remedial question paper
+  courseMeta: fetchCourseMeta,
+  remedialPapers: fetchRemedialPapers,
+  // END REMOVABLE -- remedial question paper
 }
 
 // Institution heading for the printed circular. Placeholder text only -
@@ -74,6 +84,10 @@ function RemedialView({
   students,
   studentAssessments,
   studentCoMarks,
+  // BEGIN REMOVABLE -- remedial question paper
+  courseMeta,
+  remedialPapers,
+  // END REMOVABLE -- remedial question paper
 }) {
   const { id } = useParams()
   const courseId = Number(id)
@@ -367,7 +381,24 @@ function RemedialView({
             ))}
           </div>
 
-          {attendedRows.length === 0 ? (
+          {/* BEGIN REMOVABLE -- remedial question paper.
+              The paper belongs to a scheduled CLASS, not to a mark, so it is
+              the one tab that still has something to show before any mark is
+              entered. Tabs 1 to 4 are unchanged inside the branch below. */}
+          {activeTab === 'paper' && (
+            <QuestionPaperTab
+              course={course}
+              meta={courseMeta.find((m) => m.courseId === courseId) ?? null}
+              kind={kind}
+              courseId={courseId}
+              papers={remedialPapers}
+              canEdit={canEdit}
+              printButton={printButton}
+            />
+          )}
+          {/* END REMOVABLE -- remedial question paper */}
+
+          {activeTab !== 'paper' && (attendedRows.length === 0 ? (
             <div className="rem-panel">
               <p className="rem-panel__title">No marks entered for {kind} yet.</p>
               <p>
@@ -792,9 +823,501 @@ function RemedialView({
                 </section>
               )}
             </>
-          )}
+          ))}
         </>
       )}
     </>
   )
 }
+
+// BEGIN REMOVABLE -- remedial question paper
+// ---------------------------------------------------------------
+// Tab 5: the remedial assessment question paper.
+//
+// ONE PAPER PER REMEDIAL CLASS, and the tab lists every class of the plan so
+// a class without a paper is visible rather than absent.
+//
+// THE DOCUMENT AND THE EDITOR ARE TWO BLOCKS, DELIBERATELY.
+//   The document reuses the circular tab's own classes -- rem-doc,
+//   rem-doc__table, rem-sign -- so the printed sheet is styled by rules that
+//   already existed and no @media print block had to be touched. The editor
+//   sits underneath it carrying rem-noprint, which the existing print block
+//   already hides, so every rule it needs is screen-only by construction.
+//
+//   While a paper is being edited the document renders the DRAFT, so the
+//   sheet above the editor is what the save would produce.
+//
+// WHAT IS ENTERED AND WHAT IS NOT
+//   Entered: the maximum, the duration, and each question's text, marks and
+//   optional CO. Computed: Q.No, which is the row's position and is renumbered
+//   from 1 on every save, so reordering cannot leave a gap or a duplicate; the
+//   running total; and the CO shown against a question that carries none,
+//   which is its class's CO exactly as the column means.
+// ---------------------------------------------------------------
+
+const PAPER_TITLES = {
+  PT1: 'Periodical Test 1',
+  PT2: 'Periodical Test 2',
+  IP1: 'Innovative Practice 1',
+  IP2: 'Innovative Practice 2',
+  SEE: 'Semester End Examination',
+}
+
+function paperTitle(kind) {
+  return `${PAPER_TITLES[kind] ?? kind}: Remedial Class - Assessment Question Paper`
+}
+
+function blankQuestion() {
+  return { text: '', marks: '', co: '' }
+}
+
+/** A stored paper -> the editor's draft, all fields as strings. */
+function toDraft(paper) {
+  return {
+    totalMarks: paper && paper.totalMarks !== null ? String(paper.totalMarks) : '',
+    durationMinutes:
+      paper && paper.durationMinutes !== null ? String(paper.durationMinutes) : '',
+    questions:
+      paper && paper.questions.length > 0
+        ? paper.questions.map((q) => ({
+            text: q.text,
+            marks: String(q.marksAllotted),
+            co: q.coNumber === null ? '' : String(q.coNumber),
+          }))
+        : [blankQuestion()],
+  }
+}
+
+/** The draft rendered as a paper, so the document above the editor is live. */
+function draftAsPaper(base, draft) {
+  return {
+    ...base,
+    hasPaper: true,
+    totalMarks: draft.totalMarks.trim() === '' ? null : Number(draft.totalMarks),
+    durationMinutes:
+      draft.durationMinutes.trim() === '' ? null : Number(draft.durationMinutes),
+    questions: draft.questions.map((q, i) => ({
+      qNo: i + 1,
+      text: q.text,
+      marksAllotted: q.marks.trim() === '' ? null : Number(q.marks),
+      coNumber: q.co.trim() === '' ? null : Number(q.co),
+    })),
+  }
+}
+
+function marksSum(draft) {
+  let sum = 0
+  for (const q of draft.questions) {
+    const n = Number(q.marks)
+    if (q.marks.trim() !== '' && Number.isFinite(n)) sum += n
+  }
+  return Math.round(sum * 100) / 100
+}
+
+function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, printButton }) {
+  // What the server last confirmed, overlaid on what it first sent. A save
+  // returns no document of its own, so the draft that was accepted IS the
+  // saved state until the next full load.
+  const [saved, setSaved] = useState({})
+  const [editingCo, setEditingCo] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [warnings, setWarnings] = useState([])
+  const [savedCo, setSavedCo] = useState(null)
+  const [paperSave, runPaperSave] = useSave()
+
+  const forPlan = useMemo(
+    () =>
+      papers
+        .filter((p) => p.courseId === courseId && p.assessmentKind === kind)
+        .sort((a, b) => a.coNumber - b.coNumber),
+    [papers, courseId, kind],
+  )
+
+  function current(paper) {
+    return saved[`${kind}|${paper.coNumber}`] ?? paper
+  }
+
+  function startEdit(paper) {
+    setEditingCo(paper.coNumber)
+    setDraft(toDraft(current(paper)))
+    setWarnings([])
+    setSavedCo(null)
+  }
+
+  function cancelEdit() {
+    setEditingCo(null)
+    setDraft(null)
+  }
+
+  function patchQuestion(index, field, value) {
+    setDraft((prev) => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => (i === index ? { ...q, [field]: value } : q)),
+    }))
+  }
+
+  function addQuestion() {
+    setDraft((prev) => ({ ...prev, questions: [...prev.questions, blankQuestion()] }))
+  }
+
+  function removeQuestion(index) {
+    setDraft((prev) => ({
+      ...prev,
+      questions: prev.questions.filter((_, i) => i !== index),
+    }))
+  }
+
+  function moveQuestion(index, delta) {
+    setDraft((prev) => {
+      const next = [...prev.questions]
+      const target = index + delta
+      if (target < 0 || target >= next.length) return prev
+      const [row] = next.splice(index, 1)
+      next.splice(target, 0, row)
+      return { ...prev, questions: next }
+    })
+  }
+
+  function handleSave(paper) {
+    // Q.No is the row's position, renumbered from 1 on every save. An empty
+    // trailing row the editor never filled in is dropped rather than sent as
+    // a question with no text, which the server would refuse.
+    const questions = draft.questions
+      .filter((q) => q.text.trim() !== '' || q.marks.trim() !== '')
+      .map((q, i) => ({
+        qNo: i + 1,
+        text: q.text.trim(),
+        marksAllotted: q.marks.trim() === '' ? null : Number(q.marks),
+        coNumber: q.co.trim() === '' ? null : Number(q.co),
+      }))
+
+    const body = {
+      totalMarks: draft.totalMarks.trim() === '' ? null : Number(draft.totalMarks),
+      durationMinutes:
+        draft.durationMinutes.trim() === '' ? null : Number(draft.durationMinutes),
+      questions,
+    }
+
+    runPaperSave(
+      () => saveRemedialPaper(courseId, kind, paper.coNumber, body),
+      (result) => {
+        setSaved((prev) => ({
+          ...prev,
+          [`${kind}|${paper.coNumber}`]: draftAsPaper(paper, draft),
+        }))
+        setWarnings(Array.isArray(result?.warnings) ? result.warnings : [])
+        setSavedCo(paper.coNumber)
+        setEditingCo(null)
+        setDraft(null)
+      },
+    )
+  }
+
+  if (forPlan.length === 0) {
+    return (
+      <section className="rem-panel">
+        <h2 className="rem-panel__title">Remedial question paper - {course.code} / {kind}</h2>
+        <p>
+          <em>
+            No remedial classes have been scheduled for {kind} yet, so there is no class for a
+            question paper to belong to.
+          </em>
+        </p>
+        <div className="rem-actions">{printButton}</div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rem-panel">
+      <h2 className="rem-panel__title">Remedial question paper - {course.code} / {kind}</h2>
+      <p className="rem-panel__note">
+        One paper per remedial class. Each class covers a single Course Outcome.
+      </p>
+
+      {forPlan.map((base) => {
+        const stored = current(base)
+        const editing = editingCo === base.coNumber
+        const view = editing ? draftAsPaper(stored, draft) : stored
+        const sum = editing ? marksSum(draft) : null
+        const stated =
+          editing && draft.totalMarks.trim() !== '' ? Number(draft.totalMarks) : null
+
+        return (
+          <div key={base.coNumber}>
+            <h3 className="rem-panel__title">
+              CO{base.coNumber} - class on {formatDate(base.classDate)}
+            </h3>
+
+            {!view.hasPaper ? (
+              <>
+                <p>
+                  <em>
+                    No question paper has been prepared for the CO{base.coNumber} remedial class
+                    yet.
+                  </em>
+                </p>
+                <div className="rem-actions rem-noprint">
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className="rem-button"
+                      onClick={() => startEdit(base)}
+                    >
+                      Create question paper
+                    </button>
+                  ) : (
+                    <span className="rem-status">{READ_ONLY_NOTE}</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <article className="rem-doc">
+                <header className="rem-doc__head">
+                  <h2 className="rem-doc__institution">{paperTitle(kind)}</h2>
+                </header>
+
+                <table className="rem-doc__table">
+                  <tbody>
+                    <tr>
+                      <th>Academic Year</th>
+                      <td>{meta?.academicYear ?? 'Not recorded'}</td>
+                    </tr>
+                    <tr>
+                      <th>Year &amp; Semester</th>
+                      <td>
+                        {meta?.yearOfStudy ?? 'Not recorded'} / {meta?.semester ?? 'Not recorded'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Course Code &amp; Title</th>
+                      <td>
+                        {course.code} - {course.title}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="rem-doc__ref">
+                  <span>
+                    Maximum Marks: {view.totalMarks === null ? 'Not stated' : view.totalMarks}
+                  </span>
+                  <span>
+                    Time Duration:{' '}
+                    {view.durationMinutes === null
+                      ? 'Not stated'
+                      : `${view.durationMinutes} Minutes`}
+                  </span>
+                </div>
+
+                {view.questions.length === 0 ? (
+                  <p>
+                    <em>This paper has no questions yet.</em>
+                  </p>
+                ) : (
+                  <table className="rem-doc__table">
+                    <thead>
+                      <tr>
+                        <th>Q. No.</th>
+                        <th>Questions</th>
+                        <th>Marks Allotted</th>
+                        <th>CO</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {view.questions.map((q) => (
+                        <tr key={q.qNo}>
+                          <td className="rem-table__center">{q.qNo}</td>
+                          <td>{q.text}</td>
+                          <td className="rem-table__center">
+                            {q.marksAllotted === null ? '—' : q.marksAllotted}
+                          </td>
+                          <td className="rem-table__center">
+                            CO{q.coNumber === null ? base.coNumber : q.coNumber}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* An empty first block puts the signature on the right, which
+                    is where the department's sheet carries it. rem-sign is
+                    already space-between, so this needs no rule of its own and
+                    prints exactly as it draws. */}
+                <div className="rem-sign">
+                  <div className="rem-sign__block" aria-hidden="true" />
+                  <div className="rem-sign__block">
+                    <div className="rem-sign__line">Signature of Faculty</div>
+                  </div>
+                </div>
+              </article>
+            )}
+
+            {editing && (
+              <div className="rem-noprint rem-qp-editor">
+                <div className="rem-qp-header">
+                  <label className="rem-qp-field">
+                    <span>Maximum marks</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="rem-input"
+                      value={draft.totalMarks}
+                      onChange={(e) =>
+                        setDraft((prev) => ({ ...prev, totalMarks: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="rem-qp-field">
+                    <span>Duration (minutes)</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="rem-input"
+                      value={draft.durationMinutes}
+                      onChange={(e) =>
+                        setDraft((prev) => ({ ...prev, durationMinutes: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                {draft.questions.map((q, index) => (
+                  <div className="rem-qp-row" key={index}>
+                    <span className="rem-qp-no">Q{index + 1}</span>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      className="rem-qp-text"
+                      placeholder="Question"
+                      aria-label={`Question ${index + 1} text`}
+                      value={q.text}
+                      onChange={(e) => patchQuestion(index, 'text', e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="rem-input"
+                      placeholder="Marks"
+                      aria-label={`Question ${index + 1} marks`}
+                      value={q.marks}
+                      onChange={(e) => patchQuestion(index, 'marks', e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="rem-input"
+                      placeholder={`CO${base.coNumber}`}
+                      aria-label={`Question ${index + 1} CO`}
+                      value={q.co}
+                      onChange={(e) => patchQuestion(index, 'co', e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="rem-button rem-button--ghost"
+                      aria-label={`Move question ${index + 1} up`}
+                      disabled={index === 0}
+                      onClick={() => moveQuestion(index, -1)}
+                    >
+                      Up
+                    </button>
+                    <button
+                      type="button"
+                      className="rem-button rem-button--ghost"
+                      aria-label={`Move question ${index + 1} down`}
+                      disabled={index === draft.questions.length - 1}
+                      onClick={() => moveQuestion(index, 1)}
+                    >
+                      Down
+                    </button>
+                    <button
+                      type="button"
+                      className="rem-button rem-button--ghost"
+                      aria-label={`Remove question ${index + 1}`}
+                      onClick={() => removeQuestion(index)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+
+                <div className="rem-actions">
+                  <button type="button" className="rem-button rem-button--ghost" onClick={addQuestion}>
+                    Add question
+                  </button>
+                  <span
+                    className={
+                      stated !== null && stated !== sum
+                        ? 'rem-status rem-status--error'
+                        : 'rem-status'
+                    }
+                  >
+                    Questions total {sum}
+                    {stated === null ? ' (no maximum stated)' : ` of a stated maximum of ${stated}`}
+                  </span>
+                </div>
+
+                <div className="rem-actions">
+                  <button
+                    type="button"
+                    className="rem-button"
+                    disabled={paperSave.saving}
+                    onClick={() => handleSave(base)}
+                  >
+                    {paperSave.saving ? 'Saving...' : 'Save question paper'}
+                  </button>
+                  <button type="button" className="rem-button rem-button--ghost" onClick={cancelEdit}>
+                    Cancel
+                  </button>
+                </div>
+
+                {/* A rejected save wrote nothing; the draft stays on screen. */}
+                <SaveFeedback state={paperSave} />
+              </div>
+            )}
+
+            {!editing && view.hasPaper && (
+              <div className="rem-actions rem-noprint">
+                {canEdit ? (
+                  <button type="button" className="rem-button" onClick={() => startEdit(base)}>
+                    Edit question paper
+                  </button>
+                ) : (
+                  <span className="rem-status">{READ_ONLY_NOTE}</span>
+                )}
+                {savedCo === base.coNumber && (
+                  <span className="rem-status rem-status--saved">
+                    {isApiMode() ? 'Saved' : 'Saved (mock)'}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {savedCo === base.coNumber &&
+              warnings.map((w, i) => (
+                <p className="rem-status rem-status--error rem-noprint" key={i}>
+                  {w.message}
+                </p>
+              ))}
+
+            {!editing && view.hasPaper && view.totalMarks !== null && base.allocatedMarks !== null &&
+              view.totalMarks !== base.allocatedMarks && (
+                <p className="rem-status rem-noprint">
+                  Note: this paper states {view.totalMarks} marks, while CO{base.coNumber} is
+                  allocated {base.allocatedMarks} marks in {kind}.
+                </p>
+              )}
+          </div>
+        )
+      })}
+
+      <div className="rem-actions">{printButton}</div>
+    </section>
+  )
+}
+// END REMOVABLE -- remedial question paper

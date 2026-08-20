@@ -8,12 +8,20 @@ import {
   fetchCoPoMatrix,
   fetchCoSplitValues,
   fetchCourseExitSurvey,
+  // BEGIN REMOVABLE -- remedial question paper. The printed paper carries the
+  // same three header rows the department's sheet does, and the academic year
+  // and year/semester live only on the migration-012 offering columns.
+  fetchCourseMeta,
+  // END REMOVABLE -- remedial question paper
   fetchCourseNatures,
   fetchCourseOutcomes,
   fetchCourses,
   fetchInstitution,
   fetchProgramOutcomes,
   fetchProgramSpecificOutcomes,
+  // BEGIN REMOVABLE -- remedial question paper
+  fetchRemedialPapers,
+  // END REMOVABLE -- remedial question paper
   fetchRemedialSchedule,
   fetchStudentAssessments,
   fetchStudentCoMarks,
@@ -59,6 +67,9 @@ const LOADERS = {
   coPoMatrix: fetchCoPoMatrix,
   coSplitValues: fetchCoSplitValues,
   courseExitSurvey: fetchCourseExitSurvey,
+  // BEGIN REMOVABLE -- remedial question paper
+  courseMeta: fetchCourseMeta,
+  // END REMOVABLE -- remedial question paper
   courseNatures: fetchCourseNatures,
   courseOutcomes: fetchCourseOutcomes,
   courses: fetchCourses,
@@ -66,6 +77,9 @@ const LOADERS = {
   programOutcomes: fetchProgramOutcomes,
   programSpecificOutcomes: fetchProgramSpecificOutcomes,
   remedialSchedule: fetchRemedialSchedule,
+  // BEGIN REMOVABLE -- remedial question paper
+  remedialPapers: fetchRemedialPapers,
+  // END REMOVABLE -- remedial question paper
   students: fetchStudents,
   studentAssessments: fetchStudentAssessments,
   studentCoMarks: fetchStudentCoMarks,
@@ -489,6 +503,105 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
 // Remedial (8, 11) - name list, circular, attendance, report
 // ---------------------------------------------------------------
 
+// BEGIN REMOVABLE -- remedial question paper
+// ---------------------------------------------------------------
+// The remedial assessment question paper, printed between the circular and
+// the attendance report, one sheet per class that HAS a paper.
+//
+// A class with no paper prints NOTHING. An empty four-column table would
+// read as a paper that was set and left blank, which is a different fact
+// from a paper that was never written.
+//
+// UNLETTERED ON PURPOSE. The four existing sub-blocks are lettered (a) to
+// (d) and this sits between (b) and (c); relabelling them would change
+// sheets that are already filed under those letters.
+//
+// A question with no CO of its own carries its class's CO, which is what
+// NULL means in remedial_questions.co_number.
+// ---------------------------------------------------------------
+
+function QuestionPapers({ course, kind }) {
+  const D = useFileData()
+  const meta = D.courseMeta.find((m) => m.courseId === course.id) ?? null
+  const papers = D.remedialPapers
+    .filter((p) => p.courseId === course.id && p.assessmentKind === kind && p.hasPaper)
+    .sort((a, b) => a.coNumber - b.coNumber)
+
+  if (papers.length === 0) return null
+
+  return (
+    <>
+      {papers.map((paper) => (
+        <div key={paper.coNumber}>
+          <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
+            Assessment question paper - CO{paper.coNumber}
+          </h3>
+
+          <div className="doc-table-wrap">
+            <table className="doc-table">
+              <tbody>
+                <tr>
+                  <th>Academic year</th>
+                  <td>{meta?.academicYear ?? '—'}</td>
+                  <th>Year &amp; semester</th>
+                  <td>
+                    {meta?.yearOfStudy ?? '—'} / {meta?.semester ?? '—'}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Course code &amp; title</th>
+                  <td>
+                    {course.code} - {course.title}
+                  </td>
+                  <th>Maximum marks</th>
+                  <td>
+                    {paper.totalMarks === null ? '—' : paper.totalMarks}
+                    {paper.durationMinutes === null
+                      ? ''
+                      : ` / ${paper.durationMinutes} minutes`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {paper.questions.length === 0 ? (
+            <p className="doc-empty">No questions have been entered on this paper.</p>
+          ) : (
+            <div className="doc-table-wrap">
+              <table className="doc-table">
+                <thead>
+                  <tr>
+                    <th className="doc-table__num">Q. No.</th>
+                    <th>Questions</th>
+                    <th>Marks allotted</th>
+                    <th>CO</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paper.questions.map((q) => (
+                    <tr key={q.qNo}>
+                      <td className="doc-table__num">{q.qNo}</td>
+                      <td>{q.text}</td>
+                      <td className="doc-table__value">{q.marksAllotted}</td>
+                      <td className="doc-table__center">
+                        CO{q.coNumber === null ? paper.coNumber : q.coNumber}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <Signatures blocks={['Signature of Faculty']} />
+        </div>
+      ))}
+    </>
+  )
+}
+// END REMOVABLE -- remedial question paper
+
 function RemedialSection({ course, kind, targetPercent }) {
   const D = useFileData()
   const assessment = assessmentOf(D, course.id, kind)
@@ -599,6 +712,10 @@ function RemedialSection({ course, kind, targetPercent }) {
           </table>
         </div>
       )}
+
+      {/* BEGIN REMOVABLE -- remedial question paper */}
+      <QuestionPapers course={course} kind={kind} />
+      {/* END REMOVABLE -- remedial question paper */}
 
       <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
         (c) Attendance

@@ -432,4 +432,70 @@
     outline: none;
     box-shadow: var(--focus-ring);
   }
+
+  /* BEGIN REMOVABLE -- remedial question paper
+
+     EVERY RULE BELOW IS SCREEN-ONLY, and can be, because the block it
+     styles carries rem-noprint and is already hidden by the @media print
+     block above. The printed question paper is drawn entirely by the
+     circular's existing rem-doc rules, so no print rule was added or
+     changed to make this sheet print. */
+
+  .rem-qp-editor {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-background);
+  }
+
+  .rem-qp-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+
+  .rem-qp-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+  }
+
+  .rem-qp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .rem-qp-no {
+    min-width: 2.5rem;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  /* The question is a sentence, not a figure: it takes the row's slack
+     while the two numeric inputs keep the 4rem width rem-input gives
+     every mark field on this screen. */
+  .rem-qp-text {
+    flex: 1 1 18rem;
+    min-width: 12rem;
+    padding: var(--space-1) var(--space-2);
+    font: inherit;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .rem-qp-text:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+  }
+
+  /* END REMOVABLE -- remedial question paper */
 }

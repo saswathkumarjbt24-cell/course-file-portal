@@ -1049,6 +1049,72 @@ export const remedialSchedule = [
   },
 ]
 
+// BEGIN REMOVABLE -- remedial question paper
+// ---------------------------------------------------------------
+// Mirrors tables: remedial_question_papers + remedial_questions (019)
+//
+// One entry per remedial CLASS, not per paper: a class that has no paper yet
+// is a state the screen has to show, so it appears here with hasPaper false
+// and no questions. CO3 below is deliberately that case.
+//
+// `allocatedMarks` is what co_allocations says the CO is worth on that test
+// (20, 20, 10 for PT1 above). CO2's paper states 15 against an allocation of
+// 20 on purpose, so the demo exercises the warning line the API returns for a
+// remedial paper that is shorter than the test it follows. It is a warning
+// and not an error: the parts still add up to the stated whole, which is the
+// only sum the endpoint refuses to let disagree.
+//
+// `coNumber` on a question is null wherever the question carries its class's
+// own CO, exactly as the column means.
+// ---------------------------------------------------------------
+export const remedialPapers = [
+  {
+    courseId: 1,
+    assessmentKind: 'PT1',
+    coNumber: 1,
+    classDate: '2025-08-20',
+    timing: '4:30PM to 5:30PM',
+    hasPaper: true,
+    totalMarks: 20,
+    durationMinutes: 30,
+    allocatedMarks: 20,
+    questions: [
+      { qNo: 1, text: 'Define an algorithm and list its five defining properties.', marksAllotted: 5, coNumber: null },
+      { qNo: 2, text: 'Write the pseudocode for linear search and state its worst-case comparison count.', marksAllotted: 5, coNumber: null },
+      { qNo: 3, text: 'Distinguish between an abstract data type and a data structure, with one example of each.', marksAllotted: 5, coNumber: null },
+      { qNo: 4, text: 'Trace the steps of bubble sort on the list 5, 1, 4, 2 and give the array after each pass.', marksAllotted: 5, coNumber: null },
+    ],
+  },
+  {
+    courseId: 1,
+    assessmentKind: 'PT1',
+    coNumber: 2,
+    classDate: '2025-08-21',
+    timing: '4:30PM to 5:30PM',
+    hasPaper: true,
+    totalMarks: 15,
+    durationMinutes: 30,
+    allocatedMarks: 20,
+    questions: [
+      { qNo: 1, text: 'State the array representation of a stack and write the push operation with its overflow check.', marksAllotted: 5, coNumber: null },
+      { qNo: 2, text: 'Convert the infix expression A + B * C to postfix, showing the stack at each step.', marksAllotted: 10, coNumber: null },
+    ],
+  },
+  {
+    courseId: 1,
+    assessmentKind: 'PT1',
+    coNumber: 3,
+    classDate: '2025-08-22',
+    timing: '4:30PM to 5:30PM',
+    hasPaper: false,
+    totalMarks: null,
+    durationMinutes: null,
+    allocatedMarks: 10,
+    questions: [],
+  },
+]
+// END REMOVABLE -- remedial question paper
+
 // ---------------------------------------------------------------
 // Mirrors table: courses (the offering columns added by migration 012)
 //

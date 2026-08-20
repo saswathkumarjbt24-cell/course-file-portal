@@ -10,6 +10,10 @@
 //   GET /api/courses/:id/exit-survey     - indirect attainment values
 //   GET /api/courses/:id/remedial        - remedial plans, classes, register
 //   GET /api/courses/:id/closing         - closing-report action lines
+//   BEGIN REMOVABLE -- remedial question paper
+//   GET /api/courses/:id/remedial/:kind/papers      - question paper per class
+//   PUT /api/courses/:id/remedial/:kind/papers/:co  - one class's paper
+//   END REMOVABLE -- remedial question paper
 //
 //   PUT /api/courses/:id/outcomes        - CO statements + articulation matrix
 //   PUT /api/courses/:id/exit-survey     - indirect attainment values
@@ -1282,6 +1286,403 @@ router.put(
     res.json(result);
   })
 );
+
+// =====================================================================
+// BEGIN REMOVABLE -- remedial question paper
+//
+// The remedial ASSESSMENT QUESTION PAPER, added by migration 019. One paper
+// per remedial CLASS, because a class already targets exactly one CO and the
+// paper's maximum is that CO's maximum.
+//
+// NOTHING ABOVE THIS MARKER CHANGED. The existing GET /:id/remedial and
+// PUT /:id/remedial/:kind keep their behaviour, their response shape and
+// their guards; these two routes are additive and sit on their own paths.
+//
+// GUARDS, THE SAME TWO GATES AS THE REST OF REMEDIAL
+//   Both paths are under the `/:id` prefix, so requireCourseAccess (line 63)
+//   already covers them -- a course you may not reach is a 403 here as
+//   everywhere else. The GET carries nothing further: a faculty member READS
+//   the question paper exactly as they read the rest of the remedial screen.
+//   The PUT carries requireCourseFileEditor, the identical guard on the
+//   existing remedial PUT, so writing stays admin and hod.
+// =====================================================================
+
+const QUESTION_TEXT_MAX = 2000;
+const DURATION_MINUTES_MAX = 600;
+
+/**
+ * DECIMAL(6,2) round-trips through mysql2 as a string, and a sum of Numbers
+ * parsed from those strings can land on 19.999999999999996. Both sides of the
+ * total check go through this, so the comparison is made on the two decimal
+ * places the column actually stores rather than on binary floating point.
+ */
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * The remedial class of one CO within one plan, or null.
+ *
+ * Resolved through the schedule rather than by id: the client names a plan by
+ * (course, kind) and a class by its CO, which is exactly how the printed
+ * circular names them, and neither id appears on any sheet.
+ */
+async function remedialClassOf(conn, courseId, kind, coNumber) {
+  const [rows] = await conn.execute(
+    `SELECT rc.id, rc.co_number
+       FROM remedial_classes   AS rc
+       JOIN remedial_schedules AS rs ON rs.id = rc.schedule_id
+      WHERE rs.course_id = ? AND rs.assessment_kind = ? AND rc.co_number = ?`,
+    [courseId, kind, coNumber]
+  );
+  return rows.length > 0 ? rows[0] : null;
+}
+
+/**
+ * What co_allocations says that CO is worth on that assessment, or null when
+ * the assessment or the allocation does not exist.
+ *
+ * Used for a WARNING only, never to refuse a save -- see the note on the PUT.
+ */
+async function coAllocationMarks(conn, courseId, kind, coNumber) {
+  const [rows] = await conn.execute(
+    `SELECT ca.marks_allocated
+       FROM co_allocations AS ca
+       JOIN assessments    AS a ON a.id = ca.assessment_id
+      WHERE a.course_id = ? AND a.kind = ? AND ca.co_number = ?`,
+    [courseId, kind, coNumber]
+  );
+  return rows.length > 0 ? num(rows[0].marks_allocated) : null;
+}
+
+/** The assessment kind of a remedial path segment, or a 400 naming the set. */
+function requireAssessmentKind(req) {
+  const kind = String(req.params.kind || "").toUpperCase();
+  if (!ASSESSMENT_KINDS.includes(kind)) {
+    throw new HttpError(
+      400,
+      `Invalid assessment kind '${req.params.kind}'. Expected one of ${ASSESSMENT_KINDS.join(", ")}`
+    );
+  }
+  return kind;
+}
+
+// ---------------------------------------------------------------------
+// GET /api/courses/:id/remedial/:kind/papers
+//
+// One entry per remedial CLASS of that plan, whether or not it has a paper.
+//
+// A CLASS WITH NO PAPER IS STILL AN ENTRY
+//   questions is [], hasPaper is false, and both header fields are null. The
+//   screen has to be able to show every class of the plan and offer to start
+//   the missing one; an endpoint that returned only the papers that exist
+//   would leave it guessing which classes it had not been told about.
+//
+// hasPaper IS NOT DERIVABLE FROM questions.length
+//   A paper whose header has been saved but whose questions have not is a
+//   real state, and it is not the same state as no paper at all.
+//
+// allocatedMarks RIDES ALONG for the same reason the PUT returns it: the
+// screen shows the comparison against co_allocations, and deriving it in the
+// browser would mean a second fan-out over the assessments.
+// ---------------------------------------------------------------------
+router.get(
+  "/:id/remedial/:kind/papers",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const kind = requireAssessmentKind(req);
+    await assertCourseExists(pool, courseId);
+
+    const [classes] = await pool.execute(
+      `SELECT rc.id            AS class_id,
+              rc.co_number,
+              DATE_FORMAT(rc.class_date, '%Y-%m-%d') AS class_date,
+              rc.timing,
+              p.id             AS paper_id,
+              p.total_marks,
+              p.duration_minutes
+         FROM remedial_classes         AS rc
+         JOIN remedial_schedules       AS rs ON rs.id = rc.schedule_id
+         LEFT JOIN remedial_question_papers AS p ON p.remedial_class_id = rc.id
+        WHERE rs.course_id = ? AND rs.assessment_kind = ?
+        ORDER BY rc.co_number`,
+      [courseId, kind]
+    );
+    if (classes.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const [questions] = await pool.execute(
+      `SELECT q.paper_id, q.q_no, q.question_text, q.marks_allotted, q.co_number
+         FROM remedial_questions       AS q
+         JOIN remedial_question_papers AS p  ON p.id  = q.paper_id
+         JOIN remedial_classes         AS rc ON rc.id = p.remedial_class_id
+         JOIN remedial_schedules       AS rs ON rs.id = rc.schedule_id
+        WHERE rs.course_id = ? AND rs.assessment_kind = ?
+        ORDER BY q.paper_id, q.q_no`,
+      [courseId, kind]
+    );
+
+    const byPaper = new Map();
+    for (const q of questions) {
+      if (!byPaper.has(q.paper_id)) byPaper.set(q.paper_id, []);
+      byPaper.get(q.paper_id).push({
+        qNo: q.q_no,
+        text: q.question_text,
+        marksAllotted: num(q.marks_allotted),
+        coNumber: q.co_number,
+      });
+    }
+
+    const [allocations] = await pool.execute(
+      `SELECT ca.co_number, ca.marks_allocated
+         FROM co_allocations AS ca
+         JOIN assessments    AS a ON a.id = ca.assessment_id
+        WHERE a.course_id = ? AND a.kind = ?`,
+      [courseId, kind]
+    );
+    const allocByCo = new Map(
+      allocations.map((r) => [r.co_number, num(r.marks_allocated)])
+    );
+
+    res.json(
+      classes.map((c) => ({
+        coNumber: c.co_number,
+        classDate: c.class_date,
+        timing: c.timing,
+        hasPaper: c.paper_id !== null,
+        totalMarks: num(c.total_marks),
+        durationMinutes: c.duration_minutes,
+        allocatedMarks: allocByCo.has(c.co_number) ? allocByCo.get(c.co_number) : null,
+        questions: c.paper_id === null ? [] : byPaper.get(c.paper_id) || [],
+      }))
+    );
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/courses/:id/remedial/:kind/papers/:co
+//
+// Body: { totalMarks, durationMinutes,
+//         questions: [{ qNo, text, marksAllotted, coNumber }] }
+//
+// THE QUESTION LIST IS REPLACED WHOLESALE, in one transaction.
+//   Unlike the classes of a plan, which are upserted because deleting one
+//   would cascade its attendance register away, a question owns nothing. A
+//   paper is edited as a document -- questions are renumbered, split and
+//   dropped -- and an upsert would leave every question the editor deleted
+//   sitting on the printed sheet. Delete-then-insert is the only shape that
+//   makes "remove question 3" work.
+//
+// A STATED MAXIMUM MUST EQUAL THE SUM OF ITS PARTS
+//   Refused with a 400 naming both numbers. A question paper whose parts do
+//   not add up to its own stated maximum is precisely the defect this portal
+//   exists to catch, and accepting it would print the contradiction.
+//
+// A STATED MAXIMUM THAT DISAGREES WITH co_allocations IS ONLY A WARNING
+//   The CO allocation is a property of the periodical test; the remedial
+//   paper is a different sitting and is allowed to be shorter or longer. The
+//   comparison is returned so the screen can show it, and the save proceeds.
+//
+// A CO WITH NO REMEDIAL CLASS IS A 404, not a silently created one. A paper
+// with no class has no date, no venue and no register, and would print as a
+// sheet for a class that was never announced.
+// ---------------------------------------------------------------------
+router.put(
+  "/:id/remedial/:kind/papers/:co",
+  requireCourseFileEditor,
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const kind = requireAssessmentKind(req);
+    const coNumber = parseId(req.params.co);
+    if (coNumber === null || coNumber > 127) {
+      throw new HttpError(
+        400,
+        `Invalid CO '${req.params.co}': must be a positive integer`
+      );
+    }
+
+    const body = req.body;
+    if (!isPlainObject(body)) {
+      throw new HttpError(400, "Body must be an object");
+    }
+    const questionsIn = body.questions === undefined ? [] : body.questions;
+    if (!Array.isArray(questionsIn)) {
+      throw new HttpError(400, "questions must be an array");
+    }
+
+    const result = await withTransaction(async (conn) => {
+      await assertCourseExists(conn, courseId);
+
+      const remedialClass = await remedialClassOf(conn, courseId, kind, coNumber);
+      if (remedialClass === null) {
+        throw new HttpError(
+          404,
+          `No remedial class for CO${coNumber} in the ${kind} plan of course ${courseId}. Schedule the class first.`
+        );
+      }
+
+      const issues = [];
+
+      // ---- header ----
+      const totalRaw = optionalNumber(body.totalMarks);
+      if (!totalRaw.ok) {
+        issues.push({ field: "totalMarks", message: "totalMarks must be a number or null" });
+      } else if (totalRaw.value !== null && totalRaw.value <= 0) {
+        issues.push({
+          field: "totalMarks",
+          message: "totalMarks must be a positive number",
+          totalMarks: totalRaw.value,
+        });
+      }
+      const totalMarks = totalRaw.ok ? totalRaw.value : null;
+
+      const durationRaw = optionalNumber(body.durationMinutes);
+      if (!durationRaw.ok) {
+        issues.push({
+          field: "durationMinutes",
+          message: "durationMinutes must be a number or null",
+        });
+      } else if (durationRaw.value !== null) {
+        if (!Number.isInteger(durationRaw.value) || durationRaw.value <= 0) {
+          issues.push({
+            field: "durationMinutes",
+            message: "durationMinutes must be a positive whole number of minutes",
+            durationMinutes: durationRaw.value,
+          });
+        } else if (durationRaw.value > DURATION_MINUTES_MAX) {
+          issues.push({
+            field: "durationMinutes",
+            message: `durationMinutes must be ${DURATION_MINUTES_MAX} or fewer`,
+            durationMinutes: durationRaw.value,
+          });
+        }
+      }
+      const durationMinutes = durationRaw.ok ? durationRaw.value : null;
+
+      // ---- questions ----
+      const questions = [];
+      const seenQNo = new Set();
+      questionsIn.forEach((row, index) => {
+        const fail = (message, extra = {}) =>
+          issues.push({ list: "questions", index, ...extra, message });
+
+        if (!isPlainObject(row)) return fail("entry must be an object");
+
+        const qNo = parseId(row.qNo);
+        if (qNo === null) {
+          return fail("qNo must be a positive integer", { qNo: row.qNo });
+        }
+        if (seenQNo.has(qNo)) return fail("duplicate qNo", { qNo });
+        seenQNo.add(qNo);
+
+        const text = optionalString(row.text, QUESTION_TEXT_MAX);
+        if (!text.ok) {
+          return fail(
+            `question text must be a string of ${QUESTION_TEXT_MAX} characters or fewer`,
+            { qNo }
+          );
+        }
+        if (text.value === null) return fail("question text is required", { qNo });
+
+        const marks = optionalNumber(row.marksAllotted);
+        if (!marks.ok || marks.value === null) {
+          return fail("marksAllotted must be a number", { qNo });
+        }
+        if (marks.value <= 0) {
+          return fail("marksAllotted must be a positive number", {
+            qNo,
+            marksAllotted: marks.value,
+          });
+        }
+
+        // NULL means "the CO of this paper's class" and nothing else. A value
+        // is stored only when the caller sent one.
+        let questionCo = null;
+        if (row.coNumber !== undefined && row.coNumber !== null && row.coNumber !== "") {
+          questionCo = parseId(row.coNumber);
+          if (questionCo === null || questionCo > 127) {
+            return fail("coNumber must be a positive integer or null", {
+              qNo,
+              coNumber: row.coNumber,
+            });
+          }
+        }
+
+        questions.push({ qNo, text: text.value, marksAllotted: marks.value, coNumber: questionCo });
+      });
+
+      // ---- the parts must add up to the stated whole ----
+      const sum = round2(questions.reduce((acc, q) => acc + q.marksAllotted, 0));
+      if (totalMarks !== null && questions.length > 0 && round2(totalMarks) !== sum) {
+        issues.push({
+          field: "totalMarks",
+          totalMarks: round2(totalMarks),
+          sumOfMarksAllotted: sum,
+          message: `the question marks add up to ${sum}, which is not the stated maximum of ${round2(totalMarks)}`,
+        });
+      }
+
+      if (issues.length > 0) throw new ValidationError(issues);
+
+      // ---------------- write ----------------
+      await conn.execute(
+        `INSERT INTO remedial_question_papers
+           (remedial_class_id, total_marks, duration_minutes)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE total_marks = ?, duration_minutes = ?`,
+        [remedialClass.id, totalMarks, durationMinutes, totalMarks, durationMinutes]
+      );
+      const [paperRows] = await conn.execute(
+        `SELECT id FROM remedial_question_papers WHERE remedial_class_id = ?`,
+        [remedialClass.id]
+      );
+      const paperId = paperRows[0].id;
+
+      await conn.execute(`DELETE FROM remedial_questions WHERE paper_id = ?`, [paperId]);
+      for (const q of questions) {
+        await conn.execute(
+          `INSERT INTO remedial_questions
+             (paper_id, q_no, question_text, marks_allotted, co_number)
+           VALUES (?, ?, ?, ?, ?)`,
+          [paperId, q.qNo, q.text, q.marksAllotted, q.coNumber]
+        );
+      }
+
+      const allocatedMarks = await coAllocationMarks(conn, courseId, kind, coNumber);
+      const warnings = [];
+      if (
+        totalMarks !== null &&
+        allocatedMarks !== null &&
+        round2(totalMarks) !== round2(allocatedMarks)
+      ) {
+        warnings.push({
+          field: "totalMarks",
+          totalMarks: round2(totalMarks),
+          allocatedMarks: round2(allocatedMarks),
+          message: `the stated maximum of ${round2(totalMarks)} is not the CO${coNumber} allocation of ${round2(allocatedMarks)} for ${kind}`,
+        });
+      }
+
+      return {
+        courseId,
+        assessmentKind: kind,
+        coNumber,
+        paperId,
+        questionsSaved: questions.length,
+        totalMarks: totalMarks === null ? null : round2(totalMarks),
+        durationMinutes,
+        sumOfMarksAllotted: sum,
+        allocatedMarks: allocatedMarks === null ? null : round2(allocatedMarks),
+        warnings,
+      };
+    });
+
+    res.json(result);
+  })
+);
+// END REMOVABLE -- remedial question paper
 
 // ---------------------------------------------------------------------
 // PUT /api/courses/:id/meta
