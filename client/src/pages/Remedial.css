@@ -498,4 +498,72 @@
   }
 
   /* END REMOVABLE -- remedial question paper */
+
+  /* BEGIN REMOVABLE -- circular editor
+
+     Screen-only, and safely so: the block carries rem-noprint and the
+     @media print block above already hides it. The circular DOCUMENT is
+     drawn by the rem-doc rules it has always used and is not restyled. */
+
+  .rem-cir-editor {
+    max-width: 46rem;
+    margin: var(--space-4) auto 0;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-background);
+  }
+
+  .rem-cir-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    font-size: var(--font-size-sm);
+  }
+
+  .rem-cir-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .rem-cir-co {
+    min-width: 3rem;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .rem-cir-venue,
+  .rem-cir-timing,
+  .rem-cir-date {
+    padding: var(--space-1) var(--space-2);
+    font: inherit;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .rem-cir-venue {
+    flex: 1 1 20rem;
+    min-width: 12rem;
+  }
+
+  .rem-cir-timing {
+    flex: 1 1 14rem;
+    min-width: 10rem;
+  }
+
+  .rem-cir-venue:focus,
+  .rem-cir-timing:focus,
+  .rem-cir-date:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+  }
+
+  /* END REMOVABLE -- circular editor */
 }

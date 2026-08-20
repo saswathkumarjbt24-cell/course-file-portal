@@ -1041,11 +1041,19 @@ export const remedialSchedule = [
     courseId: 1,
     assessmentKind: 'PT1',
     venue: 'Seminar Hall B',
+    // BEGIN REMOVABLE -- stored remedial register
+    // attendance and results are EMPTY on purpose, matching the decision
+    // migration 009 records for the same two tables: the register and the
+    // after-remedial marks are entered by faculty and nothing invents them.
+    // The arrays are present so the fixture has the same SHAPE the API
+    // returns, and the demo shows "not marked yet" -- which is true of it.
+    // END REMOVABLE -- stored remedial register
     classes: [
-      { coNumber: 1, date: '2025-08-20', timing: '4:30PM to 5:30PM' },
-      { coNumber: 2, date: '2025-08-21', timing: '4:30PM to 5:30PM' },
-      { coNumber: 3, date: '2025-08-22', timing: '4:30PM to 5:30PM' },
+      { coNumber: 1, date: '2025-08-20', timing: '4:30PM to 5:30PM', attendance: [] },
+      { coNumber: 2, date: '2025-08-21', timing: '4:30PM to 5:30PM', attendance: [] },
+      { coNumber: 3, date: '2025-08-22', timing: '4:30PM to 5:30PM', attendance: [] },
     ],
+    results: [],
   },
 ]
 

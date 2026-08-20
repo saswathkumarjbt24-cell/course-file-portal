@@ -943,7 +943,32 @@ export async function fetchRemedialSchedule() {
       coNumber: c.coNumber,
       date: c.date,
       timing: c.timing,
+      // BEGIN REMOVABLE -- stored remedial register
+      // The hand-marked register of this class. The API has always returned
+      // it; dropping it here was why a saved register came back as the
+      // derived default and looked like lost work.
+      //
+      // An empty array is a real answer: "this class has not been marked".
+      // It is NOT the same as a class every student was absent from.
+      attendance: (c.attendance ?? []).map((a) => ({
+        studentId: a.studentId,
+        status: a.status,
+      })),
+      // END REMOVABLE -- stored remedial register
     })),
+    // BEGIN REMOVABLE -- stored remedial register
+    // The after-remedial marks of this plan. Per (student, CO), and already
+    // narrowed to this assessment kind by the server.
+    //
+    // afterRemedialMark may legitimately be 0 -- a student who scored nothing
+    // on the re-assessment -- and null, meaning no mark recorded. The two are
+    // different and nothing downstream may collapse them.
+    results: (r.results ?? []).map((x) => ({
+      studentId: x.studentId,
+      coNumber: x.coNumber,
+      afterRemedialMark: x.afterRemedialMark,
+    })),
+    // END REMOVABLE -- stored remedial register
   }))
 }
 

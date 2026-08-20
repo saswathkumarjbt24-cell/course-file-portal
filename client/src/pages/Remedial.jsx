@@ -16,6 +16,9 @@ import {
   saveRemedialPaper,
 } from '../data/api'
 import { coMarksToShow } from '../data/coMarks'
+// BEGIN REMOVABLE -- stored remedial register
+import { afterMarkCellValue, attendanceCellValue } from '../data/remedialCells'
+// END REMOVABLE -- stored remedial register
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import { splitIndex } from '../utils/coSplit'
@@ -119,6 +122,20 @@ function RemedialView({
   // falls back to the derived default.
   const [attendanceEdits, setAttendanceEdits] = useState({})
   const [afterMarks, setAfterMarks] = useState({})
+  // BEGIN REMOVABLE -- stored remedial register
+  // The classes whose register was saved in THIS session. The loaded bundle is
+  // not re-fetched after a save, so without this a register the user just
+  // marked would still be reported as unmarked.
+  const [savedRegisterCos, setSavedRegisterCos] = useState([])
+  // END REMOVABLE -- stored remedial register
+  // BEGIN REMOVABLE -- circular editor
+  // The plan as last SAVED by this session, and the draft being edited.
+  // Both carry the kind they belong to, so switching assessment drops them
+  // without an effect that could fire in the wrong order.
+  const [planOverride, setPlanOverride] = useState(null)
+  const [circularDraft, setCircularDraft] = useState(null)
+  const [circularSave, runCircularSave] = useSave()
+  // END REMOVABLE -- circular editor
   const [savedTab, setSavedTab] = useState('')
   // BEGIN REMOVABLE -- edit permission scope
   const { faculty } = useSession()
@@ -212,17 +229,78 @@ function RemedialView({
 
   const remedialStudents = useMemo(() => evaluated.filter((e) => e.anyRemedial), [evaluated])
 
-  const scheduleClasses = schedule ? schedule.classes : []
+  // BEGIN REMOVABLE -- circular editor
+  // What the plan IS right now: what the server sent, or what this session
+  // last saved over it. Every read of the venue and the classes goes through
+  // this, so a saved circular is on screen without a page reload.
+  const plan = planOverride && planOverride.kind === kind ? planOverride : schedule
+  // END REMOVABLE -- circular editor
+
+  const scheduleClasses = plan ? plan.classes : []
+
+  // BEGIN REMOVABLE -- stored remedial register
+  //
+  // THE HAND-MARKED REGISTER IS AUTHORITATIVE.
+  //   The derived value -- PR for a CO the student fell below target in -- is
+  //   the STARTING STATE of a class nobody has marked yet, and nothing more.
+  //   Once a row exists for a (student, class) pair it wins, here and in the
+  //   printed course file.
+  //
+  //   That distinction is the whole point: a stored NA displays as "--" and
+  //   must NEVER be replaced by a derived PR. Reading a recorded "not
+  //   required" back as "present" would put a student in a register they were
+  //   never in.
+  const storedAttendance = useMemo(() => {
+    const map = new Map()
+    for (const cls of plan ? plan.classes : []) {
+      for (const entry of cls.attendance ?? []) {
+        map.set(`${entry.studentId}|${cls.coNumber}`, entry.status)
+      }
+    }
+    return map
+  }, [plan])
+
+  // Keyed the same way. A stored mark of 0 is a real mark and must render as
+  // "0"; only null means "no mark recorded" and renders as an empty box.
+  const storedResults = useMemo(() => {
+    const map = new Map()
+    for (const entry of (plan && plan.results) ?? []) {
+      map.set(`${entry.studentId}|${entry.coNumber}`, entry.afterRemedialMark)
+    }
+    return map
+  }, [plan])
+
+  // Which classes have a register at all. Stored rows, plus any class saved in
+  // this session, because the loaded data is not re-fetched after a save.
+  const markedCos = useMemo(() => {
+    const marked = new Set()
+    for (const cls of scheduleClasses) {
+      if ((cls.attendance ?? []).length > 0) marked.add(cls.coNumber)
+    }
+    for (const co of savedRegisterCos) marked.add(co)
+    return marked
+    // scheduleClasses is derived from schedule.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, savedRegisterCos])
+  // END REMOVABLE -- stored remedial register
 
   function attendanceValue(row, coNumber) {
     const key = cellKey(assessmentId, row.student.id, coNumber)
-    if (attendanceEdits[key] !== undefined) return attendanceEdits[key]
-    // Default: PR for the COs this student actually fell below target in.
-    return row.cos[coNumber] && row.cos[coNumber].remedial ? 'PR' : '--'
+    // Default: PR for the COs this student actually fell below target in --
+    // used only where no row has been marked. See ../data/remedialCells.
+    return attendanceCellValue({
+      edit: attendanceEdits[key],
+      stored: storedAttendance.get(`${row.student.id}|${coNumber}`),
+      derived: Boolean(row.cos[coNumber] && row.cos[coNumber].remedial),
+    })
   }
 
   function afterMarkValue(row, coNumber) {
-    return afterMarks[cellKey(assessmentId, row.student.id, coNumber)] ?? ''
+    const key = cellKey(assessmentId, row.student.id, coNumber)
+    return afterMarkCellValue({
+      edit: afterMarks[key],
+      stored: storedResults.get(`${row.student.id}|${coNumber}`),
+    })
   }
 
   function afterMarkError(row, coNumber) {
@@ -247,12 +325,93 @@ function RemedialView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remedialStudents, allocation, afterMarks, assessmentId])
 
+  // BEGIN REMOVABLE -- stored remedial register
+  /** "Register: CO1, CO2 marked. CO3 not marked yet, showing defaults." */
+  function registerStatusLine() {
+    const marked = scheduleClasses.filter((c) => markedCos.has(c.coNumber))
+    const unmarked = scheduleClasses.filter((c) => !markedCos.has(c.coNumber))
+    const list = (rows) => rows.map((c) => `CO${c.coNumber}`).join(', ')
+    if (unmarked.length === 0) return `Register marked for ${list(marked)}.`
+    if (marked.length === 0) {
+      return `No register saved yet for ${list(unmarked)} — showing the derived default, not a marked roll.`
+    }
+    return `Register marked for ${list(marked)}. Not marked yet for ${list(unmarked)} — those columns show the derived default.`
+  }
+  // END REMOVABLE -- stored remedial register
+
+  // BEGIN REMOVABLE -- circular editor
+  //
+  // EVERY CO OF THE ASSESSMENT GETS A ROW, whether or not a class exists for
+  // it, which is what makes a plan creatable rather than only editable.
+  function startCircularEdit() {
+    const byCo = new Map(scheduleClasses.map((c) => [c.coNumber, c]))
+    setCircularDraft({
+      venue: plan && plan.venue ? plan.venue : '',
+      rows: allocation.map((alloc) => {
+        const existing = byCo.get(alloc.coNumber)
+        return {
+          coNumber: alloc.coNumber,
+          date: existing && existing.date ? existing.date : '',
+          timing: existing && existing.timing ? existing.timing : '',
+          exists: existing !== undefined,
+        }
+      }),
+    })
+  }
+
+  function patchCircularRow(coNumber, field, value) {
+    setCircularDraft((prev) => ({
+      ...prev,
+      rows: prev.rows.map((r) => (r.coNumber === coNumber ? { ...r, [field]: value } : r)),
+    }))
+  }
+
+  function handleSaveCircular() {
+    // A CO IS SENT ONLY IF IT ALREADY EXISTS OR HAS SOMETHING IN IT.
+    //   The endpoint upserts, so sending an untouched CO would CREATE a class
+    //   with no date and no timing -- and there is no way to delete one. An
+    //   empty row is therefore left unsent rather than turned into a class
+    //   nobody can take back.
+    const rows = circularDraft.rows.filter(
+      (r) => r.exists || r.date.trim() !== '' || r.timing.trim() !== '',
+    )
+    const classes = rows.map((r) => ({
+      coNumber: r.coNumber,
+      date: r.date.trim() === '' ? null : r.date,
+      timing: r.timing.trim() === '' ? null : r.timing,
+    }))
+    const venue = circularDraft.venue.trim() === '' ? null : circularDraft.venue.trim()
+
+    runCircularSave(
+      () => saveRemedial(courseId, kind, { venue, classes }),
+      () => {
+        // The register of a class survives an edit to its date or timing, so
+        // it is carried across rather than dropped by the overlay.
+        const byCo = new Map(scheduleClasses.map((c) => [c.coNumber, c]))
+        setPlanOverride({
+          kind,
+          courseId,
+          assessmentKind: kind,
+          venue,
+          classes: classes.map((c) => ({
+            ...c,
+            attendance: (byCo.get(c.coNumber) || {}).attendance ?? [],
+          })),
+          results: (plan && plan.results) ?? [],
+        })
+        setCircularDraft(null)
+        setSavedTab('circular')
+      },
+    )
+  }
+  // END REMOVABLE -- circular editor
+
   // The plan's venue and classes go with EVERY save. The endpoint upserts the
   // schedule row, so omitting the venue would overwrite it with null, and the
   // register cannot be stored until its classes exist.
   function planFields() {
     return {
-      venue: schedule ? schedule.venue : null,
+      venue: plan ? plan.venue : null,
       classes: scheduleClasses.map((cls) => ({
         coNumber: cls.coNumber,
         date: cls.date,
@@ -279,7 +438,13 @@ function RemedialView({
 
     runAttendanceSave(
       () => saveRemedial(courseId, kind, { ...planFields(), attendance }),
-      () => setSavedTab('attendance'),
+      () => {
+        setSavedTab('attendance')
+        // BEGIN REMOVABLE -- stored remedial register
+        // Every class in the plan now HAS a register, whatever was in it.
+        setSavedRegisterCos(scheduleClasses.map((cls) => cls.coNumber))
+        // END REMOVABLE -- stored remedial register
+      },
     )
   }
 
@@ -531,7 +696,7 @@ function RemedialView({
                                 <td>CO{cls.coNumber}</td>
                                 <td>{formatDate(cls.date)}</td>
                                 <td>{cls.timing}</td>
-                                <td>{schedule.venue}</td>
+                                <td>{plan.venue}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -555,7 +720,108 @@ function RemedialView({
                     </div>
                   </article>
 
-                  <div className="rem-actions">{printButton}</div>
+                  {/* BEGIN REMOVABLE -- circular editor.
+                      The document above is untouched and prints exactly as it
+                      did. Everything below carries rem-noprint, which the
+                      existing print block already hides, so no print rule was
+                      added or changed. */}
+                  {circularDraft && (
+                    <div className="rem-noprint rem-cir-editor">
+                      <label className="rem-cir-field">
+                        <span>Venue</span>
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          maxLength={150}
+                          className="rem-cir-venue"
+                          placeholder="Where the classes are held"
+                          value={circularDraft.venue}
+                          onChange={(event) =>
+                            setCircularDraft((prev) => ({ ...prev, venue: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      {circularDraft.rows.map((row) => (
+                        <div className="rem-cir-row" key={row.coNumber}>
+                          <span className="rem-cir-co">CO{row.coNumber}</span>
+                          <input
+                            type="date"
+                            className="rem-cir-date"
+                            aria-label={`CO${row.coNumber} class date`}
+                            value={row.date}
+                            onChange={(event) =>
+                              patchCircularRow(row.coNumber, 'date', event.target.value)
+                            }
+                          />
+                          <input
+                            type="text"
+                            autoComplete="off"
+                            maxLength={60}
+                            className="rem-cir-timing"
+                            placeholder="e.g. 4:30PM to 5:30PM"
+                            aria-label={`CO${row.coNumber} class timing`}
+                            value={row.timing}
+                            onChange={(event) =>
+                              patchCircularRow(row.coNumber, 'timing', event.target.value)
+                            }
+                          />
+                          <span className="rem-status">
+                            {row.exists ? 'scheduled' : 'not scheduled yet'}
+                          </span>
+                        </div>
+                      ))}
+
+                      <p className="rem-status">
+                        A CO left blank is not scheduled. A class that has been saved cannot be
+                        removed here — the API only ever adds or updates a class, because deleting
+                        one would take its attendance register with it. Correct a mistake by
+                        changing its date and timing.
+                      </p>
+
+                      <div className="rem-actions">
+                        <button
+                          type="button"
+                          className="rem-button"
+                          disabled={circularSave.saving}
+                          onClick={handleSaveCircular}
+                        >
+                          {circularSave.saving ? 'Saving...' : 'Save circular'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rem-button rem-button--ghost"
+                          onClick={() => setCircularDraft(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      {/* A rejected save wrote nothing; the draft stays. */}
+                      <SaveFeedback state={circularSave} />
+                    </div>
+                  )}
+                  {/* END REMOVABLE -- circular editor */}
+
+                  <div className="rem-actions">
+                    {/* BEGIN REMOVABLE -- circular editor */}
+                    {canEdit ? (
+                      !circularDraft && (
+                        <button type="button" className="rem-button" onClick={startCircularEdit}>
+                          {scheduleClasses.length === 0 ? 'Schedule classes' : 'Edit circular'}
+                        </button>
+                      )
+                    ) : (
+                      <span className="rem-status">{READ_ONLY_NOTE}</span>
+                    )}
+                    {/* END REMOVABLE -- circular editor */}
+                    {printButton}
+                    {/* BEGIN REMOVABLE -- circular editor */}
+                    {savedTab === 'circular' && (
+                      <span className="rem-status rem-status--saved">{savedLabel}</span>
+                    )}
+                    {/* END REMOVABLE -- circular editor */}
+                  </div>
                 </section>
               )}
 
@@ -567,8 +833,17 @@ function RemedialView({
                   </h2>
                   <p className="rem-panel__note">
                     PR present, AB absent, -- not required for that CO.
-                    {schedule ? ` Venue: ${schedule.venue}.` : ''}
+                    {plan ? ` Venue: ${plan.venue}.` : ''}
                   </p>
+                  {/* BEGIN REMOVABLE -- stored remedial register.
+                      Says which classes hold a real register and which are
+                      still showing the derived starting state, so "everyone
+                      was present" is distinguishable from "nobody has marked
+                      this yet". */}
+                  {scheduleClasses.length > 0 && (
+                    <p className="rem-panel__note">{registerStatusLine()}</p>
+                  )}
+                  {/* END REMOVABLE -- stored remedial register */}
 
                   {remedialStudents.length === 0 ? (
                     <div className="rem-nil">

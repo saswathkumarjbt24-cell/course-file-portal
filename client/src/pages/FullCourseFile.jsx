@@ -28,6 +28,9 @@ import {
   fetchStudents,
 } from '../data/api'
 import { coMarksToShow } from '../data/coMarks'
+// BEGIN REMOVABLE -- stored remedial register
+import { afterMarkPrintValue, attendanceCellValue } from '../data/remedialCells'
+// END REMOVABLE -- stored remedial register
 import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import {
   attainmentLevel,
@@ -634,6 +637,27 @@ function RemedialSection({ course, kind, targetPercent }) {
     D.remedialSchedule.find((r) => r.courseId === course.id && r.assessmentKind === kind) ?? null
   const classes = schedule ? schedule.classes : []
 
+  // BEGIN REMOVABLE -- stored remedial register
+  //
+  // THE HAND-MARKED REGISTER IS AUTHORITATIVE, on the printed sheet as on the
+  // screen. Where a row exists for a (student, class) pair it is printed; the
+  // derived PR/-- is used only where nobody has marked that pair.
+  //
+  // The after-remedial column keeps its BLANK cell wherever no mark is
+  // stored, because an unmarked sheet is meant to print a box to fill in by
+  // pen. A stored 0 is a mark and prints as 0.
+  const storedRegister = new Map()
+  for (const cls of classes) {
+    for (const entry of cls.attendance ?? []) {
+      storedRegister.set(`${entry.studentId}|${cls.coNumber}`, entry.status)
+    }
+  }
+  const storedResults = new Map()
+  for (const entry of (schedule && schedule.results) ?? []) {
+    storedResults.set(`${entry.studentId}|${entry.coNumber}`, entry.afterRemedialMark)
+  }
+  // END REMOVABLE -- stored remedial register
+
   return (
     <>
       <h3 className="doc-section__title">(a) Name list</h3>
@@ -745,7 +769,15 @@ function RemedialSection({ course, kind, targetPercent }) {
                   <td>{row.student.name}</td>
                   {classes.map((cls) => (
                     <td key={cls.coNumber} className="doc-table__center">
-                      {row.cos[cls.coNumber] && row.cos[cls.coNumber].remedial ? 'PR' : '--'}
+                      {/* BEGIN REMOVABLE -- stored remedial register.
+                          The same one rule the screen uses. */}
+                      {attendanceCellValue({
+                        stored: storedRegister.get(`${row.student.id}|${cls.coNumber}`),
+                        derived: Boolean(
+                          row.cos[cls.coNumber] && row.cos[cls.coNumber].remedial,
+                        ),
+                      })}
+                      {/* END REMOVABLE -- stored remedial register */}
                     </td>
                   ))}
                 </tr>
@@ -792,12 +824,27 @@ function RemedialSection({ course, kind, targetPercent }) {
                         </td>,
                       ]
                     }
+                    // BEGIN REMOVABLE -- stored remedial register.
+                    // null means "print the blank box to fill in by pen".
+                    const after = afterMarkPrintValue(
+                      storedResults.get(`${row.student.id}|${a.coNumber}`),
+                    )
+                    // END REMOVABLE -- stored remedial register
                     return [
                       <td key={`o-${a.coNumber}`} className="doc-table__value">
                         {co.obtained} / {co.marksAllocated}
                       </td>,
-                      <td key={`a-${a.coNumber}`} className="doc-table__center">
-                        &nbsp;
+                      <td
+                        key={`a-${a.coNumber}`}
+                        className={
+                          // BEGIN REMOVABLE -- stored remedial register
+                          after === null ? 'doc-table__center' : 'doc-table__value'
+                          // END REMOVABLE -- stored remedial register
+                        }
+                      >
+                        {/* BEGIN REMOVABLE -- stored remedial register */}
+                        {after === null ? <>&nbsp;</> : after}
+                        {/* END REMOVABLE -- stored remedial register */}
                       </td>,
                     ]
                   })}
