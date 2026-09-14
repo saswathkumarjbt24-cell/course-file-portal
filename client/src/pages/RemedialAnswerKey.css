@@ -1,0 +1,126 @@
+/* BEGIN REMOVABLE -- remedial answer key */
+
+/* ---------------------------------------------------------------
+   The remedial ANSWER KEY: the examiner's sheet that follows each
+   question paper, and the optional answer box in the editor that
+   fills it in.
+
+   A FILE OF ITS OWN, AND NOT A LINE IN ANY EXISTING ONE.
+   Remedial.css, print.css, print-tables.css, print-matrix.css and
+   Letterhead.css are untouched by this change -- every @media print
+   block already in this app keeps its bytes. Everything the new sheet
+   needs is below, and removing this file plus the markers it names
+   removes the sheet entirely.
+
+   WHAT THIS FILE DOES NOT SET.
+   No font size, no font family and no signature height. The 12pt Arial
+   body and the 25mm signature block are owned once in ../styles/print.css
+   and this sheet inherits both by being an ordinary .rem-doc / .doc-part
+   document like every other. Restating either here is how two sheets
+   start disagreeing.
+   --------------------------------------------------------------- */
+
+
+/* ---------------------------------------------------------------
+   PRINT: the answer key is a SEPARATE SHEET, not a tail on the paper.
+
+   break-before is the whole reason this block exists. A question paper
+   and its answers on one page is exactly the accident the separation
+   exists to prevent -- the sheet the students sit must be able to be
+   handed out without the answers on the back of it.
+   --------------------------------------------------------------- */
+@media print {
+  .rem-ak,
+  .doc-answer-key {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* An answer runs to several lines, so the cell wraps rather than
+     spilling; `pre-wrap` keeps the line breaks the faculty member typed,
+     which is what makes a two-step answer readable as two steps. */
+  .rem-ak__text,
+  .doc-answer-key__text {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  /* A question whose answer was left blank still prints its row, so the
+     numbering matches the paper. It is set in the same ink as everything
+     else on a printed sheet; italic alone carries the distinction. */
+  .rem-ak__none,
+  .doc-answer-key__none {
+    font-style: italic;
+  }
+}
+
+
+/* ---------------------------------------------------------------
+   SCREEN: the answer box in the editor.
+
+   Every rule here styles markup inside .rem-qp-editor, which carries
+   rem-noprint and is already hidden on paper by the print block in
+   Remedial.css. Screen-only by construction, exactly as the question
+   paper editor's own rules are.
+   --------------------------------------------------------------- */
+@media screen {
+  /* The wrapper that now holds the question row and its answer line as
+     one unit, so a gap reads as "between questions" rather than
+     "between a question and its answer". */
+  .rem-qp-question {
+    margin-bottom: var(--space-4);
+  }
+
+  .rem-qp-answer-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-left: 2.5rem;
+  }
+
+  .rem-qp-answer-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* "(optional)" is quieter than the label it qualifies but not hidden:
+     the reader needs to be able to find it, not to be told twice. */
+  .rem-qp-optional {
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  .rem-qp-answer {
+    width: 100%;
+    min-height: 3.5rem;
+    padding: var(--space-1) var(--space-2);
+    font: inherit;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    resize: vertical;
+  }
+
+  .rem-qp-answer:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+  }
+
+  /* The printed sheet is also shown on screen, above the editor, so the
+     two wrapping rules the print block sets are repeated for the display
+     rather than left to differ from the paper. */
+  .rem-ak__text,
+  .doc-answer-key__text {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  .rem-ak__none,
+  .doc-answer-key__none {
+    font-style: italic;
+    color: var(--color-text-muted);
+  }
+}
+
+/* END REMOVABLE -- remedial answer key */

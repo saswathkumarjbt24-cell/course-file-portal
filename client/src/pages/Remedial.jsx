@@ -24,12 +24,21 @@ import { useSave } from '../data/useSave'
 import { splitIndex } from '../utils/coSplit'
 import { coPercent, needsRemedial } from '../utils/attainment'
 import './Remedial.css'
+// BEGIN REMOVABLE -- remedial answer key
+import './RemedialAnswerKey.css'
+// END REMOVABLE -- remedial answer key
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
 // END REMOVABLE -- printed letterhead
 // BEGIN REMOVABLE -- edit permission scope
 import { useSession } from '../context/sessionStore'
-import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
+import {
+  canEditCourseFile,
+  // BEGIN REMOVABLE -- faculty write the question paper
+  canEditQuestionPaper,
+  // END REMOVABLE -- faculty write the question paper
+  READ_ONLY_NOTE,
+} from '../components/permissions'
 // END REMOVABLE -- edit permission scope
 
 const TABS = [
@@ -144,6 +153,14 @@ function RemedialView({
   const { faculty } = useSession()
   const canEdit = canEditCourseFile(faculty)
   // END REMOVABLE -- edit permission scope
+  // BEGIN REMOVABLE -- faculty write the question paper.
+  // A SECOND, SEPARATE FLAG. canEdit above still gates the circular, the
+  // register, the results and the report, and still means hod-or-admin; this
+  // one gates the question paper tab alone. Two names because they are two
+  // rules -- reusing canEdit for both is what would make widening one widen
+  // the other.
+  const canEditPaper = canEditQuestionPaper(faculty)
+  // END REMOVABLE -- faculty write the question paper
   const [attendanceSave, runAttendanceSave] = useSave()
   const [reportSave, runReportSave] = useSave()
 
@@ -558,7 +575,12 @@ function RemedialView({
           {/* BEGIN REMOVABLE -- remedial question paper.
               The paper belongs to a scheduled CLASS, not to a mark, so it is
               the one tab that still has something to show before any mark is
-              entered. Tabs 1 to 4 are unchanged inside the branch below. */}
+              entered. Tabs 1 to 4 are unchanged inside the branch below.
+
+              BEGIN REMOVABLE -- faculty write the question paper.
+              canEdit below is canEditPaper, not the canEdit the other four
+              tabs receive. That one prop is the whole client-side widening.
+              END REMOVABLE -- faculty write the question paper */}
           {activeTab === 'paper' && (
             <QuestionPaperTab
               course={course}
@@ -566,7 +588,7 @@ function RemedialView({
               kind={kind}
               courseId={courseId}
               papers={remedialPapers}
-              canEdit={canEdit}
+              canEdit={canEditPaper}
               printButton={printButton}
             />
           )}
@@ -1156,8 +1178,30 @@ function paperTitle(kind) {
   return `${PAPER_TITLES[kind] ?? kind}: Remedial Class - Assessment Question Paper`
 }
 
+// BEGIN REMOVABLE -- remedial answer key
+// The same cap the server applies, repeated here only so the box stops
+// accepting keystrokes rather than letting a save be refused after the fact.
+// The server remains the one that decides; this is a courtesy, not a rule.
+const ANSWER_TEXT_MAX = 8000
+
+function answerKeyTitle(kind) {
+  return `${PAPER_TITLES[kind] ?? kind}: Remedial Class - Assessment Answer Key`
+}
+
+/** Does this paper have anything to print an answer key FROM? */
+function hasAnswers(paper) {
+  return paper.questions.some(
+    (q) => typeof q.answerText === 'string' && q.answerText.trim() !== ''
+  )
+}
+// END REMOVABLE -- remedial answer key
+
 function blankQuestion() {
-  return { text: '', marks: '', co: '' }
+  // BEGIN REMOVABLE -- remedial answer key. `answer` starts empty and an empty
+  // answer is sent as null, so a paper written without answers is byte-for-byte
+  // the body this editor sent before the field existed.
+  return { text: '', marks: '', co: '', answer: '' }
+  // END REMOVABLE -- remedial answer key
 }
 
 /** A stored paper -> the editor's draft, all fields as strings. */
@@ -1172,6 +1216,10 @@ function toDraft(paper) {
             text: q.text,
             marks: String(q.marksAllotted),
             co: q.coNumber === null ? '' : String(q.coNumber),
+            // BEGIN REMOVABLE -- remedial answer key. A null answer and a
+            // paper saved before the column existed both open as an empty box.
+            answer: q.answerText == null ? '' : q.answerText,
+            // END REMOVABLE -- remedial answer key
           }))
         : [blankQuestion()],
   }
@@ -1190,6 +1238,9 @@ function draftAsPaper(base, draft) {
       text: q.text,
       marksAllotted: q.marks.trim() === '' ? null : Number(q.marks),
       coNumber: q.co.trim() === '' ? null : Number(q.co),
+      // BEGIN REMOVABLE -- remedial answer key
+      answerText: q.answer.trim() === '' ? null : q.answer.trim(),
+      // END REMOVABLE -- remedial answer key
     })),
   }
 }
@@ -1278,6 +1329,10 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
         text: q.text.trim(),
         marksAllotted: q.marks.trim() === '' ? null : Number(q.marks),
         coNumber: q.co.trim() === '' ? null : Number(q.co),
+        // BEGIN REMOVABLE -- remedial answer key. An untouched answer box is
+        // sent as null, never as "", so the column holds one "not recorded".
+        answerText: q.answer.trim() === '' ? null : q.answer.trim(),
+        // END REMOVABLE -- remedial answer key
       }))
 
     const body = {
@@ -1443,6 +1498,93 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
               </article>
             )}
 
+            {/* BEGIN REMOVABLE -- remedial answer key.
+                A SEPARATE SHEET FOLLOWING THE PAPER, never part of it. The
+                students sit the question paper; the answer key is the
+                examiner's copy, so it repeats the paper's header rows and
+                then answers the same numbered questions.
+
+                NOTHING PRINTS WHEN NOTHING WAS ANSWERED. An answer key with
+                every answer blank is not an answer key -- it is a sheet that
+                says the examiner has not written one yet, and filing that
+                behind every paper would be worse than filing nothing. */}
+            {view.hasPaper && hasAnswers(view) && (
+              <article className="rem-doc rem-ak">
+                {/* Its own band, because rem-ak breaks to a new page and a new
+                    printed sheet in this app carries a letterhead. The one at
+                    the top of the screen belongs to the sheet above. */}
+                <Letterhead />
+                <header className="rem-doc__head">
+                  <h2 className="rem-doc__institution">{answerKeyTitle(kind)}</h2>
+                </header>
+
+                <table className="rem-doc__table">
+                  <tbody>
+                    <tr>
+                      <th>Academic Year</th>
+                      <td>{meta?.academicYear ?? 'Not recorded'}</td>
+                    </tr>
+                    <tr>
+                      <th>Year &amp; Semester</th>
+                      <td>
+                        {meta?.yearOfStudy ?? 'Not recorded'} / {meta?.semester ?? 'Not recorded'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Course Code &amp; Title</th>
+                      <td>
+                        {course.code} - {course.title}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <table className="rem-doc__table">
+                  <thead>
+                    <tr>
+                      <th>Q. No.</th>
+                      <th>Expected answer</th>
+                      <th>Marks Allotted</th>
+                      <th>CO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* EVERY question is listed, including the ones with no
+                        answer, so the numbering on this sheet matches the
+                        paper it follows. A gap at Q3 would read as a missing
+                        page rather than an unanswered question. */}
+                    {view.questions.map((q) => (
+                      <tr key={q.qNo}>
+                        <td className="rem-table__center">{q.qNo}</td>
+                        <td>
+                          {q.answerText === null || q.answerText === undefined ||
+                          String(q.answerText).trim() === '' ? (
+                            <em className="rem-ak__none">No answer recorded</em>
+                          ) : (
+                            <span className="rem-ak__text">{q.answerText}</span>
+                          )}
+                        </td>
+                        <td className="rem-table__center">
+                          {q.marksAllotted === null ? '—' : q.marksAllotted}
+                        </td>
+                        <td className="rem-table__center">
+                          CO{q.coNumber === null ? base.coNumber : q.coNumber}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="rem-sign">
+                  <div className="rem-sign__block" aria-hidden="true" />
+                  <div className="rem-sign__block">
+                    <div className="rem-sign__line">Signature of Faculty</div>
+                  </div>
+                </div>
+              </article>
+            )}
+            {/* END REMOVABLE -- remedial answer key */}
+
             {editing && (
               <div className="rem-noprint rem-qp-editor">
                 <div className="rem-qp-header">
@@ -1475,7 +1617,12 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
                 </div>
 
                 {draft.questions.map((q, index) => (
-                  <div className="rem-qp-row" key={index}>
+                  // BEGIN REMOVABLE -- remedial answer key. The fragment holds
+                  // the key that was on rem-qp-row before the answer line was
+                  // added beside it; the row itself is otherwise unchanged.
+                  <div className="rem-qp-question" key={index}>
+                  {/* END REMOVABLE -- remedial answer key */}
+                  <div className="rem-qp-row">
                     <span className="rem-qp-no">Q{index + 1}</span>
                     <input
                       type="text"
@@ -1532,6 +1679,33 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
                     >
                       Remove
                     </button>
+                  </div>
+                  {/* BEGIN REMOVABLE -- remedial answer key.
+                      A SECOND LINE, not a fifth cell of the row above: an
+                      expected answer is prose and needs the full width, and
+                      adding a cell would have meant restyling rem-qp-row,
+                      which the question paper already depends on.
+
+                      The word "optional" is on the label rather than in a
+                      note underneath, so the reader learns it at the moment
+                      they look at the empty box and wonder whether they have
+                      to fill it in. */}
+                  <div className="rem-qp-answer-row">
+                    <label className="rem-qp-answer-label" htmlFor={`answer-${index}`}>
+                      Expected answer <span className="rem-qp-optional">(optional)</span>
+                    </label>
+                    <textarea
+                      id={`answer-${index}`}
+                      className="rem-qp-answer"
+                      rows={2}
+                      maxLength={ANSWER_TEXT_MAX}
+                      placeholder="Leave blank if no answer key is needed for this question"
+                      aria-label={`Question ${index + 1} expected answer (optional)`}
+                      value={q.answer}
+                      onChange={(e) => patchQuestion(index, 'answer', e.target.value)}
+                    />
+                  </div>
+                  {/* END REMOVABLE -- remedial answer key */}
                   </div>
                 ))}
 

@@ -67,6 +67,35 @@ export function canEditCourseOutcomes(faculty) {
   return Boolean(faculty)
 }
 
+// BEGIN REMOVABLE -- faculty write the question paper
+/**
+ * May this person write a remedial assessment QUESTION PAPER?
+ *
+ * A THIRD, SEPARATE PREDICATE, and deliberately not canEditCourseFile reused.
+ * The other four remedial tabs -- the circular, the attendance register, the
+ * results entry and the after-remedial report -- still call canEditCourseFile
+ * and still mean hod-or-admin. Widening this must not widen those, which is
+ * the same reason canEditCourseOutcomes above is its own function rather than
+ * a second caller of the first.
+ *
+ * WHY THE QUESTION PAPER AND NOT THE REST OF REMEDIAL. The paper is the one
+ * remedial sheet whose author is the lecturer: they take the class and they
+ * set its questions. The circular announces the class on the department's
+ * behalf, and the register and the report are the record filed afterwards --
+ * all three are the department's documents, not the teacher's.
+ *
+ * TRUE FOR ANY SIGNED-IN ACCOUNT, for exactly the reason given on
+ * canEditCourseOutcomes: the real rule is "a course allocated to you", the
+ * allocation lives in course_allocations, and only the server can read it.
+ * requireCourseAccess enforces it on every request to /api/courses/:id, and
+ * the PUT this guards carries no other gate, so a faculty member who opens
+ * someone else's course is refused there whatever this returns.
+ */
+export function canEditQuestionPaper(faculty) {
+  return Boolean(faculty)
+}
+// END REMOVABLE -- faculty write the question paper
+
 /**
  * May this person change institution or department reference data -- vision,
  * mission, PEOs, PSOs?

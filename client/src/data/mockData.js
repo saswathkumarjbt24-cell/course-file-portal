@@ -1074,6 +1074,14 @@ export const remedialSchedule = [
 //
 // `coNumber` on a question is null wherever the question carries its class's
 // own CO, exactly as the column means.
+//
+// BEGIN REMOVABLE -- remedial answer key
+// `answerText` (023) is present on the CO1 paper and ABSENT ON EVERY OTHER
+// ONE, deliberately: the demo then shows both states the printed file has to
+// handle -- a paper that prints an answer key sheet behind it, and papers that
+// print none at all because nothing was answered. Same principle as CO2's
+// deliberate marks warning above.
+// END REMOVABLE -- remedial answer key
 // ---------------------------------------------------------------
 export const remedialPapers = [
   {
@@ -1087,10 +1095,10 @@ export const remedialPapers = [
     durationMinutes: 30,
     allocatedMarks: 20,
     questions: [
-      { qNo: 1, text: 'Define an algorithm and list its five defining properties.', marksAllotted: 5, coNumber: null },
-      { qNo: 2, text: 'Write the pseudocode for linear search and state its worst-case comparison count.', marksAllotted: 5, coNumber: null },
-      { qNo: 3, text: 'Distinguish between an abstract data type and a data structure, with one example of each.', marksAllotted: 5, coNumber: null },
-      { qNo: 4, text: 'Trace the steps of bubble sort on the list 5, 1, 4, 2 and give the array after each pass.', marksAllotted: 5, coNumber: null },
+      { qNo: 1, text: 'Define an algorithm and list its five defining properties.', answerText: 'An algorithm is a finite, ordered set of unambiguous steps that solves a problem. The five properties are: input, output, definiteness, finiteness and effectiveness.', marksAllotted: 5, coNumber: null },
+      { qNo: 2, text: 'Write the pseudocode for linear search and state its worst-case comparison count.', answerText: 'for i = 0 to n-1: if A[i] = key then return i; return -1. Worst case is n comparisons, when the key is last or absent.', marksAllotted: 5, coNumber: null },
+      { qNo: 3, text: 'Distinguish between an abstract data type and a data structure, with one example of each.', answerText: 'An ADT states the operations and their meaning without saying how they are stored (example: Stack). A data structure is one concrete arrangement that realises them (example: an array-backed stack).', marksAllotted: 5, coNumber: null },
+      { qNo: 4, text: 'Trace the steps of bubble sort on the list 5, 1, 4, 2 and give the array after each pass.', answerText: 'Pass 1: 1, 4, 2, 5. Pass 2: 1, 2, 4, 5. Pass 3: 1, 2, 4, 5 with no swap, so the list is sorted.', marksAllotted: 5, coNumber: null },
     ],
   },
   {

@@ -634,8 +634,13 @@ router.put(
   // Ownership is still enforced, by requireCourseAccess on the `/:id` prefix
   // above: a faculty member reaches only the courses allocated to them, and a
   // token for anyone else's course is refused there before this handler runs.
-  // That is exactly the arrangement PUT /api/assessments/:id/marks relies on,
-  // and the two are now the only writes an ordinary faculty member has.
+  // That is exactly the arrangement PUT /api/assessments/:id/marks relies on.
+  //
+  // BEGIN REMOVABLE -- faculty write the question paper.
+  // The remedial question paper PUT was later opened on these same terms, so
+  // an ordinary faculty member now has three writes: marks, course setup and
+  // the question paper. The six listed below are still not among them.
+  // END REMOVABLE -- faculty write the question paper
   //
   // THE OTHER SIX COURSE-FILE WRITES ARE UNCHANGED and still carry
   // requireCourseFileEditor: exit-survey, attendance, remedial, meta, closing
@@ -1298,17 +1303,33 @@ router.put(
 // PUT /:id/remedial/:kind keep their behaviour, their response shape and
 // their guards; these two routes are additive and sit on their own paths.
 //
-// GUARDS, THE SAME TWO GATES AS THE REST OF REMEDIAL
+// GUARDS: OWNERSHIP ONLY, WHICH IS ONE GATE FEWER THAN THE REST OF REMEDIAL
 //   Both paths are under the `/:id` prefix, so requireCourseAccess (line 63)
 //   already covers them -- a course you may not reach is a 403 here as
 //   everywhere else. The GET carries nothing further: a faculty member READS
 //   the question paper exactly as they read the rest of the remedial screen.
-//   The PUT carries requireCourseFileEditor, the identical guard on the
-//   existing remedial PUT, so writing stays admin and hod.
+//
+//   BEGIN REMOVABLE -- faculty write the question paper
+//   The PUT carries NOTHING FURTHER EITHER. It is the one remedial write an
+//   ordinary faculty member makes, on the same terms as mark entry and Course
+//   Setup: requireCourseAccess alone, so they reach their own allocated
+//   courses and are refused on every other one. The person who teaches the
+//   remedial class is the person who sets its paper, and routing that through
+//   an administrator would put a clerk between a lecturer and their own
+//   question.
+//
+//   THIS WIDENS THIS ROUTE AND NOTHING ELSE. requireCourseFileEditor is named
+//   explicitly by each of the six other course-file PUTs and is untouched on
+//   every one of them -- the circular, the attendance register and the
+//   after-remedial report included, all of which stay admin and hod.
+//   END REMOVABLE -- faculty write the question paper
 // =====================================================================
 
 const QUESTION_TEXT_MAX = 2000;
 const DURATION_MINUTES_MAX = 600;
+// BEGIN REMOVABLE -- remedial answer key
+const ANSWER_TEXT_MAX = 8000;
+// END REMOVABLE -- remedial answer key
 
 /**
  * DECIMAL(6,2) round-trips through mysql2 as a string, and a sum of Numbers
@@ -1414,7 +1435,9 @@ router.get(
     }
 
     const [questions] = await pool.execute(
-      `SELECT q.paper_id, q.q_no, q.question_text, q.marks_allotted, q.co_number
+      // BEGIN REMOVABLE -- remedial answer key. q.answer_text added by 023.
+      `SELECT q.paper_id, q.q_no, q.question_text, q.answer_text,
+              q.marks_allotted, q.co_number
          FROM remedial_questions       AS q
          JOIN remedial_question_papers AS p  ON p.id  = q.paper_id
          JOIN remedial_classes         AS rc ON rc.id = p.remedial_class_id
@@ -1430,6 +1453,11 @@ router.get(
       byPaper.get(q.paper_id).push({
         qNo: q.q_no,
         text: q.question_text,
+        // BEGIN REMOVABLE -- remedial answer key.
+        // NULL stays null rather than becoming "", so a question with no
+        // answer reads as absent on the client exactly as it is in the column.
+        answerText: q.answer_text,
+        // END REMOVABLE -- remedial answer key
         marksAllotted: num(q.marks_allotted),
         coNumber: q.co_number,
       });
@@ -1465,7 +1493,20 @@ router.get(
 // PUT /api/courses/:id/remedial/:kind/papers/:co
 //
 // Body: { totalMarks, durationMinutes,
-//         questions: [{ qNo, text, marksAllotted, coNumber }] }
+//         questions: [{ qNo, text, marksAllotted, coNumber, answerText }] }
+//
+// BEGIN REMOVABLE -- remedial answer key
+// answerText IS OPTIONAL AND ITS ABSENCE IS NOT A FAILURE.
+//   Absent, null, empty or all-whitespace are all stored as NULL, so "no
+//   answer was recorded" is one state rather than two that read alike. A body
+//   that never mentions answerText at all is exactly the body this endpoint
+//   accepted before the field existed, and it still saves.
+//
+//   Capped at ANSWER_TEXT_MAX, which is larger than the question cap because
+//   a worked answer is longer than the question that asks for it. The cap is a
+//   guard against a paste of an entire document, not a limit anyone writing an
+//   answer by hand will meet.
+// END REMOVABLE -- remedial answer key
 //
 // THE QUESTION LIST IS REPLACED WHOLESALE, in one transaction.
 //   Unlike the classes of a plan, which are upserted because deleting one
@@ -1491,7 +1532,11 @@ router.get(
 // ---------------------------------------------------------------------
 router.put(
   "/:id/remedial/:kind/papers/:co",
-  requireCourseFileEditor,
+  // BEGIN REMOVABLE -- faculty write the question paper.
+  // requireCourseFileEditor is DELIBERATELY ABSENT here and on no other write
+  // in this file. requireCourseAccess, mounted on the `/:id` prefix above,
+  // still refuses a faculty member on a course they are not allocated to.
+  // END REMOVABLE -- faculty write the question paper
   asyncHandler(async (req, res) => {
     const courseId = requireId(req);
     const kind = requireAssessmentKind(req);
@@ -1610,7 +1655,28 @@ router.put(
           }
         }
 
-        questions.push({ qNo, text: text.value, marksAllotted: marks.value, coNumber: questionCo });
+        // BEGIN REMOVABLE -- remedial answer key.
+        // optionalString already folds absent, null, empty and all-whitespace
+        // into the same null, which is exactly what the column wants; only an
+        // over-long or non-string answer is an error.
+        const answer = optionalString(row.answerText, ANSWER_TEXT_MAX);
+        if (!answer.ok) {
+          return fail(
+            `answerText must be a string of ${ANSWER_TEXT_MAX} characters or fewer`,
+            { qNo }
+          );
+        }
+        // END REMOVABLE -- remedial answer key
+
+        questions.push({
+          qNo,
+          text: text.value,
+          marksAllotted: marks.value,
+          coNumber: questionCo,
+          // BEGIN REMOVABLE -- remedial answer key
+          answerText: answer.value,
+          // END REMOVABLE -- remedial answer key
+        });
       });
 
       // ---- the parts must add up to the stated whole ----
@@ -1643,10 +1709,12 @@ router.put(
       await conn.execute(`DELETE FROM remedial_questions WHERE paper_id = ?`, [paperId]);
       for (const q of questions) {
         await conn.execute(
+          // BEGIN REMOVABLE -- remedial answer key. answer_text added by 023.
           `INSERT INTO remedial_questions
-             (paper_id, q_no, question_text, marks_allotted, co_number)
-           VALUES (?, ?, ?, ?, ?)`,
-          [paperId, q.qNo, q.text, q.marksAllotted, q.coNumber]
+             (paper_id, q_no, question_text, answer_text, marks_allotted, co_number)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [paperId, q.qNo, q.text, q.answerText, q.marksAllotted, q.coNumber]
+          // END REMOVABLE -- remedial answer key
         );
       }
 

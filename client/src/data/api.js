@@ -1005,6 +1005,12 @@ export async function fetchRemedialPapers() {
           questions: r.questions.map((q) => ({
             qNo: q.qNo,
             text: q.text,
+            // BEGIN REMOVABLE -- remedial answer key.
+            // Named explicitly like every other field here. `?? null` is for a
+            // server that predates migration 023 and sends no such key: absent
+            // and "no answer recorded" become the one null the sheet reads.
+            answerText: q.answerText ?? null,
+            // END REMOVABLE -- remedial answer key
             marksAllotted: q.marksAllotted,
             coNumber: q.coNumber,
           })),

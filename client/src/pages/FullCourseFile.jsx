@@ -56,6 +56,9 @@ import NameList from './NameList'
 import Attendance from './Attendance'
 import InternalMarks from './InternalMarks'
 import './Documents.css'
+// BEGIN REMOVABLE -- remedial answer key
+import './RemedialAnswerKey.css'
+// END REMOVABLE -- remedial answer key
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
 // END REMOVABLE -- printed letterhead
@@ -532,6 +535,15 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
 // NULL means in remedial_questions.co_number.
 // ---------------------------------------------------------------
 
+// BEGIN REMOVABLE -- remedial answer key
+/** Does this paper have anything to print an answer key FROM? */
+function hasAnswers(paper) {
+  return paper.questions.some(
+    (q) => typeof q.answerText === 'string' && q.answerText.trim() !== ''
+  )
+}
+// END REMOVABLE -- remedial answer key
+
 function QuestionPapers({ course, kind }) {
   const D = useFileData()
   const meta = D.courseMeta.find((m) => m.courseId === course.id) ?? null
@@ -607,6 +619,91 @@ function QuestionPapers({ course, kind }) {
           )}
 
           <Signatures blocks={['Signature of Faculty']} />
+
+          {/* BEGIN REMOVABLE -- remedial answer key.
+              The examiner's sheet, immediately after the paper it answers and
+              on a page of its own -- .doc-answer-key breaks before, so the
+              paper a student sits is never on the same side of a sheet as its
+              answers.
+
+              NOTHING AT ALL WHEN NOTHING WAS ANSWERED, which is the same rule
+              the paper itself follows one level up: a class with no paper
+              prints nothing rather than an empty form. */}
+          {hasAnswers(paper) && (
+            <div className="doc-answer-key">
+              {/* A new printed sheet carries a letterhead, exactly as each
+                  numbered Part does. */}
+              <Letterhead />
+              <h3 className="doc-section__title">
+                Assessment answer key - CO{paper.coNumber}
+              </h3>
+
+              <div className="doc-table-wrap">
+                <table className="doc-table">
+                  <tbody>
+                    <tr>
+                      <th>Academic year</th>
+                      <td>{meta?.academicYear ?? '—'}</td>
+                      <th>Year &amp; semester</th>
+                      <td>
+                        {meta?.yearOfStudy ?? '—'} / {meta?.semester ?? '—'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Course code &amp; title</th>
+                      <td>
+                        {course.code} - {course.title}
+                      </td>
+                      <th>Maximum marks</th>
+                      <td>
+                        {paper.totalMarks === null ? '—' : paper.totalMarks}
+                        {paper.durationMinutes === null
+                          ? ''
+                          : ` / ${paper.durationMinutes} minutes`}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="doc-table-wrap">
+                <table className="doc-table">
+                  <thead>
+                    <tr>
+                      <th className="doc-table__num">Q. No.</th>
+                      <th>Expected answer</th>
+                      <th>Marks allotted</th>
+                      <th>CO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Every question, answered or not, so the numbering on
+                        this sheet is the numbering on the paper. */}
+                    {paper.questions.map((q) => (
+                      <tr key={q.qNo}>
+                        <td className="doc-table__num">{q.qNo}</td>
+                        <td>
+                          {q.answerText === null || q.answerText === undefined ||
+                          String(q.answerText).trim() === '' ? (
+                            <em className="doc-answer-key__none">No answer recorded</em>
+                          ) : (
+                            <span className="doc-answer-key__text">{q.answerText}</span>
+                          )}
+                        </td>
+                        <td className="doc-table__value">{q.marksAllotted}</td>
+                        <td className="doc-table__center">
+                          CO{q.coNumber === null ? paper.coNumber : q.coNumber}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <Signatures blocks={['Signature of Faculty']} />
+            </div>
+          )}
+          {/* END REMOVABLE -- remedial answer key */}
         </div>
       ))}
     </>
