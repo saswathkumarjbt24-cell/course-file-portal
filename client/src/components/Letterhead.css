@@ -1,0 +1,55 @@
+/* BEGIN REMOVABLE -- printed letterhead */
+
+/* ---------------------------------------------------------------
+   Letterhead band. EVERY RULE IS PRINT-ONLY OR HIDES THE BAND.
+
+   Nothing here can change the screen: the only rule outside the print
+   block sets the band to display:none, which is what it already was --
+   the element did not exist before. The screen appearance of every
+   sheet is therefore untouched.
+
+   NO EXISTING @media print BLOCK WAS EDITED. Documents.css,
+   Reports.css, Remedial.css, MarkEntry.css and Layout.css keep their
+   print rules byte for byte; the two rules this task needs -- show the
+   band, hide the typed heading it replaces -- live here instead.
+   Nothing below sets a page break, a margin, a font size, a column
+   width or any table property.
+   --------------------------------------------------------------- */
+
+.letterhead {
+  display: none;
+}
+
+@media print {
+  .letterhead {
+    display: block !important;
+    margin-bottom: var(--space-4);
+    /* The band is one image: it must not be split down the middle by a
+       page boundary, and it must not be left stranded at the foot of a
+       page with its sheet beginning on the next one. */
+    break-inside: avoid;
+    break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  .letterhead__img {
+    display: block;
+    /* Full width of the printable area, height derived from the width,
+       so the 2134x376 ratio is preserved exactly. The max-width is the
+       guard that keeps it inside an A4 text column and keeps it a
+       heading band -- about 34mm tall -- rather than a full-page image. */
+    width: 100%;
+    max-width: 190mm;
+    height: auto;
+    margin: 0 auto;
+  }
+
+  /* The typed institution heading the band replaces. It stays in the
+     DOM and stays on screen; it is only withdrawn from paper, so the
+     institution name and address are not printed twice. */
+  .letterhead-replaced {
+    display: none !important;
+  }
+}
+
+/* END REMOVABLE -- printed letterhead */

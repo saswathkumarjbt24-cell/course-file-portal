@@ -10,6 +10,9 @@ import {
 } from '../data/api'
 import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Documents.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -233,7 +236,13 @@ function InternalMarksView({
       )}
 
       <article className="doc-sheet">
-        <header className="doc-head">
+        {/* BEGIN REMOVABLE -- printed letterhead. Print-only: renders
+            nothing on screen. Suppressed when this sheet is embedded in
+            the Full Course File, which puts one band at the top of every
+            part instead. */}
+        {!embedded && <Letterhead />}
+        {/* END REMOVABLE -- printed letterhead */}
+        <header className="doc-head letterhead-replaced">
           <h1 className="doc-head__name">{institution.name}</h1>
           <p className="doc-head__line">
             {institution.place}

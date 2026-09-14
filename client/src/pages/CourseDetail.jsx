@@ -13,6 +13,9 @@ import {
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
 import './CourseDetail.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 // BEGIN REMOVABLE -- edit permission scope
 import { useSession } from '../context/sessionStore'
 import { canEditCourseOutcomes, READ_ONLY_NOTE } from '../components/permissions'
@@ -211,6 +214,11 @@ function CourseDetailView({
         <span className="cd-nav__sep">·</span>
         <Link to={`/course/${courseId}/attainment`}>CO attainment</Link>
       </nav>
+
+      {/* BEGIN REMOVABLE -- printed letterhead. Print-only; renders
+          nothing on screen. */}
+      <Letterhead />
+      {/* END REMOVABLE -- printed letterhead */}
 
       <header className="page-header">
         <h1 className="page-header__title">Course Setup</h1>

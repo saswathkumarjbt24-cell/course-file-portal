@@ -56,6 +56,9 @@ import NameList from './NameList'
 import Attendance from './Attendance'
 import InternalMarks from './InternalMarks'
 import './Documents.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 
 const NOT_CONDUCTED = 'Not conducted / no marks entered'
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
@@ -162,6 +165,12 @@ function num(value, digits = 2) {
 function Part({ number, title, children }) {
   return (
     <section className="doc-part">
+      {/* BEGIN REMOVABLE -- printed letterhead. Every part starts a new
+          printed page (.doc-part has break-before: page), so one band per
+          part is one band per sheet -- what the department Excel does.
+          The six embedded sheets suppress their own. Print-only. */}
+      <Letterhead />
+      {/* END REMOVABLE -- printed letterhead */}
       <h2 className="doc-part__title">
         {number}. {title}
       </h2>

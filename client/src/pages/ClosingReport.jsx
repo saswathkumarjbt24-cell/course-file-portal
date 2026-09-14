@@ -26,6 +26,9 @@ import {
   finalLevel,
 } from '../utils/finalAttainment'
 import './Reports.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 // BEGIN REMOVABLE -- edit permission scope
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
@@ -241,7 +244,11 @@ function ClosingReportView({
 
       <section className="rep-card">
         <article className="rep-doc">
-          <header className="rep-doc__head">
+          {/* BEGIN REMOVABLE -- printed letterhead. Print-only; the screen
+              keeps the typed heading below exactly as it was. */}
+          <Letterhead />
+          {/* END REMOVABLE -- printed letterhead */}
+          <header className="rep-doc__head letterhead-replaced">
             <h1 className="rep-doc__institution">{INSTITUTION}</h1>
             <p className="rep-doc__dept">
               {INSTITUTION_PLACE} — Department of {course.department}

@@ -30,6 +30,9 @@ import {
   poLevelFromCO,
 } from '../utils/finalAttainment'
 import './Reports.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 // BEGIN REMOVABLE -- edit permission scope
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
@@ -329,6 +332,11 @@ function FinalAttainmentView({
           {targetPercent.toFixed(2)}%
         </p>
       </header>
+
+      {/* BEGIN REMOVABLE -- printed letterhead. Print-only; renders
+          nothing on screen. */}
+      <Letterhead />
+      {/* END REMOVABLE -- printed letterhead */}
 
       {/* ---------------- Table 1 ---------------- */}
       <section className="rep-card">

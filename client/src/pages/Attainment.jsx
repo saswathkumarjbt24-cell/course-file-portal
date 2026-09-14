@@ -21,6 +21,9 @@ import {
   percentAchieved,
 } from '../utils/attainment'
 import './Attainment.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -208,6 +211,11 @@ function AttainmentView({
       <Link to={`/course/${courseId}/closing`} className="back-link">
         Closing report &rarr;
       </Link>
+
+      {/* BEGIN REMOVABLE -- printed letterhead. Print-only; renders
+          nothing on screen. */}
+      <Letterhead />
+      {/* END REMOVABLE -- printed letterhead */}
 
       <header className="page-header">
         <h1 className="page-header__title">CO Attainment</h1>

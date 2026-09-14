@@ -16,6 +16,9 @@ import { useSave } from '../data/useSave'
 import { mapSplitToCOs, splitIndex, splitTotal } from '../utils/coSplit'
 import { manualCoMarks } from '../utils/finalAttainment'
 import './MarkEntry.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -429,6 +432,11 @@ function MarkEntryView({
       <Link to={`/course/${courseId}/attainment`} className="back-link">
         View CO attainment &rarr;
       </Link>
+
+      {/* BEGIN REMOVABLE -- printed letterhead. Print-only; renders
+          nothing on screen. */}
+      <Letterhead />
+      {/* END REMOVABLE -- printed letterhead */}
 
       <header className="page-header">
         <h1 className="page-header__title">Mark Entry</h1>

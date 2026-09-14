@@ -24,6 +24,9 @@ import { useSave } from '../data/useSave'
 import { splitIndex } from '../utils/coSplit'
 import { coPercent, needsRemedial } from '../utils/attainment'
 import './Remedial.css'
+// BEGIN REMOVABLE -- printed letterhead
+import Letterhead from '../components/Letterhead'
+// END REMOVABLE -- printed letterhead
 // BEGIN REMOVABLE -- edit permission scope
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
@@ -502,6 +505,12 @@ function RemedialView({
         </Link>
       </div>
 
+      {/* BEGIN REMOVABLE -- printed letterhead. One band per printed
+          remedial sheet: only one tab is on screen at a time, so this
+          single element covers all five. Print-only. */}
+      <Letterhead />
+      {/* END REMOVABLE -- printed letterhead */}
+
       <header className="page-header">
         <h1 className="page-header__title">Remedial Classes</h1>
         <p className="page-header__subtitle">
@@ -649,7 +658,7 @@ function RemedialView({
               {activeTab === 'circular' && (
                 <section className="rem-panel">
                   <article className="rem-doc">
-                    <header className="rem-doc__head">
+                    <header className="rem-doc__head letterhead-replaced">
                       <h2 className="rem-doc__institution">{INSTITUTION}</h2>
                       <p className="rem-doc__dept">
                         {INSTITUTION_PLACE} — Department of {course.department}
