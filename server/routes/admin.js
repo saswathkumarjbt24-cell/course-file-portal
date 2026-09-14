@@ -54,6 +54,10 @@ const {
   num,
   optionalNumber,
   // END REMOVABLE -- Courses and Allocations screens
+  // BEGIN REMOVABLE -- admin Course Setup screen
+  parseId,
+  isDateString,
+  // END REMOVABLE -- admin Course Setup screen
 } = require("../helpers");
 const { requireRole } = require("../auth");
 
@@ -1399,6 +1403,1061 @@ router.get(
 );
 
 // END REMOVABLE BLOCK -- Activity screen (server half)
+// =====================================================================
+
+
+// =====================================================================
+// BEGIN REMOVABLE BLOCK -- admin Course Setup screen (server half)
+//
+// WHAT WAS MISSING. A course created through the portal is an empty shell:
+// students, assessments and CO allocations existed only inside hand-written
+// migrations, so 22BT009 worked and the other 23 courses could not be used
+// at all. These routes are the three pieces, admin only.
+//
+// WHAT IS DELIBERATELY NOT HERE
+//   Course outcomes already have a write endpoint (PUT /api/courses/:id/
+//   outcomes) and marks already have one (PUT /api/assessments/:id/marks).
+//   Neither is touched. Nor is PUT /api/courses/:id/students, which the Name
+//   List screen uses; see the note on the students routes below.
+//
+// THE ORDER THAT MATTERS
+//   students -> enrolment -> assessment -> co_allocations -> marks.
+//   PUT /api/assessments/:id/marks refuses a mark for a student who is not
+//   enrolled and refuses a CO that has no allocation, so the first four steps
+//   are not a convention, they are what makes the fifth possible.
+// =====================================================================
+
+const ASSESSMENT_KINDS = ["PT1", "PT2", "IP1", "IP2", "OT", "SEE"];
+const SPLIT_MODES = ["manual", "lookup"];
+const REG_MAX = 20;
+const STUDENT_NAME_MAX = 120;
+
+// ---------------------------------------------------------------------
+// Shared lookups. Each takes a connection so it can run inside the caller's
+// transaction rather than opening a second one and reading a different world.
+// ---------------------------------------------------------------------
+
+async function setupLoadCourse(conn, courseId) {
+  const [rows] = await conn.execute(
+    `SELECT id, code, title, co_count FROM courses WHERE id = ?`,
+    [courseId]
+  );
+  if (rows.length === 0) throw new HttpError(404, `No course with id ${courseId}`);
+  return { id: rows[0].id, code: rows[0].code, title: rows[0].title, coCount: rows[0].co_count };
+}
+
+async function setupLoadAssessment(conn, assessmentId) {
+  const [rows] = await conn.execute(
+    `SELECT a.id, a.course_id, a.kind, a.max_total, a.conducted_on,
+            a.split_mode, a.co_split_pattern_id, c.co_count
+       FROM assessments AS a
+       JOIN courses     AS c ON c.id = a.course_id
+      WHERE a.id = ?`,
+    [assessmentId]
+  );
+  if (rows.length === 0) throw new HttpError(404, `No assessment with id ${assessmentId}`);
+  const r = rows[0];
+  return {
+    id: r.id,
+    courseId: r.course_id,
+    kind: r.kind,
+    maxTotal: num(r.max_total),
+    conductedOn: r.conducted_on,
+    splitMode: r.split_mode,
+    coSplitPatternId: r.co_split_pattern_id,
+    coCount: r.co_count,
+  };
+}
+
+/**
+ * How many mark rows hang off an assessment.
+ *
+ * This is the one question the three refusals below are all asking. A
+ * student_assessments row is the mark; student_co_marks is its breakdown, and
+ * is absent by design on a 'lookup' assessment, so counting only the
+ * breakdown would report "no marks" for a course whose marks are all there.
+ */
+async function setupCountMarks(conn, assessmentId) {
+  const [rows] = await conn.execute(
+    `SELECT
+       (SELECT COUNT(*) FROM student_assessments WHERE assessment_id = ?) AS attempts,
+       (SELECT COUNT(*)
+          FROM student_co_marks AS m
+          JOIN student_assessments AS sa ON sa.id = m.student_assessment_id
+         WHERE sa.assessment_id = ?) AS co_marks`,
+    [assessmentId, assessmentId]
+  );
+  return { attempts: Number(rows[0].attempts), coMarks: Number(rows[0].co_marks) };
+}
+
+async function setupEnrolledStudents(conn, courseId) {
+  const [rows] = await conn.execute(
+    `SELECT s.id, s.reg_number, s.name, s.current_sem,
+            e.id AS enrolment_id, e.academic_year, e.semester
+       FROM student_enrolments AS e
+       JOIN students           AS s ON s.id = e.student_id
+      WHERE e.course_id = ?
+      ORDER BY s.reg_number`,
+    [courseId]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    regNumber: r.reg_number,
+    name: r.name,
+    currentSem: r.current_sem,
+    enrolmentId: r.enrolment_id,
+    academicYear: r.academic_year,
+    semester: r.semester,
+  }));
+}
+
+/**
+ * Enrol, idempotently.
+ *
+ * academic_year and semester are NULL and sit inside the unique key, which in
+ * MySQL therefore does not match on a duplicate insert -- the same reason the
+ * Name List PUT reads first with <=> instead of relying on ON DUPLICATE KEY
+ * UPDATE. Written the same way here so both endpoints produce the same rows.
+ */
+async function setupEnrol(conn, courseId, studentId) {
+  const [existing] = await conn.execute(
+    `SELECT id FROM student_enrolments
+      WHERE student_id     =   ?
+        AND course_id      =   ?
+        AND academic_year <=>  NULL
+        AND semester      <=>  NULL`,
+    [studentId, courseId]
+  );
+  if (existing.length > 0) return false;
+  await conn.execute(
+    `INSERT INTO student_enrolments (student_id, course_id, academic_year, semester)
+     VALUES (?, ?, NULL, NULL)`,
+    [studentId, courseId]
+  );
+  return true;
+}
+
+/**
+ * What a student has on this course that an un-enrolment would orphan.
+ *
+ * BOTH tables are checked, for the reason the Name List PUT gives: neither
+ * student_assessments nor internal_marks has a foreign key to
+ * student_enrolments, so removing the enrolment does not cascade. The marks
+ * would stay, keep feeding the attainment tables and the risk report, and
+ * appear on no roll. Checking only student_assessments would miss a course
+ * whose consolidated internal mark came from elsewhere.
+ */
+async function setupMarkFootprint(conn, courseId, studentId) {
+  const [rows] = await conn.execute(
+    `SELECT
+       (SELECT COUNT(*)
+          FROM student_assessments AS sa
+          JOIN assessments AS a ON a.id = sa.assessment_id
+         WHERE a.course_id = ? AND sa.student_id = ?) AS attempts,
+       (SELECT COUNT(*) FROM internal_marks
+         WHERE course_id = ? AND student_id = ?) AS internal_rows`,
+    [courseId, studentId, courseId, studentId]
+  );
+  return {
+    attempts: Number(rows[0].attempts),
+    internalRows: Number(rows[0].internal_rows),
+  };
+}
+
+function setupMapAssessment(row, allocations, marks) {
+  const allocated = allocations.reduce((sum, a) => sum + a.marksAllocated, 0);
+  return {
+    id: row.id,
+    courseId: row.courseId,
+    kind: row.kind,
+    maxTotal: row.maxTotal,
+    conductedOn: row.conductedOn,
+    splitMode: row.splitMode,
+    coSplitPatternId: row.coSplitPatternId,
+    allocations,
+    allocatedTotal: allocated,
+    allocationsComplete: allocations.length > 0 && allocated === row.maxTotal,
+    marks,
+  };
+}
+
+async function setupLoadAllocations(conn, assessmentId) {
+  const [rows] = await conn.execute(
+    `SELECT co_number, marks_allocated
+       FROM co_allocations
+      WHERE assessment_id = ?
+      ORDER BY co_number`,
+    [assessmentId]
+  );
+  return rows.map((r) => ({ coNumber: r.co_number, marksAllocated: num(r.marks_allocated) }));
+}
+
+// =====================================================================
+// 1. STUDENTS AND ENROLMENT
+//
+// WHY THESE EXIST WHEN PUT /api/courses/:id/students ALREADY DOES
+//   That endpoint replaces the WHOLE roll in one call and is what the Name
+//   List sheet saves. It is unchanged and still the right tool there. These
+//   are per-student and admin-only: an admin adding one student, correcting
+//   one spelling, or removing one enrolment should not have to send the other
+//   thirty-four rows and risk deleting a roll by omission.
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// GET /api/admin/courses/:id/students
+// ---------------------------------------------------------------------
+router.get(
+  "/courses/:id/students",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const conn = await pool.getConnection();
+    try {
+      await setupLoadCourse(conn, courseId);
+      res.json(await setupEnrolledStudents(conn, courseId));
+    } finally {
+      conn.release();
+    }
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/courses/:id/students
+//
+// Body: { regNumber, name }
+//
+//   201  a student row was created, or an existing one was enrolled
+//   200  that student was already on this course; nothing was written
+//   400  validation, with `issues`
+//   404  no such course
+//
+// AN EXISTING REGISTRATION NUMBER IS ENROLLED, NOT DUPLICATED, AND NOT
+// RENAMED. students is institution-wide and reg_number is unique across it.
+// Renaming someone from inside one course would rename them on every other
+// course file too, so the name sent is ignored when the row already exists
+// and the response says so.
+// ---------------------------------------------------------------------
+router.post(
+  "/courses/:id/students",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+    const reg = optionalString(body.regNumber, REG_MAX);
+    if (!reg.ok) {
+      issues.push({ field: "regNumber", message: `regNumber must be text of at most ${REG_MAX} characters` });
+    } else if (reg.value === null) {
+      issues.push({ field: "regNumber", message: "regNumber is required" });
+    }
+    const name = optionalString(body.name, STUDENT_NAME_MAX);
+    if (!name.ok) {
+      issues.push({ field: "name", message: `name must be text of at most ${STUDENT_NAME_MAX} characters` });
+    }
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const result = await withTransaction(async (conn) => {
+      await setupLoadCourse(conn, courseId);
+
+      const [found] = await conn.execute(
+        `SELECT id, name FROM students WHERE reg_number = ?`,
+        [reg.value]
+      );
+
+      let studentId;
+      let studentCreated = false;
+      let existingName = null;
+
+      if (found.length > 0) {
+        studentId = found[0].id;
+        existingName = found[0].name;
+      } else {
+        if (name.value === null) {
+          throw new ValidationError([
+            {
+              field: "name",
+              message: `no student with registration number ${reg.value} exists yet, so a name is required to create one`,
+            },
+          ]);
+        }
+        const [inserted] = await conn.execute(
+          `INSERT INTO students (reg_number, name) VALUES (?, ?)`,
+          [reg.value, name.value]
+        );
+        studentId = inserted.insertId;
+        studentCreated = true;
+      }
+
+      const enrolled = await setupEnrol(conn, courseId, studentId);
+      return { studentId, studentCreated, enrolled, existingName };
+    });
+
+    const outcome = result.studentCreated
+      ? "created"
+      : result.enrolled
+        ? "enrolled-existing"
+        : "already-enrolled";
+
+    res.status(result.enrolled ? 201 : 200).json({
+      courseId,
+      studentId: result.studentId,
+      regNumber: reg.value,
+      outcome,
+      studentCreated: result.studentCreated,
+      enrolled: result.enrolled,
+      // Present only when an existing row was reused, so the screen can say
+      // which name is actually on file rather than the one that was typed.
+      nameOnFile: result.existingName,
+    });
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/courses/:id/students/bulk
+//
+// Body: { text } -- one student per line, "regNumber,name". A tab or a
+// run of spaces separates just as well; a line with no separator is a
+// registration number on its own, which is enough when that student already
+// exists. Blank lines are skipped.
+//
+// ALL OR NOTHING. Every line is parsed and resolved BEFORE anything is
+// written, and the whole import runs in one transaction. One bad line means
+// nothing at all is applied -- a half-imported roll is worse than no roll,
+// because there is no way to tell by looking which half arrived.
+//
+//   200  applied. `lines` reports every line and what happened to it.
+//   400  at least one line failed. `issues` names each, and NOTHING was
+//        written. `lines` still reports the whole plan so the screen can show
+//        which lines were fine and which were not.
+// ---------------------------------------------------------------------
+router.post(
+  "/courses/:id/students/bulk",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+    if (typeof body.text !== "string") {
+      throw new HttpError(400, "Body must carry `text`: one student per line");
+    }
+
+    const parsed = [];
+    body.text.split(/\r?\n/).forEach((raw, index) => {
+      const line = raw.trim();
+      if (line === "") return;
+      const parts = line.split(/\s*[,\t]\s*|\s{2,}/);
+      const regRaw = (parts[0] || "").trim();
+      const nameRaw = parts.slice(1).join(" ").trim();
+      parsed.push({ line: index + 1, text: line, regRaw, nameRaw });
+    });
+
+    if (parsed.length === 0) {
+      throw new HttpError(400, "No student lines found");
+    }
+
+    const outcome = await withTransaction(async (conn) => {
+      await setupLoadCourse(conn, courseId);
+
+      const issues = [];
+      const lines = [];
+      const seen = new Map();
+
+      for (const entry of parsed) {
+        const record = { line: entry.line, text: entry.text, regNumber: entry.regRaw, outcome: null, message: null };
+        lines.push(record);
+
+        const reg = optionalString(entry.regRaw, REG_MAX);
+        if (!reg.ok || reg.value === null) {
+          record.outcome = "failed";
+          record.message = `registration number must be text of 1 to ${REG_MAX} characters`;
+          issues.push({ line: entry.line, message: record.message });
+          continue;
+        }
+        if (seen.has(reg.value)) {
+          record.outcome = "failed";
+          record.message = `duplicate registration number, also on line ${seen.get(reg.value)}`;
+          issues.push({ line: entry.line, message: record.message });
+          continue;
+        }
+        seen.set(reg.value, entry.line);
+
+        const name = optionalString(entry.nameRaw === "" ? null : entry.nameRaw, STUDENT_NAME_MAX);
+        if (!name.ok) {
+          record.outcome = "failed";
+          record.message = `name must be text of at most ${STUDENT_NAME_MAX} characters`;
+          issues.push({ line: entry.line, message: record.message });
+          continue;
+        }
+
+        const [found] = await conn.execute(
+          `SELECT id, name FROM students WHERE reg_number = ?`,
+          [reg.value]
+        );
+        if (found.length > 0) {
+          record.studentId = found[0].id;
+          record.nameOnFile = found[0].name;
+          record.plan = "enrol-existing";
+          continue;
+        }
+        if (name.value === null) {
+          record.outcome = "failed";
+          record.message = `no student with registration number ${reg.value} exists yet, so a name is required to create one`;
+          issues.push({ line: entry.line, message: record.message });
+          continue;
+        }
+        record.name = name.value;
+        record.plan = "create";
+      }
+
+      // Nothing has been written yet. This is the all-or-nothing point.
+      if (issues.length > 0) {
+        const err = new ValidationError(issues);
+        err.lines = lines;
+        throw err;
+      }
+
+      let created = 0;
+      let enrolledCount = 0;
+      let alreadyEnrolled = 0;
+
+      for (const record of lines) {
+        if (record.plan === "create") {
+          const [inserted] = await conn.execute(
+            `INSERT INTO students (reg_number, name) VALUES (?, ?)`,
+            [record.regNumber, record.name]
+          );
+          record.studentId = inserted.insertId;
+          created += 1;
+        }
+        const didEnrol = await setupEnrol(conn, courseId, record.studentId);
+        if (didEnrol) enrolledCount += 1;
+        else alreadyEnrolled += 1;
+        record.outcome =
+          record.plan === "create" ? "created" : didEnrol ? "enrolled-existing" : "already-enrolled";
+        delete record.plan;
+      }
+
+      return { lines, created, enrolled: enrolledCount, alreadyEnrolled };
+    });
+
+    res.json({ courseId, ...outcome });
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/admin/students/:id
+//
+// Body: { regNumber?, name? } -- partial; an absent field is left alone.
+//
+// THIS EDITS THE INSTITUTION-WIDE ROW, not a course membership, and the
+// response says how many courses that touches. Correcting a misspelt name is
+// exactly what it is for; it is also the one write here that reaches outside
+// the course an admin is looking at.
+// ---------------------------------------------------------------------
+router.put(
+  "/students/:id",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const studentId = requireId(req);
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+    const sets = [];
+    const args = [];
+
+    if (body.regNumber !== undefined) {
+      const reg = optionalString(body.regNumber, REG_MAX);
+      if (!reg.ok || reg.value === null) {
+        issues.push({ field: "regNumber", message: `regNumber must be text of 1 to ${REG_MAX} characters` });
+      } else {
+        sets.push("reg_number = ?");
+        args.push(reg.value);
+      }
+    }
+    if (body.name !== undefined) {
+      const name = optionalString(body.name, STUDENT_NAME_MAX);
+      if (!name.ok || name.value === null) {
+        issues.push({ field: "name", message: `name must be text of 1 to ${STUDENT_NAME_MAX} characters` });
+      } else {
+        sets.push("name = ?");
+        args.push(name.value);
+      }
+    }
+    if (issues.length > 0) throw new ValidationError(issues);
+    if (sets.length === 0) throw new HttpError(400, "Send regNumber, name, or both");
+
+    const updated = await withTransaction(async (conn) => {
+      const [found] = await conn.execute(`SELECT id FROM students WHERE id = ?`, [studentId]);
+      if (found.length === 0) throw new HttpError(404, `No student with id ${studentId}`);
+
+      try {
+        await conn.execute(`UPDATE students SET ${sets.join(", ")} WHERE id = ?`, [...args, studentId]);
+      } catch (err) {
+        if (err && err.code === "ER_DUP_ENTRY") {
+          throw new HttpError(409, `Another student already has that registration number`);
+        }
+        throw err;
+      }
+
+      const [rows] = await conn.execute(
+        `SELECT id, reg_number, name, current_sem FROM students WHERE id = ?`,
+        [studentId]
+      );
+      const [courses] = await conn.execute(
+        `SELECT COUNT(DISTINCT course_id) AS n FROM student_enrolments WHERE student_id = ?`,
+        [studentId]
+      );
+      return {
+        id: rows[0].id,
+        regNumber: rows[0].reg_number,
+        name: rows[0].name,
+        currentSem: rows[0].current_sem,
+        coursesAffected: Number(courses[0].n),
+      };
+    });
+
+    res.json(updated);
+  })
+);
+
+// ---------------------------------------------------------------------
+// DELETE /api/admin/courses/:id/students/:studentId
+//
+// Removes the ENROLMENT. The student row is never deleted -- they exist
+// institution-wide and may be on other courses.
+//
+//   204  removed
+//   400  that student has marks on this course. Refused, naming what exists.
+//   404  no such course, or they were not enrolled on it
+// ---------------------------------------------------------------------
+router.delete(
+  "/courses/:id/students/:studentId",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const studentId = parseId(req.params.studentId);
+    if (studentId === null) throw new HttpError(400, "studentId must be a positive whole number");
+
+    await withTransaction(async (conn) => {
+      const course = await setupLoadCourse(conn, courseId);
+
+      const [enrolment] = await conn.execute(
+        `SELECT id FROM student_enrolments WHERE course_id = ? AND student_id = ?`,
+        [courseId, studentId]
+      );
+      if (enrolment.length === 0) {
+        throw new HttpError(404, `Student ${studentId} is not enrolled on ${course.code}`);
+      }
+
+      const footprint = await setupMarkFootprint(conn, courseId, studentId);
+      if (footprint.attempts > 0 || footprint.internalRows > 0) {
+        const parts = [];
+        if (footprint.attempts > 0) {
+          parts.push(`${footprint.attempts} assessment mark row${footprint.attempts === 1 ? "" : "s"}`);
+        }
+        if (footprint.internalRows > 0) {
+          parts.push(`${footprint.internalRows} internal mark row${footprint.internalRows === 1 ? "" : "s"}`);
+        }
+        throw new HttpError(
+          400,
+          `Student ${studentId} has ${parts.join(" and ")} on ${course.code}. ` +
+            `Removing the enrolment would leave those marks with no place on the roll. ` +
+            `Delete the marks first if the student really did not take this course.`
+        );
+      }
+
+      await conn.execute(
+        `DELETE FROM student_enrolments WHERE course_id = ? AND student_id = ?`,
+        [courseId, studentId]
+      );
+    });
+
+    res.status(204).end();
+  })
+);
+
+// =====================================================================
+// 2. ASSESSMENTS
+//
+// There was no write endpoint for this table at all. Every assessment in the
+// database today was inserted by migration 014 or 007.
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// GET /api/admin/courses/:id/assessments
+//
+// Carries the CO allocations and the mark counts with each row, because the
+// screen has to say for each assessment whether its allocations add up and
+// whether it can still be edited -- both of which are this same data.
+// ---------------------------------------------------------------------
+router.get(
+  "/courses/:id/assessments",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const conn = await pool.getConnection();
+    try {
+      const course = await setupLoadCourse(conn, courseId);
+      const [rows] = await conn.execute(
+        `SELECT id FROM assessments WHERE course_id = ? ORDER BY FIELD(kind, 'PT1','PT2','IP1','IP2','OT','SEE')`,
+        [courseId]
+      );
+      const out = [];
+      for (const r of rows) {
+        const assessment = await setupLoadAssessment(conn, r.id);
+        const allocations = await setupLoadAllocations(conn, r.id);
+        const marks = await setupCountMarks(conn, r.id);
+        out.push(setupMapAssessment(assessment, allocations, marks));
+      }
+      res.json({ courseId, coCount: course.coCount, assessments: out });
+    } finally {
+      conn.release();
+    }
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/courses/:id/assessments
+//
+// Body: { kind, maxTotal, splitMode, conductedOn? }
+//
+//   201  created
+//   400  validation, with `issues`
+//   409  that course already has an assessment of that kind
+//   404  no such course
+//
+// splitMode decides HOW A MARK IS ENTERED, which is why it is set here and
+// not guessed later:
+//   'manual' -- the faculty member types one mark per CO, and those marks are
+//               stored in student_co_marks.
+//   'lookup' -- the faculty member types a single total, and the per-CO split
+//               is derived from co_split_values through a co_split_patterns
+//               row whose total_max equals this assessment's maxTotal. Nothing
+//               per-CO is stored, so the split cannot drift from the total.
+// A 'lookup' assessment with no matching pattern would accept a total and
+// then be unable to split it, so that is a 400 here rather than a surprise at
+// mark entry.
+// ---------------------------------------------------------------------
+router.post(
+  "/courses/:id/assessments",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+
+    const kind = optionalString(body.kind, 10);
+    if (!kind.ok || kind.value === null) {
+      issues.push({ field: "kind", message: "kind is required" });
+    } else if (!ASSESSMENT_KINDS.includes(kind.value)) {
+      issues.push({ field: "kind", message: `kind must be one of ${ASSESSMENT_KINDS.join(", ")}` });
+    }
+
+    const maxTotal = optionalNumber(body.maxTotal);
+    if (!maxTotal.ok) {
+      issues.push({ field: "maxTotal", message: "maxTotal must be a number" });
+    } else if (maxTotal.value === null) {
+      issues.push({ field: "maxTotal", message: "maxTotal is required" });
+    } else if (!(maxTotal.value > 0) || maxTotal.value > 9999) {
+      issues.push({ field: "maxTotal", message: "maxTotal must be greater than 0 and at most 9999" });
+    }
+
+    const splitMode = optionalString(body.splitMode, 10);
+    const splitValue = splitMode.ok && splitMode.value !== null ? splitMode.value : "manual";
+    if (!splitMode.ok || !SPLIT_MODES.includes(splitValue)) {
+      issues.push({ field: "splitMode", message: `splitMode must be one of ${SPLIT_MODES.join(", ")}` });
+    }
+
+    const conductedOn = optionalString(body.conductedOn, 10);
+    if (!conductedOn.ok || (conductedOn.value !== null && !isDateString(conductedOn.value))) {
+      issues.push({ field: "conductedOn", message: "conductedOn must be a date as YYYY-MM-DD" });
+    }
+
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const created = await withTransaction(async (conn) => {
+      const course = await setupLoadCourse(conn, courseId);
+
+      let patternId = null;
+      if (splitValue === "lookup") {
+        const [patterns] = await conn.execute(
+          `SELECT id, name FROM co_split_patterns WHERE total_max = ?`,
+          [maxTotal.value]
+        );
+        if (patterns.length === 0) {
+          throw new ValidationError([
+            {
+              field: "splitMode",
+              message:
+                `No CO split pattern exists for a total of ${maxTotal.value}, so a lookup assessment ` +
+                `could take a total and then have no way to split it. Use manual, or add the pattern first.`,
+            },
+          ]);
+        }
+        patternId = patterns[0].id;
+      }
+
+      let insertId;
+      try {
+        const [result] = await conn.execute(
+          `INSERT INTO assessments (course_id, kind, max_total, conducted_on, split_mode, co_split_pattern_id)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [courseId, kind.value, maxTotal.value, conductedOn.value, splitValue, patternId]
+        );
+        insertId = result.insertId;
+      } catch (err) {
+        if (err && err.code === "ER_DUP_ENTRY") {
+          throw new HttpError(409, `${course.code} already has a ${kind.value} assessment`);
+        }
+        throw err;
+      }
+
+      const assessment = await setupLoadAssessment(conn, insertId);
+      return setupMapAssessment(assessment, [], { attempts: 0, coMarks: 0 });
+    });
+
+    res.status(201).json(created);
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/admin/assessments/:id
+//
+// Body: { maxTotal?, splitMode?, conductedOn? } -- partial.
+//
+// MAXTOTAL AND SPLITMODE ARE REFUSED ONCE MARKS EXIST, conductedOn is not.
+//   maxTotal is the denominator of the internal-mark scaling in
+//   internalMarks.js (PT_scaled = mark * nature.ptNMax / assessment.max_total)
+//   and those scaled figures are STORED in internal_marks. Changing it under
+//   existing marks would move every consolidated internal mark on the course
+//   without touching a single mark sheet, and the stored rows would be stale
+//   until something happened to recompute them.
+//   splitMode decides whether student_co_marks rows are the truth or are
+//   derived, so flipping it under existing marks reinterprets data already on
+//   file.
+//   conductedOn is a date on a cover sheet. It feeds nothing, so correcting it
+//   after the fact is allowed and is the ordinary reason to edit at all.
+// ---------------------------------------------------------------------
+router.put(
+  "/assessments/:id",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const assessmentId = requireId(req);
+    const body = req.body;
+    if (!isPlainObject(body)) throw new HttpError(400, "Body must be a JSON object");
+
+    const issues = [];
+    let wantsMaxTotal = false;
+    let wantsSplitMode = false;
+
+    const maxTotal = optionalNumber(body.maxTotal);
+    if (body.maxTotal !== undefined) {
+      wantsMaxTotal = true;
+      if (!maxTotal.ok || maxTotal.value === null) {
+        issues.push({ field: "maxTotal", message: "maxTotal must be a number" });
+      } else if (!(maxTotal.value > 0) || maxTotal.value > 9999) {
+        issues.push({ field: "maxTotal", message: "maxTotal must be greater than 0 and at most 9999" });
+      }
+    }
+
+    const splitMode = optionalString(body.splitMode, 10);
+    if (body.splitMode !== undefined) {
+      wantsSplitMode = true;
+      if (!splitMode.ok || splitMode.value === null || !SPLIT_MODES.includes(splitMode.value)) {
+        issues.push({ field: "splitMode", message: `splitMode must be one of ${SPLIT_MODES.join(", ")}` });
+      }
+    }
+
+    const conductedOn = optionalString(body.conductedOn, 10);
+    if (body.conductedOn !== undefined) {
+      if (!conductedOn.ok || (conductedOn.value !== null && !isDateString(conductedOn.value))) {
+        issues.push({ field: "conductedOn", message: "conductedOn must be a date as YYYY-MM-DD, or null" });
+      }
+    }
+
+    if (body.kind !== undefined) {
+      issues.push({
+        field: "kind",
+        message:
+          "kind cannot be changed. It is the natural key of the assessment and names it on every mark sheet; " +
+          "delete and recreate instead, which is refused once marks exist and so cannot happen silently.",
+      });
+    }
+
+    if (issues.length > 0) throw new ValidationError(issues);
+    if (!wantsMaxTotal && !wantsSplitMode && body.conductedOn === undefined) {
+      throw new HttpError(400, "Send maxTotal, splitMode or conductedOn");
+    }
+
+    const updated = await withTransaction(async (conn) => {
+      const assessment = await setupLoadAssessment(conn, assessmentId);
+      const marks = await setupCountMarks(conn, assessmentId);
+
+      if ((wantsMaxTotal || wantsSplitMode) && marks.attempts > 0) {
+        const fields = [wantsMaxTotal ? "maxTotal" : null, wantsSplitMode ? "splitMode" : null]
+          .filter(Boolean)
+          .join(" and ");
+        throw new HttpError(
+          400,
+          `${assessment.kind} already has ${marks.attempts} mark row${marks.attempts === 1 ? "" : "s"}. ` +
+            `${fields} cannot be changed while marks exist: every internal mark on this course is scaled by ` +
+            `maxTotal, and splitMode decides whether the stored per-CO marks are the truth or are derived. ` +
+            `Delete the marks first, or correct conductedOn on its own.`
+        );
+      }
+
+      const sets = [];
+      const args = [];
+      if (wantsMaxTotal) {
+        sets.push("max_total = ?");
+        args.push(maxTotal.value);
+      }
+      if (wantsSplitMode) {
+        sets.push("split_mode = ?");
+        args.push(splitMode.value);
+        let patternId = null;
+        if (splitMode.value === "lookup") {
+          const target = wantsMaxTotal ? maxTotal.value : assessment.maxTotal;
+          const [patterns] = await conn.execute(
+            `SELECT id FROM co_split_patterns WHERE total_max = ?`,
+            [target]
+          );
+          if (patterns.length === 0) {
+            throw new ValidationError([
+              {
+                field: "splitMode",
+                message: `No CO split pattern exists for a total of ${target}`,
+              },
+            ]);
+          }
+          patternId = patterns[0].id;
+        }
+        sets.push("co_split_pattern_id = ?");
+        args.push(patternId);
+      }
+      if (body.conductedOn !== undefined) {
+        sets.push("conducted_on = ?");
+        args.push(conductedOn.value);
+      }
+
+      await conn.execute(`UPDATE assessments SET ${sets.join(", ")} WHERE id = ?`, [...args, assessmentId]);
+
+      const after = await setupLoadAssessment(conn, assessmentId);
+      const allocations = await setupLoadAllocations(conn, assessmentId);
+      return setupMapAssessment(after, allocations, await setupCountMarks(conn, assessmentId));
+    });
+
+    res.json(updated);
+  })
+);
+
+// ---------------------------------------------------------------------
+// DELETE /api/admin/assessments/:id
+//
+//   204  deleted, with its CO allocations, which cascade
+//   400  marks exist. Refused, naming how many.
+//   404  no such assessment
+//
+// co_allocations cascades on the foreign key, so deleting an assessment with
+// no marks takes its allocations with it and leaves nothing orphaned.
+// ---------------------------------------------------------------------
+router.delete(
+  "/assessments/:id",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const assessmentId = requireId(req);
+
+    await withTransaction(async (conn) => {
+      const assessment = await setupLoadAssessment(conn, assessmentId);
+      const marks = await setupCountMarks(conn, assessmentId);
+      if (marks.attempts > 0) {
+        throw new HttpError(
+          400,
+          `${assessment.kind} has ${marks.attempts} mark row${marks.attempts === 1 ? "" : "s"} ` +
+            `and ${marks.coMarks} per-CO row${marks.coMarks === 1 ? "" : "s"}. ` +
+            `Deleting the assessment would delete all of them. Delete the marks first if that is really intended.`
+        );
+      }
+      await conn.execute(`DELETE FROM assessments WHERE id = ?`, [assessmentId]);
+    });
+
+    res.status(204).end();
+  })
+);
+
+// =====================================================================
+// 3. CO ALLOCATIONS
+//
+// The mark budget of an assessment, per CO. The sum across COs is expected to
+// equal the assessment's maxTotal; migration 005 says out loud that this is an
+// application rule and not a database constraint, because a course file is
+// routinely saved half-entered. These two routes are where that rule is
+// actually enforced for the first time.
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// GET /api/admin/assessments/:id/co-allocations
+// ---------------------------------------------------------------------
+router.get(
+  "/assessments/:id/co-allocations",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const assessmentId = requireId(req);
+    const conn = await pool.getConnection();
+    try {
+      const assessment = await setupLoadAssessment(conn, assessmentId);
+      const allocations = await setupLoadAllocations(conn, assessmentId);
+      const marks = await setupCountMarks(conn, assessmentId);
+      res.json({
+        assessmentId,
+        courseId: assessment.courseId,
+        kind: assessment.kind,
+        maxTotal: assessment.maxTotal,
+        coCount: assessment.coCount,
+        allocations,
+        allocatedTotal: allocations.reduce((s, a) => s + a.marksAllocated, 0),
+        marks,
+        editable: marks.attempts === 0,
+      });
+    } finally {
+      conn.release();
+    }
+  })
+);
+
+// ---------------------------------------------------------------------
+// PUT /api/admin/assessments/:id/co-allocations
+//
+// Body: [{ coNumber, marksAllocated }] -- the WHOLE set, replacing what is
+// there, in one transaction.
+//
+//   200  replaced
+//   400  refused. Three reasons, each naming its numbers:
+//        - marks already exist for this assessment
+//        - a coNumber is not a CO this course has
+//        - the allocations do not sum to the assessment maximum
+//   404  no such assessment
+//
+// THE SUM RULE IS THE POINT.
+//   Every CO percentage on every printed sheet is marks_obtained divided by
+//   marks_allocated. If the parts do not add up to the total the student was
+//   marked out of, each CO percentage is still arithmetically valid and the
+//   course file as a whole is wrong -- which is exactly the defect class this
+//   portal exists to catch. So it is refused, with both numbers in the
+//   sentence rather than a bare "invalid".
+//
+// AND SO IS THE REFUSAL ONCE MARKS EXIST.
+//   Nothing stores an attainment figure: every one is recomputed from
+//   marks_obtained over marks_allocated whenever a sheet is drawn. Changing an
+//   allocation under existing marks therefore does not corrupt a stored
+//   number -- it silently moves every attainment figure, level and remedial
+//   list already published for that assessment, with no record that anything
+//   happened. That is refused here. See section 3 of the report for what a
+//   safe re-allocation would need.
+// ---------------------------------------------------------------------
+router.put(
+  "/assessments/:id/co-allocations",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const assessmentId = requireId(req);
+    const body = req.body;
+    if (!Array.isArray(body)) {
+      throw new HttpError(400, "Body must be an array of { coNumber, marksAllocated }");
+    }
+
+    const result = await withTransaction(async (conn) => {
+      const assessment = await setupLoadAssessment(conn, assessmentId);
+      const marks = await setupCountMarks(conn, assessmentId);
+
+      if (marks.attempts > 0) {
+        throw new HttpError(
+          400,
+          `${assessment.kind} already has ${marks.attempts} mark row${marks.attempts === 1 ? "" : "s"} ` +
+            `and ${marks.coMarks} per-CO row${marks.coMarks === 1 ? "" : "s"}. ` +
+            `CO allocations are the denominator of every attainment figure for this assessment, so changing ` +
+            `them now would move every published percentage, level and remedial list without any record of it. ` +
+            `Delete the marks first if the allocation really was wrong.`
+        );
+      }
+
+      const issues = [];
+      const seen = new Set();
+      const rows = [];
+      let sum = 0;
+
+      body.forEach((row, index) => {
+        if (!isPlainObject(row)) {
+          issues.push({ index, message: "entry must be an object" });
+          return;
+        }
+        const co = optionalNumber(row.coNumber);
+        if (!co.ok || co.value === null || !Number.isInteger(co.value)) {
+          issues.push({ index, message: "coNumber must be a whole number" });
+          return;
+        }
+        if (co.value < 1 || co.value > assessment.coCount) {
+          issues.push({
+            index,
+            coNumber: co.value,
+            message: `CO${co.value} is not a CO of this course, which has ${assessment.coCount}`,
+          });
+          return;
+        }
+        if (seen.has(co.value)) {
+          issues.push({ index, coNumber: co.value, message: `CO${co.value} appears more than once` });
+          return;
+        }
+        seen.add(co.value);
+
+        const marksAllocated = optionalNumber(row.marksAllocated);
+        if (!marksAllocated.ok || marksAllocated.value === null) {
+          issues.push({ index, coNumber: co.value, message: "marksAllocated must be a number" });
+          return;
+        }
+        if (marksAllocated.value < 0 || marksAllocated.value > 9999) {
+          issues.push({ index, coNumber: co.value, message: "marksAllocated must be between 0 and 9999" });
+          return;
+        }
+        sum += marksAllocated.value;
+        rows.push({ coNumber: co.value, marksAllocated: marksAllocated.value });
+      });
+
+      if (issues.length > 0) throw new ValidationError(issues);
+
+      // Two decimals is what the column stores; comparing the raw floats would
+      // fail on 16.66 + 16.67 + 16.67.
+      const rounded = Math.round(sum * 100) / 100;
+      if (rounded !== assessment.maxTotal) {
+        throw new HttpError(
+          400,
+          `The CO allocations add up to ${rounded}, but ${assessment.kind} is out of ${assessment.maxTotal}. ` +
+            `Every CO percentage on the printed file is marks obtained over marks allocated, so a course file ` +
+            `whose parts do not add up to its total is wrong even though each figure looks right.`
+        );
+      }
+
+      await conn.execute(`DELETE FROM co_allocations WHERE assessment_id = ?`, [assessmentId]);
+      for (const row of rows) {
+        await conn.execute(
+          `INSERT INTO co_allocations (assessment_id, co_number, marks_allocated) VALUES (?, ?, ?)`,
+          [assessmentId, row.coNumber, row.marksAllocated]
+        );
+      }
+
+      const after = await setupLoadAllocations(conn, assessmentId);
+      return setupMapAssessment(assessment, after, await setupCountMarks(conn, assessmentId));
+    });
+
+    res.json(result);
+  })
+);
+
+// END REMOVABLE BLOCK -- admin Course Setup screen (server half)
 // =====================================================================
 
 module.exports = router;

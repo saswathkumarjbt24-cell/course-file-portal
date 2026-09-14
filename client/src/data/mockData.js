@@ -1208,3 +1208,54 @@ export const courseMeta = [
 // Empty, exactly as migration 012 leaves it. The closing report shows its
 // three numbered lines whether or not anything has been written on them.
 export const closingReportActions = []
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- admin Course Setup screen
+//
+// The fallbacks the setup screen reads when VITE_API_URL is unset, so the
+// screen draws without a server. Shaped exactly like the endpoints: a course
+// part-way through setup, which is the state the screen exists to resolve.
+// ---------------------------------------------------------------
+
+export const setupStudents = [
+  { id: 901, regNumber: '7376230000001', name: 'SAMPLE STUDENT ONE', currentSem: 'V', enrolmentId: 9001, academicYear: null, semester: null },
+  { id: 902, regNumber: '7376230000002', name: 'SAMPLE STUDENT TWO', currentSem: 'V', enrolmentId: 9002, academicYear: null, semester: null },
+]
+
+export const setupAssessments = {
+  courseId: 1,
+  coCount: 5,
+  assessments: [
+    {
+      id: 801,
+      courseId: 1,
+      kind: 'PT1',
+      maxTotal: 50,
+      conductedOn: null,
+      splitMode: 'manual',
+      coSplitPatternId: null,
+      allocations: [
+        { coNumber: 1, marksAllocated: 20 },
+        { coNumber: 2, marksAllocated: 20 },
+        { coNumber: 3, marksAllocated: 10 },
+      ],
+      allocatedTotal: 50,
+      allocationsComplete: true,
+      marks: { attempts: 2, coMarks: 6 },
+    },
+    {
+      id: 802,
+      courseId: 1,
+      kind: 'PT2',
+      maxTotal: 50,
+      conductedOn: null,
+      splitMode: 'manual',
+      coSplitPatternId: null,
+      allocations: [],
+      allocatedTotal: 0,
+      allocationsComplete: false,
+      marks: { attempts: 0, coMarks: 0 },
+    },
+  ],
+}
+// END REMOVABLE -- admin Course Setup screen

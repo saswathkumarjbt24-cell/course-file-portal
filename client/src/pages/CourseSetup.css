@@ -1,0 +1,113 @@
+/* ---------------------------------------------------------------
+   BEGIN REMOVABLE -- admin Course Setup screen
+
+   EVERY RULE IS INSIDE @media screen.
+
+   Nothing on this screen can reach a printed sheet -- it is an admin
+   management screen with no print button and no place in the course
+   file -- so no @media print block was touched, and none of these
+   rules can reach one either.
+
+   It defines only what Users.css and RiskReport.css do not already
+   have: the setup checklist, the paste box, and the two words the
+   running total needs. The tables, the fields and the buttons are the
+   existing classes, reused.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* ---------------- The setup sequence ---------------- */
+
+  .setup-steps {
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .setup-step {
+    display: grid;
+    grid-template-columns: 1.5rem 14rem 1fr;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  .setup-step__mark {
+    font-weight: 700;
+    color: var(--color-border);
+  }
+
+  .setup-step--done .setup-step__mark {
+    color: var(--color-primary-dark);
+  }
+
+  .setup-step__label {
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  /* ---------------- The paste box ---------------- */
+
+  .setup-bulk {
+    width: 100%;
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    resize: vertical;
+  }
+
+  .setup-bulk:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -1px;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* ---------------- Row actions ---------------- */
+
+  .setup-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  /* ---------------- The two words the total needs ----------------
+     A running total that does not match the maximum is the one thing
+     on this screen that must not be missed, so it is coloured as well
+     as worded. Never colour alone: the sentence beside it says the
+     same thing. */
+
+  .setup-good {
+    color: var(--color-primary-dark);
+    font-weight: 600;
+  }
+
+  .setup-bad {
+    color: var(--color-danger);
+    font-weight: 600;
+  }
+
+  /* ---------------- The allocation editor ---------------- */
+
+  .setup-alloc {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-background);
+  }
+
+  .setup-alloc .risk-table {
+    max-width: 28rem;
+  }
+}
+
+/* END REMOVABLE -- admin Course Setup screen */

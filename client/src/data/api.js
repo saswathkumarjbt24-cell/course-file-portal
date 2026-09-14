@@ -1123,3 +1123,147 @@ export async function fetchStudentCoMarks() {
   const { studentCoMarks } = await fetchMarksBundle()
   return studentCoMarks
 }
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- admin Course Setup screen
+//
+// ADMIN ONLY, all ten. A faculty or hod token is refused with 403, which
+// failure() turns into the server's own sentence.
+//
+// These are the three things a course needs before a faculty member can enter
+// a single mark -- students, assessments, CO allocations -- none of which had
+// a write endpoint before. Marks themselves keep the endpoint they already
+// have; nothing here writes one.
+// ---------------------------------------------------------------
+
+/** The students enrolled on one course. */
+export async function fetchSetupStudents(courseId) {
+  if (!API_URL) return mock.setupStudents
+  return get(`/api/admin/courses/${courseId}/students`)
+}
+
+/**
+ * Add one student to a course. `body` is { regNumber, name }.
+ *
+ * An existing registration number is ENROLLED, not duplicated and not
+ * renamed -- students is institution-wide. The response says which happened
+ * in `outcome` ('created' | 'enrolled-existing' | 'already-enrolled') and
+ * carries `nameOnFile` when an existing row was reused, so the screen can
+ * show the name actually on record rather than the one just typed.
+ */
+export async function createSetupStudent(courseId, body) {
+  if (!API_URL) return { mock: true }
+  const result = await post(`/api/admin/courses/${courseId}/students`, body)
+  invalidate()
+  return result
+}
+
+/**
+ * Import many students at once. `text` is one per line, "regNumber,name".
+ *
+ * ALL OR NOTHING. A 400 means not one line was applied; its `.issues` name
+ * every bad line. On success the result carries `lines`, one entry per line
+ * with what happened to it, which is what the screen shows.
+ */
+export async function importSetupStudents(courseId, text) {
+  if (!API_URL) return { mock: true, lines: [] }
+  const result = await post(`/api/admin/courses/${courseId}/students/bulk`, { text })
+  invalidate()
+  return result
+}
+
+/**
+ * Correct a student's name or registration number.
+ *
+ * This edits the INSTITUTION-WIDE row, not a course membership. The response
+ * carries `coursesAffected` so the screen can say how far the correction
+ * reaches.
+ */
+export async function updateSetupStudent(studentId, body) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/admin/students/${studentId}`, body)
+  invalidate()
+  return result
+}
+
+/**
+ * Remove one enrolment. The student row itself is never deleted.
+ *
+ * Rejects with a 400 carrying the server's sentence when that student has
+ * marks on the course -- removing the enrolment would leave those marks
+ * feeding the attainment tables with nobody on the roll to own them.
+ */
+export async function deleteSetupStudent(courseId, studentId) {
+  if (!API_URL) return { mock: true }
+  const result = await del(`/api/admin/courses/${courseId}/students/${studentId}`)
+  invalidate()
+  return result
+}
+
+/**
+ * The assessments of a course, each with its CO allocations and its mark
+ * counts. One call, because the screen has to say for every assessment
+ * whether its allocations add up and whether it can still be edited, and both
+ * are this same data.
+ */
+export async function fetchSetupAssessments(courseId) {
+  if (!API_URL) return mock.setupAssessments
+  return get(`/api/admin/courses/${courseId}/assessments`)
+}
+
+/**
+ * Create an assessment. `body` is { kind, maxTotal, splitMode, conductedOn }.
+ *
+ * splitMode decides how a mark is entered: 'manual' means one mark per CO,
+ * 'lookup' means a single total that the split table breaks down. 409 is a
+ * kind this course already has.
+ */
+export async function createSetupAssessment(courseId, body) {
+  if (!API_URL) return { mock: true }
+  const result = await post(`/api/admin/courses/${courseId}/assessments`, body)
+  invalidate()
+  return result
+}
+
+/**
+ * Edit an assessment. `body` may carry { maxTotal, splitMode, conductedOn }.
+ *
+ * maxTotal and splitMode are refused with a 400 once marks exist -- every
+ * internal mark on the course is scaled by maxTotal, and splitMode decides
+ * whether the stored per-CO marks are the truth or are derived. conductedOn
+ * is always editable. `kind` is not editable at all.
+ */
+export async function updateSetupAssessment(assessmentId, body) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/admin/assessments/${assessmentId}`, body)
+  invalidate()
+  return result
+}
+
+/** Delete an assessment. Refused with a 400 once any mark exists against it. */
+export async function deleteSetupAssessment(assessmentId) {
+  if (!API_URL) return { mock: true }
+  const result = await del(`/api/admin/assessments/${assessmentId}`)
+  invalidate()
+  return result
+}
+
+/**
+ * Replace the whole CO allocation set of an assessment. `rows` is
+ * [{ coNumber, marksAllocated }].
+ *
+ * Two refusals, both 400 and both carrying the server's sentence:
+ *   - the allocations do not sum to the assessment maximum. Every CO
+ *     percentage on the printed file is marks obtained over marks allocated,
+ *     so parts that do not add up to the total are a wrong course file.
+ *   - marks already exist. The allocation is the denominator of every
+ *     attainment figure for that assessment, so changing it now would move
+ *     every published percentage with no record of it.
+ */
+export async function saveSetupAllocations(assessmentId, rows) {
+  if (!API_URL) return { mock: true }
+  const result = await put(`/api/admin/assessments/${assessmentId}/co-allocations`, rows)
+  invalidate()
+  return result
+}
+// END REMOVABLE -- admin Course Setup screen

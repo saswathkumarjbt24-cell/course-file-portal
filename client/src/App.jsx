@@ -27,6 +27,9 @@ import Allocations from './pages/Allocations'
 // END REMOVABLE -- Courses and Allocations screens
 // BEGIN REMOVABLE -- Activity screen
 import Activity from './pages/Activity'
+// BEGIN REMOVABLE -- admin Course Setup screen
+import CourseSetup from './pages/CourseSetup'
+// END REMOVABLE -- admin Course Setup screen
 // END REMOVABLE -- Activity screen
 
 // With nobody signed in there is nothing to show, so every route falls
@@ -77,6 +80,11 @@ export default function App() {
                   in words rather than redirected. */}
               <Route path="/activity" element={<Activity />} />
               {/* END REMOVABLE -- Activity screen */}
+              {/* BEGIN REMOVABLE -- admin Course Setup screen. The ROLE guard
+                  is inside the page, so a faculty member who types this URL is
+                  refused in words rather than redirected. */}
+              <Route path="/course-setup" element={<CourseSetup />} />
+              {/* END REMOVABLE -- admin Course Setup screen */}
             </Route>
           </Route>
           {/* Unknown paths go to the dashboard, which itself requires a session. */}
