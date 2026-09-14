@@ -276,7 +276,7 @@ function SetupSection({ course, nature }) {
         CO — PO / PSO articulation matrix
       </h3>
       <div className="doc-table-wrap">
-        <table className="doc-table">
+        <table className="doc-table doc-table--matrix">
           <thead>
             <tr>
               <th>CO</th>
@@ -1031,7 +1031,7 @@ function FinalSection({ course, nature, targetPercent }) {
         (c) CO — PO / PSO articulation matrix
       </h3>
       <div className="doc-table-wrap">
-        <table className="doc-table">
+        <table className="doc-table doc-table--matrix">
           <thead>
             <tr>
               <th>CO</th>
@@ -1061,7 +1061,7 @@ function FinalSection({ course, nature, targetPercent }) {
         (d) PO / PSO attainment
       </h3>
       <div className="doc-table-wrap">
-        <table className="doc-table">
+        <table className="doc-table doc-table--matrix">
           <thead>
             <tr>
               <th>CO</th>

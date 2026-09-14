@@ -12,6 +12,11 @@ import './styles/ui.css'
 // rule inside it is under @media print and cannot reach the screen.
 import './styles/print.css'
 // END REMOVABLE -- printed document typography and signature space
+// BEGIN REMOVABLE -- CO-PO/PSO matrix fits the page
+// Scoped to the articulation matrix only; keeps it inside the page width so
+// the sheet is not scaled down. Also print-only.
+import './styles/print-matrix.css'
+// END REMOVABLE -- CO-PO/PSO matrix fits the page
 import App from './App.jsx'
 
 createRoot(document.getElementById('root')).render(

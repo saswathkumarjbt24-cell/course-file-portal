@@ -538,7 +538,7 @@ function FinalAttainmentView({
         </p>
 
         <div className="rep-table-wrap">
-          <table className="rep-table">
+          <table className="rep-table rep-table--matrix">
             <thead>
               <tr>
                 <th className="rep-table__label">CO</th>
@@ -581,7 +581,7 @@ function FinalAttainmentView({
         </p>
 
         <div className="rep-table-wrap">
-          <table className="rep-table">
+          <table className="rep-table rep-table--matrix">
             <thead>
               <tr>
                 <th className="rep-table__label">CO</th>

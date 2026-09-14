@@ -1,0 +1,76 @@
+/* BEGIN REMOVABLE -- CO-PO/PSO matrix fits the page */
+
+/* ---------------------------------------------------------------
+   THE MATRIX, AND ONLY THE MATRIX.
+
+   The articulation matrix is 16 columns (CO + PO1..PO12 + PSO1..PSO3)
+   and the PO/PSO attainment table is 17 (it adds "Final level"). At
+   12pt with the standard 12px side padding and white-space: nowrap
+   they measure 257mm and 284mm against a 190.5mm page. Chrome does not
+   clip that -- it widens the printed layout box to fit the widest thing
+   on the sheet and then scales the WHOLE sheet down to the paper, which
+   is how 12pt was reaching the page at about 8pt.
+
+   Two changes, both print-only, both confined to the matrix by a class
+   the other tables do not carry:
+
+     1. side padding 12px -> 2px. Vertical padding is untouched, so row
+        height and line spacing are exactly as they were.
+     2. header cells may wrap. Only one label is long enough to care --
+        "Final level" -- and wrapping it to two lines takes that column
+        from 102px to 46px. PO1..PO12 and PSO1..PSO3 are single words
+        and are unaffected: nothing is abbreviated and nothing is cut.
+
+   Plus, on the editable Course Setup copy, the <select> prints as the
+   value it holds rather than as a 3.25rem control -- the same thing
+   Remedial.css already does for .rem-select.
+
+   NO FONT SIZE IS CHANGED HERE, and no column width: the rem-based
+   widths on the index columns are left exactly as they are. No other
+   table is touched -- the four .doc-table / .rep-table / .rem-table /
+   .rem-doc__table families keep their own padding.
+
+   Measured minimum widths after this file, at 12pt on a 190.5mm page:
+     CO x PO/PSO matrix        652px = 172.5mm
+     PO/PSO attainment (+1 col) 694px = 183.7mm
+     Course Setup matrix        613px = 162.2mm
+   --------------------------------------------------------------- */
+
+@media print {
+  .doc-table--matrix th,
+  .doc-table--matrix td,
+  .rep-table--matrix th,
+  .rep-table--matrix td,
+  .cd-matrix th,
+  .cd-matrix td {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
+  .doc-table--matrix thead th,
+  .rep-table--matrix thead th,
+  .cd-matrix thead th {
+    white-space: normal !important;
+  }
+
+  /* The Course Setup matrix is the editable copy. What belongs on paper
+     is the correlation value, not the box that sets it. */
+  .cd-matrix__select {
+    width: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    background: none !important;
+    color: #000 !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* The matrix now fits, so this can be visible rather than scrollable.
+     A scroll box on paper is a cut-off matrix, which is the one outcome
+     worse than a scaled one. */
+  .cd-matrix-wrap {
+    overflow: visible !important;
+  }
+}
+
+/* END REMOVABLE -- CO-PO/PSO matrix fits the page */
