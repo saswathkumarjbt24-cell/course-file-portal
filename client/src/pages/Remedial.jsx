@@ -658,10 +658,15 @@ function RemedialView({
               {activeTab === 'circular' && (
                 <section className="rem-panel">
                   <article className="rem-doc">
-                    <header className="rem-doc__head letterhead-replaced">
-                      <h2 className="rem-doc__institution">{INSTITUTION}</h2>
+                    <header className="rem-doc__head">
+                      <h2 className="rem-doc__institution letterhead-replaced">{INSTITUTION}</h2>
                       <p className="rem-doc__dept">
-                        {INSTITUTION_PLACE} — Department of {course.department}
+                        {/* BEGIN REMOVABLE -- letterhead on screen. The place is on
+                            the band; the department is NOT, so only the institution
+                            half is withdrawn. */}
+                        <span className="letterhead-replaced">{INSTITUTION_PLACE} — </span>
+                        {/* END REMOVABLE -- letterhead on screen */}
+                        Department of {course.department}
                       </p>
                     </header>
 

@@ -7,30 +7,37 @@ import './Letterhead.css'
    accreditation line, address, phone, fax, email and web address,
    all inside the one image the department's own Excel uses.
 
-   PRINT ONLY. On screen every sheet keeps the typed heading it has
-   always had; this renders nothing there. A sheet that carries a typed
-   institution heading marks that heading with `letterhead-replaced`,
-   which the stylesheet hides in print, so the name and address are
-   never set twice on the same sheet.
+   ON A DOCUMENT SHEET IT SHOWS ON SCREEN AS WELL AS IN PRINT, so the
+   display matches the paper. The typed institution heading a sheet used
+   to carry is marked `letterhead-replaced` and is now withdrawn from
+   both. Where that heading also named the DEPARTMENT -- which is not on
+   the image -- only the institution half carries the class and the
+   department line stays.
+
+   printOnly is for the three working screens (mark entry, standalone CO
+   attainment, standalone course setup). They are not document sheets and
+   carry no typed institution heading, so their band stays on paper only
+   and their display is unchanged.
 
    ONE DEFINITION. No screen carries its own copy of this markup.
    --------------------------------------------------------------- */
 
-export default function Letterhead() {
+export default function Letterhead({ printOnly = false }) {
   return (
-    <div className="letterhead">
+    <div className={printOnly ? 'letterhead' : 'letterhead letterhead--screen'}>
       {/* The intrinsic 2134x376 is stated so the aspect ratio is known
           before the image decodes; the stylesheet scales it by width
           alone, so it is never stretched and never cropped.
           An <img>, not a CSS background: browsers drop background
-          images when printing. alt is empty because on screen this is
-          hidden and the same words are in the typed heading beside it. */}
+          images when printing. The alt text carries the institution
+          name because the typed heading that used to carry it is now
+          hidden on screen too. */}
       <img
         className="letterhead__img"
         src={letterheadImage}
         width="2134"
         height="376"
-        alt=""
+        alt="Bannari Amman Institute of Technology, Sathyamangalam"
       />
     </div>
   )

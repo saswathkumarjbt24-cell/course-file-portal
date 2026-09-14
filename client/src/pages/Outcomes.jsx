@@ -283,11 +283,18 @@ function OutcomesView({
             part instead. */}
         {!embedded && <Letterhead />}
         {/* END REMOVABLE -- printed letterhead */}
-        <header className="doc-head letterhead-replaced">
-          <h1 className="doc-head__name">{institution.name}</h1>
+        <header className="doc-head">
+          <h1 className="doc-head__name letterhead-replaced">{institution.name}</h1>
           <p className="doc-head__line">
-            {institution.place}
-            {department ? ` — Department of ${department}` : ''}
+            {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
+                the department is NOT, so only the institution half is withdrawn
+                and the department line survives on screen and on paper. */}
+            <span className="letterhead-replaced">
+              {institution.place}
+              {department ? ' — ' : ''}
+            </span>
+            {/* END REMOVABLE -- letterhead on screen */}
+            {department ? `Department of ${department}` : ''}
           </p>
         </header>
 

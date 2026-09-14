@@ -1,54 +1,72 @@
 /* BEGIN REMOVABLE -- printed letterhead */
 
 /* ---------------------------------------------------------------
-   Letterhead band. EVERY RULE IS PRINT-ONLY OR HIDES THE BAND.
+   Letterhead band.
 
-   Nothing here can change the screen: the only rule outside the print
-   block sets the band to display:none, which is what it already was --
-   the element did not exist before. The screen appearance of every
-   sheet is therefore untouched.
+   On a DOCUMENT SHEET the band is shown on screen as well as on paper,
+   and the typed institution heading it replaces is withdrawn from both,
+   so the display matches the printout. On the three working screens the
+   band is opted out with printOnly and nothing about the display
+   changes. Nothing outside a sheet renders this component at all -- the
+   top bar, the sidebar, the login page and the dashboard are untouched.
 
-   NO EXISTING @media print BLOCK WAS EDITED. Documents.css,
-   Reports.css, Remedial.css, MarkEntry.css and Layout.css keep their
-   print rules byte for byte; the two rules this task needs -- show the
-   band, hide the typed heading it replaces -- live here instead.
-   Nothing below sets a page break, a margin, a font size, a column
-   width or any table property.
+   NO EXISTING @media print BLOCK IS EDITED by this file. Documents.css,
+   Reports.css, Remedial.css, MarkEntry.css, Layout.css and print.css
+   keep their rules byte for byte; everything the band needs lives here.
+   Nothing below sets a page break, a font size, a column width or any
+   table property.
    --------------------------------------------------------------- */
 
+/* The default: paper only. */
 .letterhead {
   display: none;
 }
 
+/* The typed institution heading the band replaces. Hidden on screen and
+   on paper alike, so the name and the address are never set twice.
+   Only the eight document-sheet headings carry this class, and where one
+   of them also names the department it is only the institution half that
+   carries it. */
+.letterhead-replaced {
+  display: none !important;
+}
+
+/* A document sheet: the band is part of what you see, not only what you
+   print. Capped at the width of a sheet on screen (.doc-sheet and
+   .rep-doc are both max-width: 52rem) so that on a wide display it
+   scales with the sheet instead of becoming a banner across the window. */
+.letterhead--screen {
+  display: block;
+  max-width: 52rem;
+  margin: 0 auto var(--space-5);
+}
+
+.letterhead__img {
+  display: block;
+  /* Width alone drives the size and the height follows it, so the
+     2134x376 ratio holds exactly: never stretched, never cropped. */
+  width: 100%;
+  height: auto;
+}
+
 @media print {
-  .letterhead {
+  .letterhead,
+  .letterhead--screen {
     display: block !important;
-    margin-bottom: var(--space-4);
+    /* No max-width on paper. An absolute cap here is what made the band
+       print narrow: when a sheet carries a table wider than the page,
+       the printed layout is widened to fit it and the whole page is then
+       scaled down, so a cap expressed in mm no longer matches the sheet.
+       100% of the sheet is the full printable width by definition, and
+       it tracks the sheet whatever that width turns out to be. */
+    max-width: none;
+    margin: 0 0 var(--space-4);
     /* The band is one image: it must not be split down the middle by a
        page boundary, and it must not be left stranded at the foot of a
        page with its sheet beginning on the next one. */
     break-inside: avoid;
     break-after: avoid;
     page-break-inside: avoid;
-  }
-
-  .letterhead__img {
-    display: block;
-    /* Full width of the printable area, height derived from the width,
-       so the 2134x376 ratio is preserved exactly. The max-width is the
-       guard that keeps it inside an A4 text column and keeps it a
-       heading band -- about 34mm tall -- rather than a full-page image. */
-    width: 100%;
-    max-width: 190mm;
-    height: auto;
-    margin: 0 auto;
-  }
-
-  /* The typed institution heading the band replaces. It stays in the
-     DOM and stays on screen; it is only withdrawn from paper, so the
-     institution name and address are not printed twice. */
-  .letterhead-replaced {
-    display: none !important;
   }
 }
 

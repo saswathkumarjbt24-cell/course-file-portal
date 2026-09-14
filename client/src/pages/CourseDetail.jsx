@@ -217,7 +217,7 @@ function CourseDetailView({
 
       {/* BEGIN REMOVABLE -- printed letterhead. Print-only; renders
           nothing on screen. */}
-      <Letterhead />
+      <Letterhead printOnly />
       {/* END REMOVABLE -- printed letterhead */}
 
       <header className="page-header">

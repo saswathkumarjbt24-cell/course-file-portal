@@ -248,10 +248,14 @@ function ClosingReportView({
               keeps the typed heading below exactly as it was. */}
           <Letterhead />
           {/* END REMOVABLE -- printed letterhead */}
-          <header className="rep-doc__head letterhead-replaced">
-            <h1 className="rep-doc__institution">{INSTITUTION}</h1>
+          <header className="rep-doc__head">
+            <h1 className="rep-doc__institution letterhead-replaced">{INSTITUTION}</h1>
             <p className="rep-doc__dept">
-              {INSTITUTION_PLACE} — Department of {course.department}
+              {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
+                  the department is NOT, so only the institution half is withdrawn. */}
+              <span className="letterhead-replaced">{INSTITUTION_PLACE} — </span>
+              {/* END REMOVABLE -- letterhead on screen */}
+              Department of {course.department}
             </p>
           </header>
 
