@@ -988,7 +988,7 @@ function RemedialView({
                   ) : (
                     <>
                       <div className="rem-table-wrap">
-                        <table className="rem-table">
+                        <table className="rem-table rem-table--dense">
                           <thead>
                             <tr>
                               <th className="rem-table__num" rowSpan={2}>

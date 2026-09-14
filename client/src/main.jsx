@@ -17,6 +17,11 @@ import './styles/print.css'
 // the sheet is not scaled down. Also print-only.
 import './styles/print-matrix.css'
 // END REMOVABLE -- CO-PO/PSO matrix fits the page
+// BEGIN REMOVABLE -- printed tables fit the page
+// The remaining document tables: lets long cells wrap so a sheet is no longer
+// widened past the page and scaled down. Print-only.
+import './styles/print-tables.css'
+// END REMOVABLE -- printed tables fit the page
 import App from './App.jsx'
 
 createRoot(document.getElementById('root')).render(

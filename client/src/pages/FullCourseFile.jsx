@@ -425,7 +425,7 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
       </p>
 
       <div className="doc-table-wrap">
-        <table className="doc-table">
+        <table className="doc-table doc-table--dense">
           <thead>
             <tr>
               <th className="doc-table__num">S.No</th>
@@ -803,7 +803,7 @@ function RemedialSection({ course, kind, targetPercent }) {
         <p className="doc-empty">NIL — no re-assessment required.</p>
       ) : (
         <div className="doc-table-wrap">
-          <table className="doc-table">
+          <table className="doc-table doc-table--dense">
             <thead>
               <tr>
                 <th className="doc-table__num">S.No</th>

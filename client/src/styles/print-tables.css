@@ -1,0 +1,81 @@
+/* BEGIN REMOVABLE -- printed tables fit the page */
+
+/* ---------------------------------------------------------------
+   The rest of the printed tables, finishing what print-matrix.css
+   started.
+
+   THE CAUSE. Every document table sets white-space: nowrap. That is
+   right on screen, where a wrap box scrolls, but on paper it means one
+   34-character student name forces a 370px column, the table overruns
+   the 190.5mm page, and Chrome widens the printed layout box and scales
+   the WHOLE sheet down to fit. That is how the department's 12pt has
+   been landing on the Full Course File at 9.26pt.
+
+   1. CELLS MAY WRAP. Measured natural widths at 12pt, before -> after:
+        mark sheet                     247.2mm -> 147.4mm
+        internal marks                 289.8mm -> 167.3mm
+        per-assessment CO attainment   219.9mm -> 163.6mm
+        remedial name list             201.7mm -> 136.7mm
+        remedial attendance            196.0mm -> 131.0mm
+        CO attainment summary          205.1mm -> 142.8mm
+      A table that ALREADY fits is not affected, and that is a property
+      of table layout rather than a hope: column widths are distributed
+      from MAX-content, which wrapping does not change, and only
+      MIN-content moves. Measured at full page width, the name list,
+      attendance, remedial plan and direct-assessment tables come out
+      column-for-column identical with this rule and without it.
+
+   2. THREE TABLES NEED MORE THAN WRAPPING. The ones carrying a pair of
+      columns per CO still measure 208-225mm after wrapping, so those
+      three -- and only those three -- also take their side padding from
+      12px to 4px. Vertical padding is untouched, so row height and line
+      spacing are unchanged. They then measure 186.9mm, 184.7mm and
+      170.7mm.
+
+   3. NO WRAPPER MAY CLIP. .att-table-wrap kept overflow-x: auto on
+      paper, because Attainment.css has no print block at all. That did
+      not scale the sheet -- it CUT the last columns off it, the same
+      fault Course setup had. Measured: a 219.9mm table inside a 190.5mm
+      box with its last column ending at 220.1mm, outside the box.
+
+   4. .cd-matrix joins the other matrix families at 12pt. Measured at
+      181.3mm, inside the page with 9.2mm to spare.
+
+   NO COLUMN WIDTH IS CHANGED and no font size is reduced. Every rule is
+   inside @media print, so no screen changes.
+   --------------------------------------------------------------- */
+
+@media print {
+  /* 1 */
+  .doc-table th,
+  .doc-table td,
+  .rep-table th,
+  .rep-table td,
+  .rem-table th,
+  .rem-table td,
+  .att-table th,
+  .att-table td {
+    white-space: normal !important;
+  }
+
+  /* 2 -- carried by the three tables with two columns per CO */
+  .doc-table--dense th,
+  .doc-table--dense td,
+  .rem-table--dense th,
+  .rem-table--dense td {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  /* 3 */
+  .att-table-wrap {
+    overflow: visible !important;
+  }
+
+  /* 4 */
+  .cd-matrix {
+    font-size: 12pt !important;
+  }
+}
+
+/* END REMOVABLE -- printed tables fit the page */
