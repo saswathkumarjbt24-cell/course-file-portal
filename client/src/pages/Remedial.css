@@ -355,7 +355,10 @@
   body {
     background: #fff !important;
     color: #000 !important;
-    font-size: 11pt;
+    /* The 11pt that used to sit here is gone: printed body size is now
+       owned in one place, ../styles/print.css, which sets 12pt for every
+       sheet. Leaving a size here would have kept remedial smaller than
+       the rest of the course file. */
   }
 
   .rem-panel {
