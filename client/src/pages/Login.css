@@ -50,7 +50,6 @@
     --auth-muted: #64748b;
     --auth-faint: #a3aebd;
     --auth-badge-text: #1b3a63;
-    --auth-dot: #2e6db4;
     --auth-focus: #6ba3e8;
     /* END REMOVABLE -- login page local palette */
 
@@ -161,21 +160,65 @@
     pointer-events: none;
   }
 
-  /* THE SHEET STACK. Three overlapping pages, bottom right, running
-     off the panel and cropped by its overflow: hidden. Deliberately
-     positioned outside the panel on two edges -- the crop is the
-     effect. Height is capped against vh so it shrinks with the panel
-     rather than dictating it. */
+  /* THE SHEET STACK. Three overlapping pages in the bottom-right
+     corner, running off the panel and cropped by its overflow:
+     hidden. The crop against the panel edge is the effect.
+
+     IT MUST NEVER CROSS THE CONTENT COLUMN, AND THE GUARANTEE IS
+     GEOMETRIC RATHER THAN A MATTER OF TASTE.
+
+       left: 76%   of the panel's padding box -- the stack box starts
+                   here and runs off the right edge.
+       .auth__brand-inner is capped at 70% of the panel's CONTENT box.
+
+     Those two are not a coincidence that happens to hold at the
+     sizes anyone checked. With panel width P and side padding p, the
+     content column's right edge is at most
+
+         p + 0.70(P - 2p) = 0.70P - 0.40p
+
+     and the stack starts at 0.76P, so the clear gap between them is
+
+         0.76P - (0.70P - 0.40p) = 0.06P + 0.40p
+
+     which is positive for every P and every p. The gap only widens
+     when the 33.75rem cap on the column binds, as it does on a wide
+     monitor. There is no viewport at which they meet.
+
+     THE SHEETS THEMSELVES STAY INSIDE THAT BOX TOO -- see the
+     transform note on .auth__sheet. A rotation that swung them left
+     would put them back over the text however the box is placed.
+
+     Below 980px the panel is full width, the content is full width,
+     and no such clear strip exists. The stack is not drawn there at
+     all rather than laid over the text -- see the stacked layout. */
   .auth__stack {
     position: absolute;
     z-index: -1;
+    left: 76%;
     right: -7vw;
     bottom: -16vh;
-    width: min(420px, 34vw);
     height: min(500px, 62vh);
     pointer-events: none;
   }
 
+  /* THE FAN OPENS RIGHT, NOT LEFT, AND THAT IS THE WHOLE POINT.
+
+     These sheets used to pivot about their bottom-LEFT corner and
+     rotate anticlockwise, which swings the top edge left by h·sin(a)
+     -- about 112px on a 500px sheet at 13 degrees -- and then a
+     translate took it 52px further still. Over 160px of sheet
+     therefore sat left of .auth__stack's own box, so no amount of
+     moving the box could keep it off the text. That is what was
+     cutting across the panel at 1366.
+
+     Pivoting about the bottom-RIGHT corner and rotating clockwise
+     swings the top edge the other way, off the panel, where the
+     panel's overflow: hidden crops it. Every corner of all three
+     sheets now lands at or right of the box's left edge, so placing
+     the box clear of the column is enough -- there is nothing left
+     to leak. Check the arithmetic again before flipping any sign
+     here. */
   .auth__sheet {
     position: absolute;
     inset: 0;
@@ -186,23 +229,23 @@
       rgba(255, 255, 255, 0.075),
       rgba(255, 255, 255, 0.02)
     );
-    transform-origin: bottom left;
+    transform-origin: bottom right;
   }
 
   .auth__sheet:nth-child(1) {
     opacity: 0.34;
-    transform: rotate(-13deg) translate(-52px, 24px);
+    transform: rotate(13deg) translate(52px, 24px);
   }
 
   .auth__sheet:nth-child(2) {
     opacity: 0.52;
-    transform: rotate(-7deg) translate(-26px, 12px);
+    transform: rotate(7deg) translate(26px, 12px);
   }
 
   .auth__sheet:nth-child(3) {
     opacity: 1;
     border-color: rgba(255, 255, 255, 0.28);
-    transform: rotate(-2deg);
+    transform: rotate(2deg);
   }
 
   /* Ruled lines on the top sheet only: the ones underneath are too
@@ -252,16 +295,29 @@
      and lifting it would create a stacking context and break the
      logo's blend. */
   .auth__brand-inner {
-    max-width: 540px;
+    /* THE 70% IS LOAD-BEARING; THE 40rem IS TASTE.
+       The percentage is half the guarantee that the sheet stack can
+       never reach the text -- see the arithmetic on .auth__stack --
+       and it is what binds on a laptop. The absolute cap only binds
+       on a wide monitor, where it keeps the measure readable; it was
+       33.75rem (the reference's 540px) until the crest grew by half
+       and pushed "Bannari Amman Institute of Technology" onto two
+       lines beside it. Raising the absolute cap is safe because the
+       sum takes the smaller of the two; LOWERING THE 70% IS NOT. */
+    max-width: min(40rem, 70%);
   }
 
   /* ---------------- Wordmark: logo + name ---------------- */
 
+  /* The gap and the margin below both grew with the crest, and the
+     margin absorbed most of the height the term card used to take:
+     the block still fills the panel rather than leaving a hole where
+     the card was. */
   .auth__mark {
     display: flex;
     align-items: center;
-    gap: clamp(0.875rem, 1.8vw, 1.25rem);
-    margin-bottom: clamp(1.25rem, 4.6vh, 3.25rem);
+    gap: clamp(1rem, 2.2vw, 1.75rem);
+    margin-bottom: clamp(1.5rem, 6vh, 4.5rem);
   }
 
   /* THE CREST, KNOCKED OUT TO WHITE. READ THIS BEFORE CHANGING IT.
@@ -305,16 +361,29 @@
   .auth__logo {
     display: block;
     flex: 0 0 auto;
-    width: clamp(6.5rem, 14vh, 9.5rem);
-    height: clamp(6.5rem, 14vh, 9.5rem);
+    /* Half again on the vh term and on the cap, 14vh -> 21vh and
+       9.5rem -> 14.25rem, paid for by the term card that used to sit
+       under the headline. Still clamped against viewport height like
+       everything else on this panel, so it shrinks with a short
+       window instead of pushing the block out of it. The floor is
+       low on purpose: it only engages below a 419px-tall viewport,
+       which is a landscape phone and is already the stacked layout. */
+    width: clamp(5.5rem, 21vh, 14.25rem);
+    height: clamp(5.5rem, 21vh, 14.25rem);
     object-fit: contain;
     filter: invert(1) grayscale(1) brightness(1.75) contrast(1.45);
     mix-blend-mode: screen;
   }
 
+  /* THE LOCK-UP STAYS A LOCK-UP. The crest grew by half; these two
+     grow by a quarter and a fifth, so the gap between them WIDENS
+     rather than closing. The crest is about 6.3 times the wordmark's
+     size at 1080 where it used to be 5.2, and the wordmark still
+     leads the subtitle -- the name reads as a caption to the crest,
+     not as a competing headline. */
   .auth__wordmark {
     margin: 0;
-    font-size: clamp(1.3125rem, 2.8vh, 1.8125rem);
+    font-size: clamp(1.625rem, 3.4vh, 2.25rem);
     font-weight: 600;
     letter-spacing: -0.022em;
     line-height: 1.25;
@@ -322,8 +391,12 @@
   }
 
   .auth__mark-sub {
-    margin: 5px 0 0;
-    font-size: clamp(0.78rem, 1.55vh, 0.906rem);
+    margin: 6px 0 0;
+    /* The floor is 13px, not 14px: at 1280x720 the column is 412px
+       and the crest takes 151 of it, and 14px put "Bannari Amman
+       Institute of Technology" onto a second line beside the crest.
+       13px keeps it on one, at every viewport measured. */
+    font-size: clamp(0.8125rem, 1.75vh, 1.125rem);
     font-weight: 400;
     letter-spacing: 0.005em;
     line-height: 1.45;
@@ -338,7 +411,7 @@
      the document outline and nothing you can see. */
 
   .auth__head {
-    margin: 0 0 clamp(0.875rem, 2vh, 1.25rem);
+    margin: 0 0 clamp(1.125rem, 2.8vh, 2rem);
     font-size: clamp(2rem, 6.2vh, 3.875rem);
     font-weight: 700;
     letter-spacing: -0.045em;
@@ -352,53 +425,14 @@
   .auth__headrule {
     width: 58px;
     height: 3px;
-    margin: 0 0 clamp(1.125rem, 3vh, 1.875rem);
+    margin: 0 0 clamp(1.5rem, 4.2vh, 2.75rem);
     border: none;
     border-radius: 2px;
     opacity: 0.9;
     background-color: #fff;
   }
 
-  /* BEGIN REMOVABLE -- term card and capability pills */
-
-  /* THE FILL UNDER THE GRADIENT IS NOT DECORATION.
-     On a 1366-wide screen the brand panel is only ~737px and the
-     content column wants 540 of it, so the sheet stack behind must
-     pass under this card -- there is no width at which it does not.
-     A purely translucent card let the sheets' edges show straight
-     through it, which reads as a layering accident rather than as
-     depth. The near-opaque navy base blocks them, and the gradient
-     and inset highlight on top still lift the card off the panel.
-     Same reasoning for .auth__pill below. */
-  .auth__term {
-    max-width: 470px;
-    margin-bottom: clamp(1rem, 2.6vh, 1.75rem);
-    padding: clamp(1rem, 2.4vh, 1.625rem) clamp(1.25rem, 2.6vw, 1.875rem);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 13px;
-    background-color: rgba(4, 16, 31, 0.72);
-    background-image: linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.1),
-      rgba(255, 255, 255, 0.035)
-    );
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  }
-
-  .auth__term-title {
-    margin: 0 0 6px;
-    font-size: clamp(0.9375rem, 1.8vh, 1.03rem);
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    color: #fff;
-  }
-
-  .auth__term-body {
-    margin: 0;
-    font-size: clamp(0.8125rem, 1.6vh, 0.875rem);
-    line-height: 1.7;
-    color: rgba(255, 255, 255, 0.7);
-  }
+  /* BEGIN REMOVABLE -- capability pills */
 
   /* Four labels, not four controls. They are <span>s: there is
      nowhere for them to go and nothing for them to do. */
@@ -412,12 +446,15 @@
     padding: clamp(0.375rem, 1vh, 0.5625rem) 17px;
     font-size: clamp(0.75rem, 1.5vh, 0.8125rem);
     color: rgba(255, 255, 255, 0.88);
-    background-color: rgba(4, 16, 31, 0.6);
+    /* Back to the reference's translucent fill. It was opaque navy
+       only to stop the sheet stack showing through, and the stack
+       cannot reach this far any more. */
+    background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-pill);
   }
 
-  /* END REMOVABLE -- term card and capability pills */
+  /* END REMOVABLE -- capability pills */
 
   /* ---------------- Form panel ---------------- */
 
@@ -442,27 +479,6 @@
     width: 100%;
     max-width: 392px;
     margin-inline: auto;
-  }
-
-  .auth__term-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: clamp(0.75rem, 2vh, 1.375rem);
-    padding: 6px 15px;
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--auth-badge-text);
-    background-color: var(--auth-mist);
-    border: 1px solid var(--auth-line);
-    border-radius: var(--radius-pill);
-  }
-
-  .auth__term-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: var(--auth-dot);
   }
 
   .auth__heading {
@@ -806,11 +822,6 @@
   .auth__rise--3 {
     animation-delay: 0.28s;
   }
-
-  .auth__rise--4 {
-    animation-delay: 0.36s;
-  }
-
   @keyframes auth-rise {
     to {
       opacity: 1;
@@ -819,38 +830,6 @@
   }
 
   /* END REMOVABLE -- staggered entrance on the brand column */
-
-  /* ---------------- Narrower desktops ----------------
-     Under about 1500px the brand panel is narrow enough that the
-     sheet stack and the content column have to share the same
-     ground -- see the note on .auth__term. Nudging the stack down
-     and out, and taking a little light out of it, keeps it reading
-     as a watermark behind the text rather than as a second subject
-     competing with it.
-     ---------------------------------------------------------------- */
-
-  @media (max-width: 1500px) {
-    .auth__stack {
-      right: -9vw;
-      bottom: -20vh;
-      opacity: 0.7;
-    }
-  }
-
-  /* ---------------- Short windows ----------------
-     Under 620px of height the term card is the first thing to go:
-     it is the only block on the panel that repeats what the pills
-     below it already say. */
-
-  @media (max-height: 620px) {
-    .auth__term {
-      display: none;
-    }
-
-    .auth__headrule {
-      margin-bottom: 16px;
-    }
-  }
 
   /* ---------------- Stacked layout ----------------
      Below 980px the page becomes one column with a straight
@@ -888,16 +867,21 @@
       font-size: clamp(2.125rem, 8vw, 3rem);
     }
 
+    /* NOT DRAWN AT ALL HERE, AND NOT FOR TIDINESS. One column means
+       the panel is the full width and so is the text in it, so the
+       clear strip the stack lives in on a desktop does not exist --
+       there is nowhere to put it that is not on top of the headline.
+       It is decoration with no room, so it goes, rather than being
+       laid over the text at a low opacity and called a watermark. */
     .auth__stack {
-      right: -26vw;
-      bottom: -22vh;
-      opacity: 0.55;
+      display: none;
     }
 
-    /* Height is no longer the constraint once the page scrolls, so
-       the card comes back even on a short window. */
-    .auth__term {
-      display: block;
+    /* The column cap exists to keep the stack off the text. With no
+       stack there is nothing to keep it off, and a phone wants the
+       full width. */
+    .auth__brand-inner {
+      max-width: none;
     }
   }
 
@@ -912,8 +896,8 @@
     }
 
     .auth__logo {
-      width: 5.25rem;
-      height: 5.25rem;
+      width: 7.5rem;
+      height: 7.5rem;
     }
   }
 

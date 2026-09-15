@@ -121,27 +121,6 @@ function EyeIcon() {
    password field is never shown as text and the "hidden" state is the only
    one it can be in. */
 
-// BEGIN REMOVABLE -- academic term shown on both panels
-//
-// DERIVED FROM THE DATE, NOT WRITTEN IN. This is a caption and nothing
-// reads it back: it labels the panel and the badge, and no mark, no
-// attainment figure and no document depends on it. It is computed here
-// only so the page does not quietly go stale a year after the last
-// deploy, which a hard-coded "ODD 2025 - 2026" would.
-//
-// The split follows the ordinary Indian academic calendar -- June to
-// November is the odd semester, December to May the even one, and the
-// even semester belongs to the academic year that began the previous
-// June. AN INSTITUTION ON A DIFFERENT CALENDAR SHOULD CHANGE THE TWO
-// MONTH NUMBERS BELOW, or replace this with a value from the server.
-function academicTerm(now = new Date()) {
-  const month = now.getMonth()
-  const isOdd = month >= 5 && month <= 10
-  const startYear = isOdd ? now.getFullYear() : now.getFullYear() - 1
-  return `${isOdd ? 'ODD' : 'EVEN'} ${startYear} \u2013 ${startYear + 1}`
-}
-// END REMOVABLE -- academic term shown on both panels
-
 // BEGIN REMOVABLE -- what the portal covers, as labels on the brand panel
 // Four <span>s. There is nowhere for them to go and nothing for them to
 // do; they name the four things the portal produces and no more.
@@ -183,9 +162,6 @@ function LoginView({ facultyList = [], authConfig }) {
   const buttonRef = useRef(null)
 
   const selected = facultyList.find((f) => f.id === selectedId) ?? null
-
-  // Read once per render. It is a caption -- see academicTerm.
-  const term = academicTerm()
 
   const emailDomain = authConfig?.allowedEmailDomain ?? HOSTED_DOMAIN_HINT
 
@@ -388,34 +364,21 @@ function LoginView({ facultyList = [], authConfig }) {
 
             <hr className="auth__headrule auth__rise auth__rise--2" />
 
-            {/* BEGIN REMOVABLE -- term card and capability pills */}
-            <div className="auth__term auth__rise auth__rise--3">
-              <p className="auth__term-title">{term}</p>
-              <p className="auth__term-body">
-                Every sheet of the course file, from the cover page to the closing report,
-                built from the marks you enter.
-              </p>
-            </div>
-
-            <div className="auth__pills auth__rise auth__rise--4">
+            {/* BEGIN REMOVABLE -- capability pills */}
+            <div className="auth__pills auth__rise auth__rise--3">
               {CAPABILITY_PILLS.map((label) => (
                 <span className="auth__pill" key={label}>
                   {label}
                 </span>
               ))}
             </div>
-            {/* END REMOVABLE -- term card and capability pills */}
+            {/* END REMOVABLE -- capability pills */}
           </div>
         </section>
 
         {/* ---- Form panel ---- */}
         <main className="auth__panel">
           <div className="auth__panel-inner">
-            <span className="auth__term-badge">
-              <span className="auth__term-dot" aria-hidden="true" />
-              {term}
-            </span>
-
             <h2 className="auth__heading">Welcome back</h2>
             <p className="auth__subheading">Use your @{emailDomain} account to continue.</p>
 
