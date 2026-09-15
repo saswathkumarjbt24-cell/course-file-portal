@@ -309,15 +309,24 @@
 
   /* ---------------- Wordmark: logo + name ---------------- */
 
-  /* The gap and the margin below both grew with the crest, and the
-     margin absorbed most of the height the term card used to take:
-     the block still fills the panel rather than leaving a hole where
-     the card was. */
+  /* THE CREST AND THE HEADLINE ARE ONE COMPOSITION, NOT TWO BLOCKS.
+     This margin was opened to 6vh to absorb the height the removed
+     term card used to take, and at 1080 that is 65px of nothing
+     between them -- enough that the lock-up read as a separate
+     object floating above the headline, and enough that the panel's
+     visual weight sat well below its middle while the form column
+     opposite sat on its own centre. The two halves stopped reading
+     as level even though both are centred.
+
+     3.4vh closes it to about 37px at 1080, 26px at 768. Nothing
+     shrinks to pay for it: the crest, the headline and the pills all
+     keep their sizes, and the block is shorter, so being centred
+     puts more of its weight near the middle of the panel. */
   .auth__mark {
     display: flex;
     align-items: center;
     gap: clamp(1rem, 2.2vw, 1.75rem);
-    margin-bottom: clamp(1.5rem, 6vh, 4.5rem);
+    margin-bottom: clamp(1rem, 3.4vh, 2.5rem);
   }
 
   /* THE CREST, KNOCKED OUT TO WHITE. READ THIS BEFORE CHANGING IT.
@@ -458,10 +467,18 @@
 
   /* ---------------- Form panel ---------------- */
 
+  /* NO justify-content HERE, DELIBERATELY. The column is centred by
+     `margin-block: auto` on .auth__panel-inner instead -- see the
+     note there. justify-content: center also centres NEGATIVE free
+     space, so once the content outgrew the column it spilled equally
+     off both ends and took the heading somewhere no scroll could
+     reach; it overrode the auto margins that were meant to prevent
+     exactly that. Measured: at 1280x420 with justify-content still
+     set, the heading sat 37px above the top of its own scroll box.
+     Anything added here must not re-centre an overflow. */
   .auth__panel {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     min-width: 0;
     /* The one place a scrollbar is allowed on a desktop viewport: if
        a build carries the demo picker AND several error notes at
@@ -475,10 +492,26 @@
   /* 392px. Google's button is rendered at a FIXED 288px (set in
      Login.jsx), so it always leaves slack inside this column at every
      width this page supports -- see .auth__google-slot. */
+  /* CENTRED WHEN THERE IS SLACK, TOP-ALIGNED WHEN THERE IS NOT, WITH
+     NO HEIGHT BREAKPOINT TO PICK.
+
+     .auth__panel centres this with justify-content, which is right
+     until the column runs out of room -- a build carrying the demo
+     picker and two error notes at once, or a very short window.
+     Centred overflow in flexbox spills equally at BOTH ends, and the
+     top end cannot be scrolled back to, so the heading would be cut
+     off with no way to reach it.
+
+     `margin-block: auto` centres identically while there is free
+     space and collapses to zero the moment there is none, which
+     hands the column back to normal top-aligned scrolling. So
+     centring never costs vertical room, at 1280x720 or anywhere
+     else, and no @media (min-height) guard is needed. */
   .auth__panel-inner {
     width: 100%;
     max-width: 392px;
     margin-inline: auto;
+    margin-block: auto;
   }
 
   .auth__heading {
