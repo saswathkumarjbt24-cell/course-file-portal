@@ -19,14 +19,21 @@
 // shared with the Courses screen.
 // ---------------------------------------------------------------
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
+  // BEGIN REMOVABLE -- allocation CSV import (screen half)
+  applyAllocationImport,
+  previewAllocationImport,
+  // END REMOVABLE -- allocation CSV import (screen half)
   createAdminAllocation,
   deleteAdminAllocation,
   fetchAdminAllocations,
   fetchAdminCourses,
   fetchAdminUsers,
 } from '../data/api'
+// BEGIN REMOVABLE -- allocation CSV import (screen half)
+import { readAllocationCsv } from '../data/allocationCsv'
+// END REMOVABLE -- allocation CSV import (screen half)
 import {
   DataError,
   DataLoading,
@@ -39,6 +46,9 @@ import { useSession } from '../context/sessionStore'
 import './RiskReport.css'
 import './Users.css'
 import './Courses.css'
+// BEGIN REMOVABLE -- allocation CSV import (screen half)
+import './Allocations.css'
+// END REMOVABLE -- allocation CSV import (screen half)
 
 // Module level, not rebuilt per render: it is useApiData's effect dependency.
 //
@@ -121,6 +131,108 @@ function AllocationsView({ allocations, courses, users }) {
   const [busyId, setBusyId] = useState(null)
   const [rowState, runRow] = useSave()
 
+  // BEGIN REMOVABLE -- allocation CSV import (screen half)
+  const [importOpen, setImportOpen] = useState(false)
+  // The parsed file is kept so Apply re-sends the SAME rows the preview was
+  // given. The server re-resolves them; it is never sent a decision.
+  const [file, setFile] = useState(null)
+  const [parseError, setParseError] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [applied, setApplied] = useState(null)
+  const [driftNotice, setDriftNotice] = useState(null)
+  const [previewState, runPreview] = useSave()
+  const [applyState, runApply] = useSave()
+  const fileInput = useRef(null)
+
+  function resetImport() {
+    setFile(null)
+    setParseError(null)
+    setPreview(null)
+    setApplied(null)
+    setDriftNotice(null)
+    if (fileInput.current) fileInput.current.value = ''
+  }
+
+  async function chooseFile(event) {
+    const chosen = event.target.files?.[0]
+    if (!chosen) return
+    setParseError(null)
+    setPreview(null)
+    setApplied(null)
+    setDriftNotice(null)
+
+    let parsed
+    let text
+    try {
+      text = await chosen.text()
+    } catch {
+      setFile(null)
+      setParseError('That file could not be read. Try exporting the sheet again.')
+      return
+    }
+
+    try {
+      parsed = readAllocationCsv(text)
+    } catch (err) {
+      // A parse failure is a FILE problem, not a server one, and its message
+      // already names what is wrong. Shown on its own rather than as a failed
+      // save, because nothing was sent.
+      setFile(null)
+      setParseError(err.message)
+      return
+    }
+
+    setFile({ name: chosen.name, ...parsed })
+    runPreview(
+      () => previewAllocationImport(parsed.rows),
+      (result) => setPreview(result),
+    )
+  }
+
+  function apply() {
+    if (!file || !preview) return
+    setDriftNotice(null)
+    runApply(
+      async () => {
+        try {
+          return await applyAllocationImport(file.rows, preview.fingerprint)
+        } catch (err) {
+          // A 409 means the allocations moved between the preview and this
+          // click -- including a second click of Apply, where the first one
+          // turned every addition into an existing row. NOTHING WAS WRITTEN.
+          // Re-preview so the admin is looking at the truth rather than at a
+          // stale screen, then rethrow so the failure is still reported.
+          if (err.status === 409) {
+            setDriftNotice(
+              'The allocations changed since this preview, so nothing was written. ' +
+                'Below is what the file would do now.',
+            )
+            runPreview(
+              () => previewAllocationImport(file.rows),
+              (result) => setPreview(result),
+            )
+          }
+          throw err
+        }
+      },
+      (result) => {
+        const created = result?.created ?? []
+        setApplied(created)
+        setPreview(null)
+        if (created.length > 0) {
+          setRows((prev) =>
+            [...prev, ...created].sort(
+              (a, b) =>
+                a.courseCode.localeCompare(b.courseCode) ||
+                a.facultyName.localeCompare(b.facultyName),
+            ),
+          )
+        }
+      },
+    )
+  }
+  // END REMOVABLE -- allocation CSV import (screen half)
+
   // Only ACTIVE accounts can be allocated -- the server refuses an inactive
   // one, because requireAuth rejects it on every request and the course would
   // show a name that cannot sign in.
@@ -201,7 +313,39 @@ function AllocationsView({ allocations, courses, users }) {
         >
           {adding ? 'Close' : 'Add allocation'}
         </button>
+        {/* BEGIN REMOVABLE -- allocation CSV import (screen half) */}
+        <button
+          type="button"
+          className="btn btn--secondary"
+          onClick={() => {
+            setImportOpen((open) => {
+              if (open) resetImport()
+              return !open
+            })
+          }}
+        >
+          {importOpen ? 'Close import' : 'Import from CSV'}
+        </button>
+        {/* END REMOVABLE -- allocation CSV import (screen half) */}
       </div>
+
+      {/* BEGIN REMOVABLE -- allocation CSV import (screen half) */}
+      {importOpen && (
+        <ImportPanel
+          file={file}
+          fileInput={fileInput}
+          onChoose={chooseFile}
+          onReset={resetImport}
+          parseError={parseError}
+          preview={preview}
+          previewState={previewState}
+          applyState={applyState}
+          applied={applied}
+          driftNotice={driftNotice}
+          onApply={apply}
+        />
+      )}
+      {/* END REMOVABLE -- allocation CSV import (screen half) */}
 
       {adding && (
         <form className="users-panel" onSubmit={submitNew}>
@@ -431,5 +575,361 @@ function AllocationsView({ allocations, courses, users }) {
     </>
   )
 }
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- allocation CSV import (screen half)
+//
+// The import panel. Delete this block, the marked spans in AllocationsView
+// above, the marked imports at the top, ../data/allocationCsv.js, the two
+// functions in ../data/api.js and ./Allocations.css to remove the feature.
+//
+// NOTHING HERE DECIDES ANYTHING. The file is turned into rows of strings and
+// posted; every match, every refusal and every reason on screen is the
+// server's, re-derived from scratch when Apply is clicked. The panel's job is
+// to make the whole consequence visible BEFORE the write, which is the only
+// reason preview and apply are separate requests.
+// ---------------------------------------------------------------
+
+/** One heading and its count, so no group is read without its size. */
+function ImportGroup({ title, count, tone, children, blurb }) {
+  return (
+    <section className={`alloc-import__group alloc-import__group--${tone}`}>
+      <h3 className="alloc-import__heading">
+        {title}
+        <span className="alloc-import__count">{count}</span>
+      </h3>
+      {blurb && <p className="alloc-import__blurb">{blurb}</p>}
+      {count > 0 && children}
+    </section>
+  )
+}
+
+/** The course / faculty / role columns every group shares. */
+function ImportRowCells({ row }) {
+  return (
+    <>
+      <td>{row.line}</td>
+      <td>{row.courseCode || row.fileCourseCode}</td>
+      <td>{row.courseTitle || row.fileCourseTitle}</td>
+      <td>{row.facultyName || row.fileFacultyName || row.fileFacultyEmail}</td>
+      <td>
+        <span
+          className={row.role === 'incharge' ? 'alloc-role alloc-role--incharge' : 'alloc-role'}
+        >
+          {row.role ?? '—'}
+        </span>
+      </td>
+    </>
+  )
+}
+
+function ImportPanel({
+  file,
+  fileInput,
+  onChoose,
+  onReset,
+  parseError,
+  preview,
+  previewState,
+  applyState,
+  applied,
+  driftNotice,
+  onApply,
+}) {
+  const counts = preview?.counts
+  const nothingToAdd = !counts || counts.toAdd === 0
+
+  return (
+    <section className="users-panel alloc-import">
+      <h2 className="users-panel__title">Import allocations from the department sheet</h2>
+
+      <p className="alloc-import__blurb">
+        Download the allocation sheet as CSV and choose it here. Nothing is written until
+        you approve it. <strong>An import only ever adds.</strong> An allocation that is in
+        the portal but not in the file is listed below for information and is left exactly
+        as it is — removing one stays a deliberate act through the Remove button, which
+        refuses to take away the last handling faculty of a course.
+      </p>
+
+      <div className="users-actions">
+        {/* The input itself is hidden so the control carries the app's own
+            button styling; the label below reports what was chosen, which a
+            native file input would otherwise be the only place to see. */}
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".csv,text/csv"
+          className="alloc-import__file"
+          onChange={onChoose}
+        />
+        <button
+          type="button"
+          className="btn btn--primary"
+          disabled={previewState.saving}
+          onClick={() => fileInput.current?.click()}
+        >
+          {previewState.saving ? 'Reading…' : 'Choose CSV file'}
+        </button>
+        {(file || parseError || applied) && (
+          <button type="button" className="btn btn--quiet" onClick={onReset}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {file && (
+        <p className="users-note">
+          {file.name} — {file.rows.length} row{file.rows.length === 1 ? '' : 's'}, columns{' '}
+          {file.headers.join(', ')}.
+          {file.missingOptional.includes('Allocated Faculty Email') &&
+            ' This sheet has no email column, so faculty were matched by name.'}
+        </p>
+      )}
+
+      {parseError && (
+        <p className="placeholder" role="alert">
+          {parseError}
+        </p>
+      )}
+
+      <div className="users-feedback">
+        <SaveFeedback state={previewState} />
+      </div>
+
+      {driftNotice && (
+        <p className="placeholder" role="alert">
+          {driftNotice}
+        </p>
+      )}
+
+      {/* WHAT WAS ACTUALLY WRITTEN, read back from the database by the server
+          -- not the preview repeated, and not a silently refreshed table.
+          There is nothing to check a refresh against. */}
+      {applied && (
+        <ImportGroup
+          title="Written"
+          count={applied.length}
+          tone="added"
+          blurb={
+            applied.length === 0
+              ? 'Nothing was written.'
+              : 'These rows are now in the portal. Nothing was removed.'
+          }
+        >
+          <div className="risk-table-wrap">
+            <table className="risk-table">
+              <thead>
+                <tr>
+                  <th>Course code</th>
+                  <th>Course title</th>
+                  <th>Faculty</th>
+                  <th>Role</th>
+                  <th>Academic year</th>
+                  <th>Semester</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applied.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.courseCode}</td>
+                    <td>{row.courseTitle}</td>
+                    <td>{row.facultyName}</td>
+                    <td>
+                      <span
+                        className={
+                          row.role === 'incharge'
+                            ? 'alloc-role alloc-role--incharge'
+                            : 'alloc-role'
+                        }
+                      >
+                        {row.role}
+                      </span>
+                    </td>
+                    <td>{row.academicYear ?? '—'}</td>
+                    <td>{row.semester ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ImportGroup>
+      )}
+
+      {preview && (
+        <>
+          <ImportGroup
+            title="Will be added"
+            count={counts.toAdd}
+            tone="added"
+            blurb={
+              counts.toAdd === 0 ? 'Nothing in this file is new to the portal.' : undefined
+            }
+          >
+            <div className="risk-table-wrap">
+              <table className="risk-table">
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>Course code</th>
+                    <th>Course title</th>
+                    <th>Faculty</th>
+                    <th>Role</th>
+                    <th>Matched by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.toAdd.map((row) => (
+                    <tr key={row.line}>
+                      <ImportRowCells row={row} />
+                      <td>
+                        {row.matchedBy}
+                        {row.note && <span className="users-note">{row.note}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ImportGroup>
+
+          <ImportGroup
+            title="Already present"
+            count={counts.unchanged}
+            tone="same"
+            blurb="These allocations are already in the portal exactly as the file has them. They will not be written again."
+          >
+            <div className="risk-table-wrap">
+              <table className="risk-table">
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>Course code</th>
+                    <th>Course title</th>
+                    <th>Faculty</th>
+                    <th>Role</th>
+                    <th>Matched by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.unchanged.map((row) => (
+                    <tr key={row.line}>
+                      <ImportRowCells row={row} />
+                      <td>
+                        {row.matchedBy}
+                        {row.note && <span className="users-note">{row.note}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ImportGroup>
+
+          <ImportGroup
+            title="Could not be matched"
+            count={counts.unmatched}
+            tone="unmatched"
+            blurb="These rows will be skipped. Each one says why; fix the sheet, or the account, and import again."
+          >
+            <div className="risk-table-wrap">
+              <table className="risk-table">
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>Course code</th>
+                    <th>Course title</th>
+                    <th>Faculty in the file</th>
+                    <th>Role</th>
+                    <th>Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.unmatched.map((row) => (
+                    <tr key={row.line}>
+                      <td>{row.line}</td>
+                      <td>{row.fileCourseCode || <span className="risk-table__muted">blank</span>}</td>
+                      <td>{row.fileCourseTitle}</td>
+                      <td>
+                        {row.fileFacultyName || row.fileFacultyEmail || (
+                          <span className="risk-table__muted">blank</span>
+                        )}
+                      </td>
+                      <td>{row.role || <span className="risk-table__muted">blank</span>}</td>
+                      <td>{row.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ImportGroup>
+
+          <ImportGroup
+            title="In the portal, not in the file"
+            count={counts.inPortalNotInFile}
+            tone="info"
+            blurb="Information only. These WILL NOT be removed. The import never deletes an allocation; use the Remove button on the table below if one really should go."
+          >
+            <div className="risk-table-wrap">
+              <table className="risk-table">
+                <thead>
+                  <tr>
+                    <th>Course code</th>
+                    <th>Course title</th>
+                    <th>Faculty</th>
+                    <th>Role</th>
+                    <th>Academic year</th>
+                    <th>Semester</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.inPortalNotInFile.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.courseCode}</td>
+                      <td>{row.courseTitle}</td>
+                      <td>{row.facultyName}</td>
+                      <td>
+                        <span
+                          className={
+                            row.role === 'incharge'
+                              ? 'alloc-role alloc-role--incharge'
+                              : 'alloc-role'
+                          }
+                        >
+                          {row.role}
+                        </span>
+                      </td>
+                      <td>{row.academicYear ?? '—'}</td>
+                      <td>{row.semester ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ImportGroup>
+
+          <div className="users-actions">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={nothingToAdd || applyState.saving}
+              onClick={onApply}
+            >
+              {applyState.saving
+                ? 'Applying…'
+                : nothingToAdd
+                  ? 'Nothing to add'
+                  : `Add ${counts.toAdd} allocation${counts.toAdd === 1 ? '' : 's'}`}
+            </button>
+          </div>
+
+          <div className="users-feedback">
+            <SaveFeedback state={applyState} />
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+// END REMOVABLE -- allocation CSV import (screen half)
 
 // END REMOVABLE -- Allocations screen

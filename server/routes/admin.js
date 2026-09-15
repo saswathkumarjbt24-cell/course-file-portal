@@ -2460,6 +2460,644 @@ router.put(
 // END REMOVABLE BLOCK -- admin Course Setup screen (server half)
 // =====================================================================
 
+// =====================================================================
+// BEGIN REMOVABLE BLOCK -- allocation CSV import (server half)
+//
+//   POST /api/admin/allocations/import/preview  - resolve, change nothing
+//   POST /api/admin/allocations/import/apply    - write only the additions
+//
+// Delete this block and the two functions in client/src/data/api.js to
+// remove the feature. Nothing above depends on anything below.
+//
+//
+// THE IMPORT ADDS ONLY. IT NEVER REMOVES.
+//   A course that is in the portal but absent from the file is left exactly
+//   as it is and reported for information. Removal stays a deliberate act
+//   through DELETE /allocations/:id, which carries the last-handling guard --
+//   the guard that stops a course becoming invisible to everyone but an
+//   admin. An import that could silently take a faculty member's access to
+//   their own course file away is not worth the convenience, and a sheet is
+//   too easy to filter, sort or half-paste for that to be safe.
+//
+//
+// WHERE THE TERM COLUMNS COME FROM, AND WHY IT MATTERS
+//   uq_course_allocations spans six columns and three of them are NULLable.
+//   MySQL treats NULL as distinct in a unique key, so the key does NOT stop a
+//   second row with the same faculty, course and role -- and `section` is
+//   NULL on every row in the table, so as a duplicate guard it is already
+//   inert. POST /allocations works around that with <=> on all six columns.
+//
+//   The file has no academic year and no section. If an imported row were
+//   written with NULLs in those columns, every allocation already in the
+//   portal would look absent under that six-column rule and the import would
+//   write a second copy of all of them, which the unique key would not
+//   refuse. So a row's term columns are READ FROM THE COURSE: academic_year
+//   and semester come from the `courses` row the code resolves to, and
+//   section is NULL. That is how every allocation in the table was already
+//   built, and it keeps "already exists" meaning exactly what it means for
+//   the Add form -- one rule, not two.
+//
+//
+// THE FILE'S OWN Semester COLUMN IS NEVER A MATCH KEY.
+//   A course knows its own semester. Where the file disagrees, the row still
+//   imports using the portal's value and the preview carries a note saying
+//   what the file said, so a stale sheet is visible rather than silently
+//   obeyed.
+//
+//
+// NAME MATCHING IS EXACT, DELIBERATELY.
+//   Case-insensitive and whitespace-trimmed, and nothing else: no fuzzy
+//   matching, no initial-swapping, no similarity score. A name that does not
+//   match exactly is unmatched and a name that matches two accounts is
+//   unmatched, because the output of this import is who is named on an NBA
+//   document. A near-miss guessed right nine times and wrong once is worse
+//   than a miss reported honestly every time.
+// =====================================================================
+
+const crypto = require("crypto");
+
+// A ceiling so a pasted-wrong file is a 400 rather than a long transaction.
+// The department's sheet is one semester of one department -- tens of rows.
+const IMPORT_MAX_ROWS = 2000;
+
+// Column widths from migration 003, checked here for the same reason the
+// allocation widths are: an over-long value should name its field, not
+// surface as a truncation error.
+const COURSE_CODE_MAX = 20;
+const COURSE_TITLE_MAX = 200;
+
+/** Trim, collapse nothing else. Non-strings become "". */
+function importText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** The comparison form for a name, an email or a code: trimmed, lowercased. */
+function importKey(value) {
+  return importText(value).toLowerCase();
+}
+
+/**
+ * One column of the unique key, as a comparison token: null, or the value
+ * trimmed and lowercased.
+ *
+ * Lowercasing makes this comparison at least as loose as the
+ * utf8mb4_unicode_ci one the SQL <=> check uses, so a row this treats as new
+ * can never be a row the database would have called a duplicate.
+ */
+function importTermToken(value) {
+  return value === null || value === undefined ? null : String(value).trim().toLowerCase();
+}
+
+/**
+ * The six columns of uq_course_allocations, as one comparable string.
+ *
+ * JSON rather than a joined string so NULL stays distinguishable from the
+ * four letters "null" and from an empty section -- a delimiter and a sentinel
+ * would both be values a varchar could legitimately hold.
+ */
+function allocationKey(facultyId, courseId, role, academicYear, semester, section) {
+  return JSON.stringify([
+    facultyId,
+    courseId,
+    role,
+    importTermToken(academicYear),
+    importTermToken(semester),
+    importTermToken(section),
+  ]);
+}
+
+/**
+ * Validate the posted payload BEFORE touching the database.
+ *
+ * Returns an issues array; empty means the payload is well formed. Each issue
+ * names the row by its 1-based position in the file, because "row 14" is
+ * something a person can find in a spreadsheet and an array index is not.
+ */
+function importPayloadIssues(body) {
+  const issues = [];
+  if (!isPlainObject(body)) {
+    return [{ field: "body", message: "Body must be a JSON object" }];
+  }
+  if (!Array.isArray(body.rows)) {
+    return [{ field: "rows", message: "rows must be an array, one entry per line of the file" }];
+  }
+  if (body.rows.length === 0) {
+    return [{ field: "rows", message: "The file has no data rows" }];
+  }
+  if (body.rows.length > IMPORT_MAX_ROWS) {
+    return [
+      {
+        field: "rows",
+        message: `The file has ${body.rows.length} rows; at most ${IMPORT_MAX_ROWS} can be imported at once`,
+      },
+    ];
+  }
+
+  const fields = [
+    { key: "courseCode", max: COURSE_CODE_MAX },
+    { key: "courseTitle", max: COURSE_TITLE_MAX },
+    { key: "semester", max: SEMESTER_MAX },
+    { key: "facultyName", max: NAME_MAX },
+    { key: "facultyEmail", max: EMAIL_MAX },
+    { key: "role", max: 20 },
+  ];
+
+  body.rows.forEach((row, index) => {
+    const line = index + 1;
+    if (!isPlainObject(row)) {
+      issues.push({ index, line, message: `Row ${line} is not an object` });
+      return;
+    }
+    for (const { key, max } of fields) {
+      const value = row[key];
+      if (value === undefined || value === null) continue;
+      if (typeof value !== "string") {
+        issues.push({ index, line, field: key, message: `Row ${line}: ${key} must be text` });
+      } else if (value.trim().length > max) {
+        issues.push({
+          index,
+          line,
+          field: key,
+          message: `Row ${line}: ${key} must be at most ${max} characters`,
+        });
+      }
+    }
+  });
+
+  return issues;
+}
+
+/**
+ * Resolve every row of a posted file against the database, writing nothing.
+ *
+ * `db` is the pool for the preview and the transaction's connection for the
+ * apply, so BOTH endpoints reach this same function and cannot drift apart --
+ * which is the whole point: the apply does not trust a single decision the
+ * client sends, it re-runs this and compares.
+ *
+ * Three lookup tables are read once each rather than a query per row. They are
+ * small (tens of rows), the matching rules below are case- and
+ * whitespace-insensitive in a way that is easier to state in JavaScript than
+ * to spell correctly in SQL for every column, and one pass means the preview
+ * and the apply see one consistent snapshot.
+ */
+async function importResolve(db, rows) {
+  const [courseRows] = await db.execute(
+    "SELECT id, code, title, academic_year, semester FROM courses"
+  );
+  const [facultyRows] = await db.execute(
+    "SELECT id, name, email, is_active FROM faculty"
+  );
+  const [allocationRows] = await db.execute(
+    `SELECT ca.id, ca.faculty_id, f.name AS faculty_name, f.email AS faculty_email,
+            ca.course_id, c.code AS course_code, c.title AS course_title,
+            ca.role, ca.academic_year, ca.semester, ca.section
+       FROM course_allocations AS ca
+       JOIN faculty AS f ON f.id = ca.faculty_id
+       JOIN courses AS c ON c.id = ca.course_id`
+  );
+
+  const courseByCode = new Map();
+  for (const c of courseRows) courseByCode.set(importKey(c.code), c);
+
+  const facultyByEmail = new Map();
+  // A name may belong to more than one account. The map holds EVERY account
+  // for a name, so "more than one" is answerable rather than silently
+  // resolving to whichever row the database happened to return first.
+  const facultyByName = new Map();
+  for (const f of facultyRows) {
+    facultyByEmail.set(importKey(f.email), f);
+    const nameKey = importKey(f.name);
+    if (!facultyByName.has(nameKey)) facultyByName.set(nameKey, []);
+    facultyByName.get(nameKey).push(f);
+  }
+
+  const existing = new Map();
+  for (const a of allocationRows) {
+    existing.set(
+      allocationKey(a.faculty_id, a.course_id, a.role, a.academic_year, a.semester, a.section),
+      a
+    );
+  }
+
+  const resolved = [];
+  const seenInFile = new Map();
+
+  rows.forEach((raw, index) => {
+    const line = index + 1;
+    const row = isPlainObject(raw) ? raw : {};
+    const codeText = importText(row.courseCode);
+    const titleText = importText(row.courseTitle);
+    const semesterText = importText(row.semester);
+    const nameText = importText(row.facultyName);
+    const emailText = importText(row.facultyEmail);
+    const roleText = importText(row.role);
+
+    const base = {
+      index,
+      line,
+      courseCode: codeText,
+      courseTitle: titleText,
+      fileSemester: semesterText,
+      facultyName: nameText,
+      facultyEmail: emailText,
+      role: roleText,
+    };
+    const unmatched = (reason) => resolved.push({ ...base, outcome: "unmatched", reason });
+
+    if (codeText === "") {
+      unmatched("This row has no course code.");
+      return;
+    }
+    const course = courseByCode.get(importKey(codeText));
+    if (!course) {
+      unmatched(`No course in the portal has the code "${codeText}".`);
+      return;
+    }
+
+    // Blank means the column default, exactly as POST /allocations treats an
+    // omitted role. A value that is present but not one of the two is a typo
+    // and is refused rather than quietly turned into 'handling'.
+    let role = "handling";
+    if (roleText !== "") {
+      const match = ALLOCATION_ROLES.find((r) => r === roleText.toLowerCase());
+      if (!match) {
+        unmatched(
+          `"${roleText}" is not a role. It must be one of ${ALLOCATION_ROLES.join(" or ")}.`
+        );
+        return;
+      }
+      role = match;
+    }
+
+    // Email when the file has one, name when it does not. The department's
+    // current sheet has no email column at all, so every row arrives with a
+    // blank email and falls through to the name.
+    let faculty = null;
+    if (emailText !== "") {
+      faculty = facultyByEmail.get(importKey(emailText)) ?? null;
+      if (!faculty) {
+        unmatched(`No faculty account has the email "${emailText}".`);
+        return;
+      }
+    } else if (nameText !== "") {
+      const candidates = facultyByName.get(importKey(nameText)) ?? [];
+      if (candidates.length === 0) {
+        unmatched(`No faculty account has the name "${nameText}".`);
+        return;
+      }
+      if (candidates.length > 1) {
+        unmatched(
+          `${candidates.length} faculty accounts have the name "${nameText}" ` +
+            `(${candidates.map((c) => c.email).join(", ")}). ` +
+            `Add an "Allocated Faculty Email" column to the file to say which.`
+        );
+        return;
+      }
+      faculty = candidates[0];
+    } else {
+      unmatched("This row names no faculty member: both the name and the email are blank.");
+      return;
+    }
+
+    if (!faculty.is_active) {
+      unmatched(
+        `${faculty.name} is not an active account and cannot be allocated. ` +
+          `An inactive account cannot sign in, so the course would name somebody who cannot open it. ` +
+          `Reactivate it on the Users screen first.`
+      );
+      return;
+    }
+
+    // THE TERM COLUMNS COME FROM THE COURSE, NOT THE FILE -- see the note at
+    // the head of this block for why writing NULLs here would duplicate the
+    // whole table.
+    const academicYear = course.academic_year;
+    const semester = course.semester;
+    const section = null;
+
+    const key = allocationKey(faculty.id, course.id, role, academicYear, semester, section);
+
+    const resolvedRow = {
+      ...base,
+      role,
+      courseId: course.id,
+      courseCode: course.code,
+      courseTitle: course.title,
+      facultyId: faculty.id,
+      facultyName: faculty.name,
+      facultyEmail: faculty.email,
+      academicYear,
+      semester,
+      section,
+      matchedBy: emailText !== "" ? "email" : "name",
+      // Information only. The file's semester never decides anything; a
+      // disagreement usually means the sheet is from a previous term.
+      note:
+        semesterText !== "" &&
+        importKey(semesterText) !== importKey(semester === null ? "" : semester)
+          ? `The file says semester "${semesterText}"; the portal has ` +
+            `${semester === null ? "no semester recorded" : `"${semester}"`} for ${course.code}. ` +
+            `The portal's value is used.`
+          : null,
+    };
+
+    const earlier = seenInFile.get(key);
+    if (earlier !== undefined) {
+      resolved.push({
+        ...resolvedRow,
+        outcome: "unmatched",
+        reason: `The same allocation is already on line ${earlier} of this file.`,
+      });
+      return;
+    }
+    seenInFile.set(key, line);
+
+    const already = existing.get(key);
+    resolved.push({
+      ...resolvedRow,
+      outcome: already ? "unchanged" : "toAdd",
+      existingId: already ? already.id : null,
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // IN THE PORTAL, NOT IN THE FILE -- information only.
+  //
+  // Scoped to the courses the FILE names. Listing every allocation of every
+  // course the file never mentions would bury the ones that matter under the
+  // whole table, and a sheet for one semester is not a statement about the
+  // others.
+  // ---------------------------------------------------------------
+  const courseIdsInFile = new Set(
+    resolved.filter((r) => r.courseId !== undefined).map((r) => r.courseId)
+  );
+  const keysInFile = new Set(
+    resolved
+      .filter((r) => r.outcome !== "unmatched" || r.existingId)
+      .map((r) =>
+        r.facultyId === undefined
+          ? null
+          : allocationKey(r.facultyId, r.courseId, r.role, r.academicYear, r.semester, r.section)
+      )
+      .filter(Boolean)
+  );
+
+  const inPortalNotInFile = allocationRows
+    .filter((a) => courseIdsInFile.has(a.course_id))
+    .filter(
+      (a) =>
+        !keysInFile.has(
+          allocationKey(a.faculty_id, a.course_id, a.role, a.academic_year, a.semester, a.section)
+        )
+    )
+    .map((a) => ({
+      id: a.id,
+      facultyId: a.faculty_id,
+      facultyName: a.faculty_name,
+      facultyEmail: a.faculty_email,
+      courseId: a.course_id,
+      courseCode: a.course_code,
+      courseTitle: a.course_title,
+      role: a.role,
+      academicYear: a.academic_year,
+      semester: a.semester,
+      section: a.section,
+    }))
+    .sort((x, y) => x.courseCode.localeCompare(y.courseCode) || x.facultyName.localeCompare(y.facultyName));
+
+  return { resolved, inPortalNotInFile };
+}
+
+/**
+ * A stable digest of a resolution.
+ *
+ * The apply recomputes this from its own fresh lookup and compares it with
+ * the one the client was shown. It is NOT used to decide what to write --
+ * every decision is re-derived server side regardless. It exists so that a
+ * database that changed between the preview and the apply produces a refusal
+ * and a fresh preview rather than a write the admin never approved.
+ */
+function importFingerprint({ resolved, inPortalNotInFile }) {
+  const parts = resolved.map((r) =>
+    JSON.stringify([
+      r.line,
+      r.outcome,
+      r.courseId ?? null,
+      r.facultyId ?? null,
+      r.role ?? null,
+      importTermToken(r.academicYear ?? null),
+      importTermToken(r.semester ?? null),
+      importTermToken(r.section ?? null),
+      r.reason ?? null,
+    ])
+  );
+  parts.push("--not-in-file--");
+  for (const a of inPortalNotInFile) parts.push(String(a.id));
+  return crypto.createHash("sha256").update(parts.join("\n"), "utf8").digest("hex");
+}
+
+/** The wire shape of one resolved row. */
+function importRowPayload(r) {
+  return {
+    line: r.line,
+    outcome: r.outcome,
+    reason: r.reason ?? null,
+    note: r.note ?? null,
+    matchedBy: r.matchedBy ?? null,
+    fileCourseCode: r.courseCode,
+    fileCourseTitle: r.courseTitle,
+    fileSemester: r.fileSemester,
+    fileFacultyName: r.facultyName,
+    fileFacultyEmail: r.facultyEmail,
+    courseId: r.courseId ?? null,
+    courseCode: r.courseCode ?? null,
+    courseTitle: r.courseTitle ?? null,
+    facultyId: r.facultyId ?? null,
+    facultyName: r.facultyName ?? null,
+    facultyEmail: r.facultyEmail ?? null,
+    role: r.role ?? null,
+    academicYear: r.academicYear ?? null,
+    semester: r.semester ?? null,
+    section: r.section ?? null,
+    existingId: r.existingId ?? null,
+  };
+}
+
+function importResponse(result) {
+  const { resolved, inPortalNotInFile } = result;
+  const pick = (outcome) => resolved.filter((r) => r.outcome === outcome).map(importRowPayload);
+  return {
+    fingerprint: importFingerprint(result),
+    counts: {
+      total: resolved.length,
+      toAdd: resolved.filter((r) => r.outcome === "toAdd").length,
+      unchanged: resolved.filter((r) => r.outcome === "unchanged").length,
+      unmatched: resolved.filter((r) => r.outcome === "unmatched").length,
+      inPortalNotInFile: inPortalNotInFile.length,
+    },
+    toAdd: pick("toAdd"),
+    unchanged: pick("unchanged"),
+    unmatched: pick("unmatched"),
+    inPortalNotInFile,
+  };
+}
+
+// ---------------------------------------------------------------------
+// POST /api/admin/allocations/import/preview
+//
+// Body: { rows: [ { courseCode, courseTitle, semester, facultyName,
+//                   facultyEmail, role } ] }
+//
+// WRITES NOTHING. No transaction is opened and no INSERT is reached from
+// here; the only statements executed are the three SELECTs in importResolve.
+// That is the point of a separate endpoint -- the admin sees the whole
+// consequence before anything is committed.
+//
+//   400  the payload is malformed, with an issues list naming the line
+//   403  the caller is not an admin
+// ---------------------------------------------------------------------
+router.post(
+  "/allocations/import/preview",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const issues = importPayloadIssues(req.body);
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const result = await importResolve(pool, req.body.rows);
+    res.json(importResponse(result));
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/allocations/import/apply
+//
+// Body: { rows: [...], fingerprint }  - the SAME rows the preview was given,
+// plus the fingerprint the preview returned.
+//
+// ONE TRANSACTION, ALL OR NOTHING. Every insert runs on the transaction's
+// connection; any failure rolls the whole batch back, so a file that is half
+// importable imports nothing rather than leaving the admin to work out which
+// half went in.
+//
+// NOTHING THE CLIENT DECIDED IS TRUSTED.
+//   The rows are re-resolved here, inside the transaction, against the
+//   database as it is now -- not as it was when the preview was drawn. Ids,
+//   outcomes and reasons sent by the client are ignored entirely; only the
+//   raw file text is read. If the fresh resolution disagrees with what the
+//   admin was shown, this returns 409 with a fresh preview and writes
+//   nothing, rather than applying a decision nobody approved.
+//
+//   409 is also what a second click of Apply gets: the first one turned every
+//   toAdd row into unchanged, so the fingerprint moved. Nothing is written
+//   twice.
+//
+// IT NEVER DELETES. There is no DELETE statement in this handler.
+//
+//   400  malformed payload, or no fingerprint
+//   403  the caller is not an admin
+//   409  the database moved between the preview and the apply
+// ---------------------------------------------------------------------
+router.post(
+  "/allocations/import/apply",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const issues = importPayloadIssues(req.body);
+    if (typeof req.body?.fingerprint !== "string" || req.body.fingerprint.trim() === "") {
+      issues.push({
+        field: "fingerprint",
+        message: "fingerprint is required; it is the value the preview returned",
+      });
+    }
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const expected = req.body.fingerprint.trim();
+
+    const outcome = await withTransaction(async (conn) => {
+      const fresh = await importResolve(conn, req.body.rows);
+      const actual = importFingerprint(fresh);
+
+      if (actual !== expected) {
+        // Deliberately returned rather than thrown: a 409 here is not an
+        // error in the file, it is the database having moved, and the admin
+        // needs the new preview to look at.
+        return { drifted: true, preview: importResponse(fresh) };
+      }
+
+      const toAdd = fresh.resolved.filter((r) => r.outcome === "toAdd");
+      const written = [];
+
+      for (const row of toAdd) {
+        const [result] = await conn.execute(
+          `INSERT INTO course_allocations
+             (faculty_id, course_id, role, academic_year, semester, section)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [row.facultyId, row.courseId, row.role, row.academicYear, row.semester, row.section]
+        );
+        written.push(result.insertId);
+      }
+
+      if (written.length === 0) return { drifted: false, created: [] };
+
+      // Read back what was actually written, from the database, on the same
+      // connection -- so the response is the stored row rather than an echo
+      // of what was sent.
+      const placeholders = written.map(() => "?").join(", ");
+      const [rows] = await conn.execute(
+        `SELECT ca.id, ca.faculty_id, f.name AS faculty_name, f.email AS faculty_email,
+                f.is_active AS faculty_is_active,
+                ca.course_id, c.code AS course_code, c.title AS course_title,
+                ca.role, ca.academic_year, ca.semester, ca.section
+           FROM course_allocations AS ca
+           JOIN faculty AS f ON f.id = ca.faculty_id
+           JOIN courses AS c ON c.id = ca.course_id
+          WHERE ca.id IN (${placeholders})
+          ORDER BY c.code, f.name`,
+        written
+      );
+
+      return {
+        drifted: false,
+        created: rows.map((r) => ({
+          id: r.id,
+          facultyId: r.faculty_id,
+          facultyName: r.faculty_name,
+          facultyEmail: r.faculty_email,
+          facultyIsActive: bool(r.faculty_is_active),
+          courseId: r.course_id,
+          courseCode: r.course_code,
+          courseTitle: r.course_title,
+          role: r.role,
+          academicYear: r.academic_year,
+          semester: r.semester,
+          section: r.section,
+        })),
+      };
+    });
+
+    if (outcome.drifted) {
+      res.status(409).json({
+        message:
+          "The allocations changed between the preview and this approval, so nothing was written. " +
+          "Here is what the file would do now.",
+        expectedFingerprint: expected,
+        actualFingerprint: outcome.preview.fingerprint,
+        preview: outcome.preview,
+      });
+      return;
+    }
+
+    res.status(201).json({
+      created: outcome.created,
+      counts: { created: outcome.created.length },
+      removed: [],
+    });
+  })
+);
+
+// END REMOVABLE BLOCK -- allocation CSV import (server half)
+// =====================================================================
+
 module.exports = router;
 
 // END REMOVABLE BLOCK -- admin Users screen (server half)

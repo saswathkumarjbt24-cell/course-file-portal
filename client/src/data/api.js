@@ -646,6 +646,48 @@ export async function deleteAdminAllocation(id) {
   invalidate()
   return result
 }
+
+// BEGIN REMOVABLE -- allocation CSV import (client half)
+
+/**
+ * What the department's sheet would do, without doing any of it.
+ *
+ * `rows` is the output of readAllocationCsv -- the file's own text, untouched.
+ * No decision is made here or sent: the server resolves every row and returns
+ * each as toAdd, unchanged or unmatched with a reason, plus the allocations
+ * that exist for those courses and are absent from the file.
+ *
+ * WRITES NOTHING, so it does not invalidate the cache.
+ *
+ * Rejects with `.issues` on a 400, the same per-row shape every other save
+ * uses, and with `.status` 403 for a non-admin.
+ */
+export async function previewAllocationImport(rows) {
+  if (!API_URL) return { mock: true }
+  return post('/api/admin/allocations/import/preview', { rows })
+}
+
+/**
+ * Approve an import. Adds only; never removes.
+ *
+ * `fingerprint` is the value the preview returned. The server re-resolves the
+ * same rows inside its transaction and refuses with a 409 if what it now
+ * resolves differs from what that fingerprint described -- so an allocation
+ * changed in another tab between the preview and the approval stops the write
+ * rather than slipping into it. A second click of Apply is that same 409: the
+ * first one turned every addition into an existing row.
+ *
+ * Returns { created: [...], counts, removed: [] }. `removed` is always empty
+ * and is in the response to make the promise explicit.
+ */
+export async function applyAllocationImport(rows, fingerprint) {
+  if (!API_URL) return { mock: true }
+  const result = await post('/api/admin/allocations/import/apply', { rows, fingerprint })
+  invalidate()
+  return result
+}
+
+// END REMOVABLE -- allocation CSV import (client half)
 // END REMOVABLE -- Courses and Allocations screens
 
 // ---------------------------------------------------------------
