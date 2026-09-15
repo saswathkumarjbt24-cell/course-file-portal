@@ -1,0 +1,95 @@
+/* BEGIN REMOVABLE -- dashboard offering filter */
+
+/* ---------------------------------------------------------------
+   The batch / semester / academic-year filter above the course cards.
+
+   EVERY RULE IN THIS FILE IS INSIDE @media screen. Not one of them can
+   reach a printed sheet, and no existing rule is edited or overridden --
+   the file declares .dash-* names that nothing else in the app uses.
+
+   THE CONTROL ITSELF IS NOT A NEW ONE. The label and select below carry
+   the same declarations, from the same tokens, as the assessment picker
+   in Attainment.css, which is the app's existing toolbar-of-selects.
+   They are repeated here rather than imported so that the dashboard does
+   not pull in a page stylesheet it otherwise has nothing to do with, and
+   so that deleting this one file removes the feature whole.
+
+   The reset button and the no-matches block use the shared .btn and
+   .empty-state classes from ../styles/ui.css and add nothing.
+   --------------------------------------------------------------- */
+
+@media screen {
+  /* One row while it fits, wrapping to as many as it needs. The count
+     sits last and is pushed to its own line at narrow widths, where the
+     selects have already taken the row. */
+  .dash-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .dash-filter__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .dash-filter__label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .dash-filter__select {
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .dash-filter__select:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+  }
+
+  .dash-filter__select:disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+  }
+
+  /* The button is a row taller than a bare select because of the label
+     above it, so the wrapper carries the alignment rather than the
+     button needing a margin of its own. */
+  .dash-filter__actions {
+    display: flex;
+    align-items: flex-end;
+  }
+
+  /* Pushed to the end of the row so it reads as the result of the
+     controls rather than as another control. */
+  .dash-filter__count {
+    margin: 0 0 var(--space-2) auto;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+}
+
+@media screen and (max-width: 720px) {
+  /* Below the card-grid breakpoint the selects already fill the width;
+     the auto margin would otherwise strand the count on a line of its
+     own, right-aligned against nothing. */
+  .dash-filter__count {
+    margin-left: 0;
+  }
+
+  .dash-filter__field {
+    flex: 1 1 100%;
+  }
+}
+
+/* END REMOVABLE -- dashboard offering filter */
