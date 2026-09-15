@@ -85,43 +85,34 @@ function loadGoogleIdentity() {
   return gsiPromise
 }
 
-/* ---------------- Icons: inline SVG, no icon package ---------------- */
+/* ---------------- Icons: inline SVG, no icon package ----------------
+   Stroke weight, fill and colour all come from .auth__field-icon in
+   Login.css, so the three stay in step with each other and with the
+   text beside them. */
 
 function UserIcon() {
   return (
-    <svg className="auth__field-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <circle cx="10" cy="6.75" r="3.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M3.75 16.5a6.25 6.25 0 0 1 12.5 0"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+    <svg className="auth__field-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
     </svg>
   )
 }
 
 function LockIcon() {
   return (
-    <svg className="auth__field-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <rect x="4.25" y="8.75" width="11.5" height="7.5" rx="1.75" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M7 8.75V6.5a3 3 0 0 1 6 0v2.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <svg className="auth__field-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
     </svg>
   )
 }
 
 function EyeIcon() {
   return (
-    <svg className="auth__field-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d="M1.75 10S4.75 4.75 10 4.75 18.25 10 18.25 10 15.25 15.25 10 15.25 1.75 10 1.75 10z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="10" cy="10" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <svg className="auth__field-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M2 12s3.8-6 10-6 10 6 10 6-3.8 6-10 6-10-6-10-6Z" />
+      <circle cx="12" cy="12" r="2.6" />
     </svg>
   )
 }
@@ -129,6 +120,38 @@ function EyeIcon() {
 /* There is no EyeOffIcon any more. The reveal control is inert, so the
    password field is never shown as text and the "hidden" state is the only
    one it can be in. */
+
+// BEGIN REMOVABLE -- academic term shown on both panels
+//
+// DERIVED FROM THE DATE, NOT WRITTEN IN. This is a caption and nothing
+// reads it back: it labels the panel and the badge, and no mark, no
+// attainment figure and no document depends on it. It is computed here
+// only so the page does not quietly go stale a year after the last
+// deploy, which a hard-coded "ODD 2025 - 2026" would.
+//
+// The split follows the ordinary Indian academic calendar -- June to
+// November is the odd semester, December to May the even one, and the
+// even semester belongs to the academic year that began the previous
+// June. AN INSTITUTION ON A DIFFERENT CALENDAR SHOULD CHANGE THE TWO
+// MONTH NUMBERS BELOW, or replace this with a value from the server.
+function academicTerm(now = new Date()) {
+  const month = now.getMonth()
+  const isOdd = month >= 5 && month <= 10
+  const startYear = isOdd ? now.getFullYear() : now.getFullYear() - 1
+  return `${isOdd ? 'ODD' : 'EVEN'} ${startYear} \u2013 ${startYear + 1}`
+}
+// END REMOVABLE -- academic term shown on both panels
+
+// BEGIN REMOVABLE -- what the portal covers, as labels on the brand panel
+// Four <span>s. There is nowhere for them to go and nothing for them to
+// do; they name the four things the portal produces and no more.
+const CAPABILITY_PILLS = [
+  'CO attainment',
+  'CO\u2013PO matrix',
+  'Internal marks',
+  'Remedial classes',
+]
+// END REMOVABLE -- what the portal covers, as labels on the brand panel
 
 export default function Login() {
   const { loading, error, data } = useApiData(LOADERS)
@@ -160,6 +183,11 @@ function LoginView({ facultyList = [], authConfig }) {
   const buttonRef = useRef(null)
 
   const selected = facultyList.find((f) => f.id === selectedId) ?? null
+
+  // Read once per render. It is a caption -- see academicTerm.
+  const term = academicTerm()
+
+  const emailDomain = authConfig?.allowedEmailDomain ?? HOSTED_DOMAIN_HINT
 
   // Why Google sign-in may be unavailable, in the order it is worth saying.
   // Each is a different fix, so they are not collapsed into one message.
@@ -283,51 +311,113 @@ function LoginView({ facultyList = [], authConfig }) {
 
   return (
     <div className="auth">
-      {/* ONE card, split by the curve. The curve itself is a clip-path on
-          .auth__brand -- see the long note in Login.css for its geometry
-          and for why no text can end up underneath it. */}
+      {/* TWO PANELS, ONE SCREEN. 54% navy left, 46% white right. The
+          height lock and the vh-clamped measures that keep it to one
+          screen are all in Login.css -- see the header there. */}
       <div className="auth__card">
         {/* ---- Brand panel: what this is, and whose it is ---- */}
         <section className="auth__brand">
-          {/* The texture is a ::before on this section. The content sits in
-              its own wrapper above it -- see .auth__brand-inner. */}
+          {/* BEGIN REMOVABLE -- decorative layers on the brand panel
+              Three inert divs, no image and no request between them:
+              a light bloom, a dot screen, and a stack of three sheets
+              running off the bottom-right corner and cropped by the
+              panel. They sit at z-index -1 so the content above needs
+              no z-index of its own -- which matters, because a
+              stacking context there would break the logo's blend.
+              See the note on .auth__logo in Login.css. */}
+          <div className="auth__bloom" aria-hidden="true" />
+          <div className="auth__grain" aria-hidden="true" />
+          <div className="auth__stack" aria-hidden="true">
+            <div className="auth__sheet" />
+            <div className="auth__sheet" />
+            <div className="auth__sheet">
+              <div className="auth__sheet-bar" />
+              <div className="auth__sheet-bar--short" />
+              <div className="auth__sheet-rules" />
+            </div>
+          </div>
+          {/* END REMOVABLE -- decorative layers on the brand panel */}
+
           <div className="auth__brand-inner">
-            {/* The crest is a full-colour image on white, so it keeps a light
-                plate behind it on the brand ground rather than being knocked
-                out. Explicit width/height reserve the space while it loads. */}
-            <img className="auth__logo" src={bitLogo} width="84" height="84" alt="" />
+            <div className="auth__mark">
+              {/* The crest is the app's one logo file -- a full-colour
+                  image on white -- knocked out to white here with a
+                  filter and a blend mode rather than shipped twice.
+                  The whole of that is in Login.css; read the note on
+                  .auth__logo before changing this element, because the
+                  blend depends on nothing between it and .auth__brand
+                  creating a stacking context.
 
-            {/* HEADING ORDER IS SEMANTIC, NOT VISUAL.
-                The product name is what this page IS, so it is the h1 even
-                though "Welcome Back" is the larger thing on screen. Both keep
-                the classes they had, and those classes set margin, font-size,
-                font-weight, letter-spacing and line-height explicitly -- so
-                the tags change the outline and nothing you can see. Class
-                beats element on specificity, so neither the UA's heading
-                defaults nor the h1/h2 rule in index.css reaches them. */}
-            <h1 className="auth__wordmark">Course File Portal</h1>
+                  It carries the entrance animation ITSELF rather than
+                  inheriting it from .auth__mark, for the same reason.
 
-            <h2 className="auth__welcome">Welcome Back</h2>
+                  Explicit width/height reserve the space while it
+                  loads; the CSS sizes it against vh from there. */}
+              <img
+                className="auth__logo auth__rise"
+                src={bitLogo}
+                width="152"
+                height="152"
+                alt={`${INSTITUTION_NAME} crest`}
+              />
 
-            <p className="auth__tagline">
-              Course outcome attainment, internal marks and the complete course file, in one
-              place.
+              <div className="auth__mark-text auth__rise">
+                {/* HEADING ORDER IS SEMANTIC, NOT VISUAL.
+                    The product name is what this page IS, so it is the
+                    h1 even though the headline below is the larger
+                    thing on screen -- that headline is marketing copy
+                    and is a <p>. Both keep classes that set margin,
+                    font-size, font-weight, letter-spacing and
+                    line-height explicitly, so the tags change the
+                    outline and nothing you can see. Class beats
+                    element on specificity, so neither the UA's heading
+                    defaults nor the h1/h2 rule in index.css reaches
+                    them. */}
+                <h1 className="auth__wordmark">Course File Portal</h1>
+                <p className="auth__mark-sub">{INSTITUTION_NAME}</p>
+              </div>
+            </div>
+
+            <p className="auth__head auth__rise auth__rise--1">
+              Enter marks.
+              <br />
+              See attainment.
+              <br />
+              <span className="auth__head-dim">Print the file.</span>
             </p>
 
-            <hr className="auth__rule" />
+            <hr className="auth__headrule auth__rise auth__rise--2" />
 
-            <p className="auth__brand-footer">{INSTITUTION_NAME}</p>
+            {/* BEGIN REMOVABLE -- term card and capability pills */}
+            <div className="auth__term auth__rise auth__rise--3">
+              <p className="auth__term-title">{term}</p>
+              <p className="auth__term-body">
+                Every sheet of the course file, from the cover page to the closing report,
+                built from the marks you enter.
+              </p>
+            </div>
+
+            <div className="auth__pills auth__rise auth__rise--4">
+              {CAPABILITY_PILLS.map((label) => (
+                <span className="auth__pill" key={label}>
+                  {label}
+                </span>
+              ))}
+            </div>
+            {/* END REMOVABLE -- term card and capability pills */}
           </div>
         </section>
 
         {/* ---- Form panel ---- */}
         <main className="auth__panel">
           <div className="auth__panel-inner">
-            <h2 className="auth__heading">Sign in</h2>
-            <p className="auth__subheading">
-              Use your @{authConfig?.allowedEmailDomain ?? HOSTED_DOMAIN_HINT} account to
-              continue.
-            </p>
+            <span className="auth__term-badge">
+              <span className="auth__term-dot" aria-hidden="true" />
+              {term}
+            </span>
+
+            <h2 className="auth__heading">Welcome back</h2>
+            <p className="auth__subheading">Use your @{emailDomain} account to continue.</p>
 
             {/* Why they were sent back here. Reuses the existing note style. */}
             {sessionNotice && (
@@ -361,11 +451,7 @@ function LoginView({ facultyList = [], authConfig }) {
                 </div>
 
                 <div className="auth__field">
-                  <div className="auth__label-row">
-                    <span className="auth__label">Password</span>
-                    {/* A span, not a button: nothing to focus and nowhere to go. */}
-                    <span className="auth__forgot">Forgot password?</span>
-                  </div>
+                  <span className="auth__label">Password</span>
                   <div className="auth__control">
                     <span className="auth__control-icon">
                       <LockIcon />
@@ -386,24 +472,12 @@ function LoginView({ facultyList = [], authConfig }) {
                     </span>
                   </div>
                 </div>
-
-                <span className="auth__remember">
-                  <input
-                    type="checkbox"
-                    className="auth__checkbox"
-                    defaultChecked={false}
-                    readOnly
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                  <span>Remember me</span>
-                </span>
               </div>
 
               {/* The one live control in the form. It signs nobody in; it says
                   so, and points at the Google button. */}
               <button type="submit" className="auth__submit">
-                Sign In
+                Sign in
               </button>
             </form>
 
@@ -468,7 +542,8 @@ function LoginView({ facultyList = [], authConfig }) {
             )}
 
             <p className="auth__footer">
-              © {new Date().getFullYear()} {INSTITUTION_SHORT}
+              Access is limited to {emailDomain} accounts
+              <br />© {new Date().getFullYear()} {INSTITUTION_SHORT}
             </p>
           </div>
         </main>
