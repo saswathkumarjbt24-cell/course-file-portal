@@ -16,6 +16,9 @@ import Letterhead from '../components/Letterhead'
 // BEGIN REMOVABLE -- the empty-field mark
 import { ABSENT } from '../components/emptyField'
 // END REMOVABLE -- the empty-field mark
+// BEGIN REMOVABLE -- one heading per sheet
+import { sheetHeading } from '../components/sheetHeadings'
+// END REMOVABLE -- one heading per sheet
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -245,7 +248,9 @@ function InternalMarksView({
             part instead. */}
         {!embedded && <Letterhead />}
         {/* END REMOVABLE -- printed letterhead */}
-        <header className="doc-head">
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <header className="doc-head doc-head--no-rule">
+        {/* END REMOVABLE -- one heading per sheet */}
           <h1 className="doc-head__name letterhead-replaced">{institution.name}</h1>
           <p className="doc-head__line">
             {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
@@ -260,7 +265,9 @@ function InternalMarksView({
           </p>
         </header>
 
-        <h2 className="doc-subtitle">INTERNAL MARKS</h2>
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <h2 className="doc-subtitle">{sheetHeading('internal')}</h2>
+        {/* END REMOVABLE -- one heading per sheet */}
 
         {course && (
           <p className="doc-statement">

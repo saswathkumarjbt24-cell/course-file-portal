@@ -20,6 +20,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditReference, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- one heading per sheet
+import { sheetHeading } from '../components/sheetHeadings'
+// END REMOVABLE -- one heading per sheet
 
 const LOADERS = {
   // BEGIN REMOVABLE -- the vision sheet names the course's own department
@@ -293,14 +296,9 @@ function VisionMissionView({
             part instead. */}
         {!embedded && <Letterhead />}
         {/* END REMOVABLE -- printed letterhead */}
-        {/* BEGIN REMOVABLE -- one heading on the vision sheet.
-            Embedded in the Full Course File this sheet sits under the
-            part's own bold heading ("2. Vision & Mission"), so its rule
-            and its VISION AND MISSION title are the SAME heading said
-            twice. Both are withdrawn there and both stay on the
-            standalone page, which has no part heading above it. */}
-        <header className={embedded ? 'doc-head doc-head--no-rule' : 'doc-head'}>
-          {/* END REMOVABLE -- one heading on the vision sheet */}
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <header className="doc-head doc-head--no-rule">
+        {/* END REMOVABLE -- one heading per sheet */}
           <h1 className="doc-head__name letterhead-replaced">{institution.name}</h1>
           <p className="doc-head__line">
             {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
@@ -312,9 +310,9 @@ function VisionMissionView({
           </p>
         </header>
 
-        {/* BEGIN REMOVABLE -- one heading on the vision sheet */}
-        {!embedded && <h2 className="doc-subtitle">VISION AND MISSION</h2>}
-        {/* END REMOVABLE -- one heading on the vision sheet */}
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <h2 className="doc-subtitle">{sheetHeading('vision')}</h2>
+        {/* END REMOVABLE -- one heading per sheet */}
 
         {/* The Full Course File embeds this sheet read-only, so the editors
             appear only on the standalone page. */}

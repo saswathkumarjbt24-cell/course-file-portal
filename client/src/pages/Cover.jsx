@@ -20,6 +20,9 @@ import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // BEGIN REMOVABLE -- the empty-field mark
 import { ABSENT } from '../components/emptyField'
 // END REMOVABLE -- the empty-field mark
+// BEGIN REMOVABLE -- one heading per sheet
+import { sheetHeading } from '../components/sheetHeadings'
+// END REMOVABLE -- one heading per sheet
 
 const LOADERS = {
   courseMeta: fetchCourseMeta,
@@ -184,7 +187,9 @@ function CoverView({ embedded, courseMeta, courses, institution }) {
           <p className="doc-head__line">{institution.accreditation}</p>
         </header>
 
-        <h2 className="doc-title">COURSE FILE</h2>
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <h2 className="doc-title">{sheetHeading('cover')}</h2>
+        {/* END REMOVABLE -- one heading per sheet */}
 
         {/* The Full Course File embeds this sheet read-only. */}
         {!embedded && (

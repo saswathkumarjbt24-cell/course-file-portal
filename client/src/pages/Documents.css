@@ -30,16 +30,18 @@
   margin-bottom: var(--space-5);
 }
 
-/* BEGIN REMOVABLE -- one heading on the vision sheet.
-   The head band carries a rule to separate it from the sheet title below
-   it. Where the sheet has no title of its own -- embedded in the Full
-   Course File, under the part's heading -- the rule separates nothing and
-   reads as a second underline under the same heading. */
+/* BEGIN REMOVABLE -- one heading per sheet.
+   The head band carried a rule under the institution and department lines.
+   It sat between the numbered part title and the sheet's own capitalised
+   heading and was read as the second of two headings, so it goes: the band
+   now runs into the one heading below it. Carried by the five sheets whose
+   band is visible; the cover's band is .letterhead-replaced and was never
+   on the paper at all. */
 .doc-head--no-rule {
   border-bottom: none;
   padding-bottom: 0;
 }
-/* END REMOVABLE -- one heading on the vision sheet */
+/* END REMOVABLE -- one heading per sheet */
 
 .doc-head__name {
   font-size: var(--font-size-xl);

@@ -17,6 +17,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- one heading per sheet
+import { sheetHeading } from '../components/sheetHeadings'
+// END REMOVABLE -- one heading per sheet
 
 const LOADERS = {
   courseStudents: fetchCourseStudents,
@@ -173,7 +176,9 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
             part instead. */}
         {!embedded && <Letterhead />}
         {/* END REMOVABLE -- printed letterhead */}
-        <header className="doc-head">
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <header className="doc-head doc-head--no-rule">
+        {/* END REMOVABLE -- one heading per sheet */}
           <h1 className="doc-head__name letterhead-replaced">{institution.name}</h1>
           <p className="doc-head__line">
             {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
@@ -188,7 +193,9 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
           </p>
         </header>
 
-        <h2 className="doc-subtitle">STUDENT NAME LIST</h2>
+        {/* BEGIN REMOVABLE -- one heading per sheet */}
+        <h2 className="doc-subtitle">{sheetHeading('students')}</h2>
+        {/* END REMOVABLE -- one heading per sheet */}
 
         {course && (
           <p className="doc-statement">

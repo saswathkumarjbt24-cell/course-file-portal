@@ -180,9 +180,15 @@ function Part({ number, title, children }) {
           The six embedded sheets suppress their own. Print-only. */}
       <Letterhead />
       {/* END REMOVABLE -- printed letterhead */}
-      <h2 className="doc-part__title">
-        {number}. {title}
-      </h2>
+      {/* BEGIN REMOVABLE -- one heading per sheet. A part whose sheet
+          prints its own numbered heading passes no title, and this renders
+          nothing rather than saying the same thing again above it. */}
+      {title && (
+        <h2 className="doc-part__title">
+          {number}. {title}
+        </h2>
+      )}
+      {/* END REMOVABLE -- one heading per sheet */}
       {children}
     </section>
   )
@@ -1366,15 +1372,24 @@ function FullCourseFileView() {
         </span>
       </div>
 
-      <Part number={1} title="Cover">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <Cover embedded />
       </Part>
 
-      <Part number={2} title="Vision & Mission">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <VisionMission embedded />
       </Part>
 
-      <Part number={3} title="PEO / PO / PSO">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <Outcomes embedded />
       </Part>
 
@@ -1382,7 +1397,10 @@ function FullCourseFileView() {
         <SetupSection course={course} nature={nature} />
       </Part>
 
-      <Part number={5} title="Student name list">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <NameList embedded />
       </Part>
 
@@ -1420,11 +1438,17 @@ function FullCourseFileView() {
         <MarkSheetSection courseId={courseId} kind="OT" />
       </Part>
 
-      <Part number={14} title="Attendance">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <Attendance embedded />
       </Part>
 
-      <Part number={15} title="Internal marks">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <InternalMarks embedded />
       </Part>
 
