@@ -28,6 +28,9 @@ import {
   fetchStudents,
 } from '../data/api'
 import { coMarksToShow } from '../data/coMarks'
+// BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+import { buildOutcomeColumns } from '../data/outcomeColumns'
+// END REMOVABLE -- PSO columns survive a missing PSO statement
 // BEGIN REMOVABLE -- stored remedial register
 import { afterMarkPrintValue, attendanceCellValue } from '../data/remedialCells'
 // END REMOVABLE -- stored remedial register
@@ -205,14 +208,18 @@ function Signatures({ blocks = ['Course Faculty', 'HOD'] }) {
 function SetupSection({ course, nature }) {
   const D = useFileData()
   const coNumbers = Array.from({ length: course.coCount }, (_, i) => i + 1)
-  const columns = [
-    ...D.programOutcomes.map((o) => ({ ...o, type: 'PO' })),
-    ...D.programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
-  ]
+  // BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+  const courseMatrixRows = D.coPoMatrix.filter((row) => row.courseId === course.id)
+  const columns = buildOutcomeColumns({
+    programOutcomes: D.programOutcomes,
+    programSpecificOutcomes: D.programSpecificOutcomes,
+    matrixRows: courseMatrixRows,
+    department: course.department,
+  })
+  // END REMOVABLE -- PSO columns survive a missing PSO statement
 
   const matrix = {}
-  for (const row of D.coPoMatrix) {
-    if (row.courseId !== course.id) continue
+  for (const row of courseMatrixRows) {
     if (!matrix[row.outcomeCode]) matrix[row.outcomeCode] = {}
     matrix[row.outcomeCode][row.coNumber] = row.value
   }
@@ -974,10 +981,14 @@ function FinalSection({ course, nature, targetPercent }) {
   const D = useFileData()
   const coNumbers = Array.from({ length: course.coCount }, (_, i) => i + 1)
   const weights = componentWeights(nature)
-  const columns = [
-    ...D.programOutcomes.map((o) => ({ ...o, type: 'PO' })),
-    ...D.programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
-  ]
+  // BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+  const columns = buildOutcomeColumns({
+    programOutcomes: D.programOutcomes,
+    programSpecificOutcomes: D.programSpecificOutcomes,
+    matrixRows: D.coPoMatrix.filter((row) => row.courseId === course.id),
+    department: course.department,
+  })
+  // END REMOVABLE -- PSO columns survive a missing PSO statement
 
   const levelsByKind = {}
   for (const kind of [...CIE_COMPONENTS, 'SEE']) {

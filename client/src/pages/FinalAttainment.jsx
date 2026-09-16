@@ -20,6 +20,9 @@ import {
 } from '../data/api'
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
+// BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+import { buildOutcomeColumns } from '../data/outcomeColumns'
+// END REMOVABLE -- PSO columns survive a missing PSO statement
 import {
   assessmentCoLevels,
   cieLevel,
@@ -133,13 +136,22 @@ function FinalAttainmentView({
 
   const coNumbers = useMemo(() => Array.from({ length: coCount }, (_, i) => i + 1), [coCount])
 
-  const outcomeColumns = useMemo(
-    () => [
-      ...programOutcomes.map((o) => ({ ...o, type: 'PO' })),
-      ...programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
-    ],
-    [programOutcomes, programSpecificOutcomes],
+  // BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+  const courseMatrixRows = useMemo(
+    () => coPoMatrix.filter((row) => row.courseId === courseId),
+    [coPoMatrix, courseId],
   )
+  const outcomeColumns = useMemo(
+    () =>
+      buildOutcomeColumns({
+        programOutcomes,
+        programSpecificOutcomes,
+        matrixRows: courseMatrixRows,
+        department: course ? course.department : null,
+      }),
+    [programOutcomes, programSpecificOutcomes, courseMatrixRows, course],
+  )
+  // END REMOVABLE -- PSO columns survive a missing PSO statement
 
   const weights = useMemo(() => componentWeights(nature), [nature])
 

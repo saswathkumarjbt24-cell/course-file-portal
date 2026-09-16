@@ -12,6 +12,9 @@ import {
 } from '../data/api'
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
+// BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+import { buildOutcomeColumns } from '../data/outcomeColumns'
+// END REMOVABLE -- PSO columns survive a missing PSO statement
 import './CourseDetail.css'
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
@@ -88,13 +91,25 @@ function CourseDetailView({
   )
 
   // PO1..PO12 then PSO1..PSO3 - 15 columns.
-  const outcomeColumns = useMemo(
-    () => [
-      ...programOutcomes.map((o) => ({ ...o, type: 'PO' })),
-      ...programSpecificOutcomes.map((o) => ({ ...o, type: 'PSO' })),
-    ],
-    [programOutcomes, programSpecificOutcomes],
+  // BEGIN REMOVABLE -- PSO columns survive a missing PSO statement
+  // The PSO half is the union of the catalogue and the codes this course is
+  // already mapped to, so a PSO whose statement has not been entered still
+  // gets its column instead of hiding stored correlations.
+  const courseMatrixRows = useMemo(
+    () => coPoMatrix.filter((row) => row.courseId === courseId),
+    [coPoMatrix, courseId],
   )
+  const outcomeColumns = useMemo(
+    () =>
+      buildOutcomeColumns({
+        programOutcomes,
+        programSpecificOutcomes,
+        matrixRows: courseMatrixRows,
+        department: course ? course.department : null,
+      }),
+    [programOutcomes, programSpecificOutcomes, courseMatrixRows, course],
+  )
+  // END REMOVABLE -- PSO columns survive a missing PSO statement
 
   const [statements, setStatements] = useState(() =>
     seedStatements(courseOutcomes, courseId, coCount),
