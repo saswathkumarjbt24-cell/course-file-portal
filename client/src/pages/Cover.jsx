@@ -17,6 +17,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const LOADERS = {
   courseMeta: fetchCourseMeta,
@@ -78,7 +81,7 @@ function seedForm(meta) {
 /** A recorded value, or a muted placeholder. Never an empty cell. */
 function Value({ value }) {
   if (value === null || value === undefined || value === '') {
-    return <span className="doc-value--muted">Not recorded</span>
+    return <span className="doc-value--muted">{ABSENT}</span>
   }
   return <>{value}</>
 }

@@ -23,6 +23,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseOutcomes, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const MATRIX_VALUES = ['1', '2', '3']
 
@@ -260,7 +263,7 @@ function CourseDetailView({
           </div>
           <div className="cd-details__item">
             <dt className="cd-details__term">Nature</dt>
-            <dd className="cd-details__value">{nature ? nature.name : 'Unknown'}</dd>
+            <dd className="cd-details__value">{nature ? nature.name : ABSENT}</dd>
           </div>
           <div className="cd-details__item">
             <dt className="cd-details__term">Department</dt>
@@ -268,7 +271,7 @@ function CourseDetailView({
           </div>
           <div className="cd-details__item">
             <dt className="cd-details__term">Regulation year</dt>
-            <dd className="cd-details__value">{course.regulationYear ?? '—'}</dd>
+            <dd className="cd-details__value">{course.regulationYear ?? ABSENT}</dd>
           </div>
           <div className="cd-details__item">
             <dt className="cd-details__term">CO count</dt>
@@ -292,7 +295,7 @@ function CourseDetailView({
                     : 'cd-details__value'
                 }
               >
-                {item.value === null ? 'Not stated' : item.value}
+                {item.value === null ? ABSENT : item.value}
               </dd>
             </div>
           ))}
@@ -404,7 +407,7 @@ function CourseDetailView({
                             setMatrix((prev) => ({ ...prev, [key]: event.target.value }))
                           }
                         >
-                          <option value="">—</option>
+                          <option value="">{ABSENT}</option>
                           {MATRIX_VALUES.map((v) => (
                             <option key={v} value={v}>
                               {v}

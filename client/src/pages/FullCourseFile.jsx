@@ -65,6 +65,9 @@ import './RemedialAnswerKey.css'
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
 // END REMOVABLE -- printed letterhead
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const NOT_CONDUCTED = 'Not conducted / no marks entered'
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
@@ -159,13 +162,13 @@ function hasMarks(rows) {
 }
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return ABSENT
   const [year, month, day] = iso.split('-')
   return `${day}-${month}-${year}`
 }
 
 function num(value, digits = 2) {
-  return value === null || value === undefined ? '—' : value.toFixed(digits)
+  return value === null || value === undefined ? ABSENT : value.toFixed(digits)
 }
 
 function Part({ number, title, children }) {
@@ -237,29 +240,29 @@ function SetupSection({ course, nature }) {
             </tr>
             <tr>
               <th>Nature</th>
-              <td>{nature ? nature.name : 'Unknown'}</td>
+              <td>{nature ? nature.name : ABSENT}</td>
               <th>Department</th>
               <td>{course.department}</td>
             </tr>
             <tr>
               <th>Regulation</th>
-              <td>{course.regulationYear ?? '—'}</td>
+              <td>{course.regulationYear ?? ABSENT}</td>
               <th>CO target</th>
               <td>{course.coTargetPercent.toFixed(2)}%</td>
             </tr>
             <tr>
               <th>PT1 / PT2 max</th>
               <td>
-                {nature && nature.pt1Max !== null ? `${nature.pt1Max} / ${nature.pt2Max}` : '—'}
+                {nature && nature.pt1Max !== null ? `${nature.pt1Max} / ${nature.pt2Max}` : ABSENT}
               </td>
               <th>IP max</th>
-              <td>{nature && nature.ipMax !== null ? nature.ipMax : '—'}</td>
+              <td>{nature && nature.ipMax !== null ? nature.ipMax : ABSENT}</td>
             </tr>
             <tr>
               <th>INT total</th>
-              <td>{nature && nature.intTotal !== null ? nature.intTotal : '—'}</td>
+              <td>{nature && nature.intTotal !== null ? nature.intTotal : ABSENT}</td>
               <th>SEE total</th>
-              <td>{nature && nature.seeTotal !== null ? nature.seeTotal : '—'}</td>
+              <td>{nature && nature.seeTotal !== null ? nature.seeTotal : ABSENT}</td>
             </tr>
           </tbody>
         </table>
@@ -275,7 +278,7 @@ function SetupSection({ course, nature }) {
             <li className="doc-list__item" key={co}>
               <span className="doc-list__code">CO{co}</span>
               <span className="doc-list__text">
-                {outcome ? outcome.statement : <em>Statement not recorded</em>}
+                {outcome ? outcome.statement : ABSENT}
               </span>
             </li>
           )
@@ -350,7 +353,7 @@ function MarkSheetSection({ courseId, kind }) {
             <tr>
               <th className="doc-table__num">S.No</th>
               <th>Roll Number</th>
-              <th>Name</th>
+              <th className="doc-table__name">Name</th>
               <th>Total ({assessment.maxTotal})</th>
               {allocation.map((a) => (
                 <th key={a.coNumber}>
@@ -364,7 +367,7 @@ function MarkSheetSection({ courseId, kind }) {
               <tr key={row.student.id}>
                 <td className="doc-table__num">{index + 1}</td>
                 <td className="doc-table__reg">{row.student.regNumber}</td>
-                <td>{row.student.name}</td>
+                <td className="doc-table__name">{row.student.name}</td>
                 <td className="doc-table__value">
                   {row.excluded ? (
                     <span className="doc-table__missing">
@@ -440,7 +443,7 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
             <tr>
               <th className="doc-table__num">S.No</th>
               <th>Roll Number</th>
-              <th>Name</th>
+              <th className="doc-table__name">Name</th>
               {allocation.map((a) => (
                 <th key={a.coNumber}>CO{a.coNumber}</th>
               ))}
@@ -454,7 +457,7 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
               <tr key={row.student.id}>
                 <td className="doc-table__num">{index + 1}</td>
                 <td className="doc-table__reg">{row.student.regNumber}</td>
-                <td>{row.student.name}</td>
+                <td className="doc-table__name">{row.student.name}</td>
                 {row.excluded ? (
                   <td className="doc-table__missing" colSpan={allocation.length * 2}>
                     {row.reason} — excluded from attainment
@@ -467,7 +470,7 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
                       return (
                         <td key={a.coNumber} className="doc-table__value">
                           {obtained === null || obtained === undefined
-                            ? '—'
+                            ? ABSENT
                             : `${obtained}/${a.marksAllocated} (${percent.toFixed(1)}%)`}
                         </td>
                       )
@@ -508,7 +511,7 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
                 <td className="doc-table__value">{co.marksAllocated}</td>
                 <td className="doc-table__value">{co.achieved}</td>
                 <td className="doc-table__value">{num(co.percent)}%</td>
-                <td className="doc-table__center">{co.level ?? '—'}</td>
+                <td className="doc-table__center">{co.level ?? ABSENT}</td>
                 <td className="doc-table__value">{co.remedial}</td>
               </tr>
             ))}
@@ -573,10 +576,10 @@ function QuestionPapers({ course, kind }) {
               <tbody>
                 <tr>
                   <th>Academic year</th>
-                  <td>{meta?.academicYear ?? '—'}</td>
+                  <td>{meta?.academicYear ?? ABSENT}</td>
                   <th>Year &amp; semester</th>
                   <td>
-                    {meta?.yearOfStudy ?? '—'} / {meta?.semester ?? '—'}
+                    {meta?.yearOfStudy ?? ABSENT} / {meta?.semester ?? ABSENT}
                   </td>
                 </tr>
                 <tr>
@@ -586,7 +589,7 @@ function QuestionPapers({ course, kind }) {
                   </td>
                   <th>Maximum marks</th>
                   <td>
-                    {paper.totalMarks === null ? '—' : paper.totalMarks}
+                    {paper.totalMarks === null ? ABSENT : paper.totalMarks}
                     {paper.durationMinutes === null
                       ? ''
                       : ` / ${paper.durationMinutes} minutes`}
@@ -650,10 +653,10 @@ function QuestionPapers({ course, kind }) {
                   <tbody>
                     <tr>
                       <th>Academic year</th>
-                      <td>{meta?.academicYear ?? '—'}</td>
+                      <td>{meta?.academicYear ?? ABSENT}</td>
                       <th>Year &amp; semester</th>
                       <td>
-                        {meta?.yearOfStudy ?? '—'} / {meta?.semester ?? '—'}
+                        {meta?.yearOfStudy ?? ABSENT} / {meta?.semester ?? ABSENT}
                       </td>
                     </tr>
                     <tr>
@@ -663,7 +666,7 @@ function QuestionPapers({ course, kind }) {
                       </td>
                       <th>Maximum marks</th>
                       <td>
-                        {paper.totalMarks === null ? '—' : paper.totalMarks}
+                        {paper.totalMarks === null ? ABSENT : paper.totalMarks}
                         {paper.durationMinutes === null
                           ? ''
                           : ` / ${paper.durationMinutes} minutes`}
@@ -787,7 +790,7 @@ function RemedialSection({ course, kind, targetPercent }) {
                 <tr>
                   <th className="doc-table__num">S.No</th>
                   <th>Roll Number</th>
-                  <th>Name</th>
+                  <th className="doc-table__name">Name</th>
                   {allocation.map((a) => (
                     <th key={a.coNumber}>CO{a.coNumber}</th>
                   ))}
@@ -798,7 +801,7 @@ function RemedialSection({ course, kind, targetPercent }) {
                   <tr key={row.student.id}>
                     <td className="doc-table__num">{index + 1}</td>
                     <td className="doc-table__reg">{row.student.regNumber}</td>
-                    <td>{row.student.name}</td>
+                    <td className="doc-table__name">{row.student.name}</td>
                     {allocation.map((a) => (
                       <td key={a.coNumber} className="doc-table__center">
                         {row.cos[a.coNumber].remedial ? 'Yes' : 'No'}
@@ -866,7 +869,7 @@ function RemedialSection({ course, kind, targetPercent }) {
               <tr>
                 <th className="doc-table__num">S.No</th>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th className="doc-table__name">Name</th>
                 {classes.map((cls) => (
                   <th key={cls.coNumber}>
                     CO{cls.coNumber} — {formatDate(cls.date)}
@@ -879,7 +882,7 @@ function RemedialSection({ course, kind, targetPercent }) {
                 <tr key={row.student.id}>
                   <td className="doc-table__num">{index + 1}</td>
                   <td className="doc-table__reg">{row.student.regNumber}</td>
-                  <td>{row.student.name}</td>
+                  <td className="doc-table__name">{row.student.name}</td>
                   {classes.map((cls) => (
                     <td key={cls.coNumber} className="doc-table__center">
                       {/* BEGIN REMOVABLE -- stored remedial register.
@@ -912,7 +915,7 @@ function RemedialSection({ course, kind, targetPercent }) {
               <tr>
                 <th className="doc-table__num">S.No</th>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th className="doc-table__name">Name</th>
                 {allocation.map((a) => [
                   <th key={`o-${a.coNumber}`}>CO{a.coNumber} original</th>,
                   <th key={`a-${a.coNumber}`}>CO{a.coNumber} after remedial</th>,
@@ -924,16 +927,16 @@ function RemedialSection({ course, kind, targetPercent }) {
                 <tr key={row.student.id}>
                   <td className="doc-table__num">{index + 1}</td>
                   <td className="doc-table__reg">{row.student.regNumber}</td>
-                  <td>{row.student.name}</td>
+                  <td className="doc-table__name">{row.student.name}</td>
                   {allocation.map((a) => {
                     const co = row.cos[a.coNumber]
                     if (!co.remedial) {
                       return [
                         <td key={`o-${a.coNumber}`} className="doc-table__center doc-table__missing">
-                          --
+                          {ABSENT}
                         </td>,
                         <td key={`a-${a.coNumber}`} className="doc-table__center doc-table__missing">
-                          --
+                          {ABSENT}
                         </td>,
                       ]
                     }
@@ -1055,7 +1058,7 @@ function FinalSection({ course, nature, targetPercent }) {
               <tr key={kind}>
                 <th scope="row">{kind}</th>
                 <td className="doc-table__value">
-                  {weights[kind] === null ? '—' : weights[kind].toFixed(2)}
+                  {weights[kind] === null ? ABSENT : weights[kind].toFixed(2)}
                 </td>
                 {coNumbers.map((co) => (
                   <td key={co} className="doc-table__value">
@@ -1066,7 +1069,7 @@ function FinalSection({ course, nature, targetPercent }) {
             ))}
             <tr>
               <th scope="row">CIE</th>
-              <td className="doc-table__value">—</td>
+              <td className="doc-table__value">{ABSENT}</td>
               {coNumbers.map((co) => (
                 <td key={co} className="doc-table__value">
                   {num(perCo[co].cie)}
@@ -1075,7 +1078,7 @@ function FinalSection({ course, nature, targetPercent }) {
             </tr>
             <tr>
               <th scope="row">SEE</th>
-              <td className="doc-table__value">—</td>
+              <td className="doc-table__value">{ABSENT}</td>
               {coNumbers.map((co) => (
                 <td key={co} className="doc-table__value">
                   {num(perCo[co].see)}
@@ -1087,7 +1090,7 @@ function FinalSection({ course, nature, targetPercent }) {
                 CO attainment ({(D.attainmentConstants.cieWeight * 100).toFixed(0)}% CIE +{' '}
                 {(D.attainmentConstants.seeWeight * 100).toFixed(0)}% SEE)
               </th>
-              <td className="doc-table__value">—</td>
+              <td className="doc-table__value">{ABSENT}</td>
               {coNumbers.map((co) => (
                 <td key={co} className="doc-table__value">
                   {num(perCo[co].direct)}
@@ -1169,7 +1172,11 @@ function FinalSection({ course, nature, targetPercent }) {
         (d) PO / PSO attainment
       </h3>
       <div className="doc-table-wrap">
-        <table className="doc-table doc-table--matrix">
+        {/* BEGIN REMOVABLE -- headroom for the PO / PSO attainment table.
+            The same table as section 4 of the Final Attainment sheet, and
+            it takes the same 1px side padding on paper. */}
+        <table className="doc-table doc-table--matrix doc-table--outcome-levels">
+          {/* END REMOVABLE -- headroom for the PO / PSO attainment table */}
           <thead>
             <tr>
               <th>CO</th>
@@ -1198,7 +1205,7 @@ function FinalSection({ course, nature, targetPercent }) {
             ))}
             <tr className="doc-row--total">
               <th scope="row">Overall PO / PSO level</th>
-              <td className="doc-table__value">—</td>
+              <td className="doc-table__value">{ABSENT}</td>
               {columns.map((col) => {
                 const value = overallOutcomeLevel(finalLevels, matrix[col.code] ?? {})
                 return (

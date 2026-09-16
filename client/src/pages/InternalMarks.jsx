@@ -13,6 +13,9 @@ import './Documents.css'
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
 // END REMOVABLE -- printed letterhead
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -272,7 +275,7 @@ function InternalMarksView({
               <tr>
                 <th className="doc-table__num">S.No</th>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th className="doc-table__name">Name</th>
                 <th>{header('PT1', scaleMax.pt1)}</th>
                 <th>{header('PT2', scaleMax.pt2)}</th>
                 <th>{header('Optional Test', scaleMax.pt1)}</th>
@@ -285,7 +288,7 @@ function InternalMarksView({
                 <tr key={row.student.id}>
                   <td className="doc-table__num">{index + 1}</td>
                   <td className="doc-table__reg">{row.student.regNumber}</td>
-                  <td>{row.student.name}</td>
+                  <td className="doc-table__name">{row.student.name}</td>
                   <td className="doc-table__value">{markCell(row.pt1)}</td>
                   <td className="doc-table__value">{markCell(row.pt2)}</td>
                   <td className="doc-table__value">{markCell(row.ot)}</td>
@@ -316,7 +319,7 @@ function InternalMarksView({
 
         <p className="doc-footnote">
           INT = round(PT1 + PT2 + IP), each periodical test scaled as mark ×{' '}
-          {scaleMax.pt1 ?? '—'} / 50; where a student was absent for a periodical test and sat the
+          {scaleMax.pt1 ?? ABSENT} / 50; where a student was absent for a periodical test and sat the
           Optional Test, the Optional Test mark substitutes for that one test and the cell is
           marked &quot;(OT)&quot;. One optional test replaces at most one absent periodical test.
           This rule is derived from the source workbook&apos;s own data, not from documented

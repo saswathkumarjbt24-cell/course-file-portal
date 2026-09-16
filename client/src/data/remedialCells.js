@@ -18,8 +18,16 @@
 // the component's state, so the rule can be tested without a browser.
 // ---------------------------------------------------------------
 
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
+
 /** The UI's blank option. NOT a status: it is how 'NA' is drawn. */
-export const NOT_RECORDED = '--'
+// BEGIN REMOVABLE -- the empty-field mark. Was '--'; the department reads a
+// double hyphen as a typo and asked for the single one every other empty
+// field on the sheet now carries.
+export const NOT_RECORDED = ABSENT
+// END REMOVABLE -- the empty-field mark
 
 /**
  * The attendance a cell shows.

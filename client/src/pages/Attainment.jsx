@@ -24,6 +24,9 @@ import './Attainment.css'
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
 // END REMOVABLE -- printed letterhead
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -37,12 +40,12 @@ const LOADERS = {
 }
 
 function formatPercent(value, digits = 2) {
-  return value === null ? '—' : `${value.toFixed(digits)}%`
+  return value === null ? ABSENT : `${value.toFixed(digits)}%`
 }
 
 function levelBadge(level) {
   const className = level === null ? 'att-badge att-badge--none' : `att-badge att-badge--${level}`
-  return <span className={className}>{level === null ? '—' : level}</span>
+  return <span className={className}>{level === null ? ABSENT : level}</span>
 }
 
 export default function Attainment() {
@@ -299,7 +302,7 @@ function AttainmentView({
                           S.No
                         </th>
                         <th rowSpan={2}>Reg No</th>
-                        <th rowSpan={2}>Name</th>
+                        <th rowSpan={2} className="att-table__name">Name</th>
                         <th className="att-table__group" colSpan={allocation.length}>
                           Marks obtained / allocated
                         </th>
@@ -328,7 +331,7 @@ function AttainmentView({
                         >
                           <td className="att-table__num">{index + 1}</td>
                           <td className="att-table__reg">{row.student.regNumber}</td>
-                          <td>{row.student.name}</td>
+                          <td className="att-table__name">{row.student.name}</td>
 
                           {row.excluded ? (
                             <td
@@ -345,7 +348,7 @@ function AttainmentView({
                                 return (
                                   <td key={`m-${alloc.coNumber}`} className="att-table__co">
                                     {obtained === null || obtained === undefined
-                                      ? '—'
+                                      ? ABSENT
                                       : `${obtained} / ${alloc.marksAllocated}`}
                                     <span className="att-table__co-percent">
                                       {formatPercent(percent, 1)}

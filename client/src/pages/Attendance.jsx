@@ -18,6 +18,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // Institutional minimum attendance for exam eligibility.
 const MINIMUM_PERCENT = 75
@@ -256,7 +259,7 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
               <tr>
                 <th className="doc-table__num">S.No</th>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th className="doc-table__name">Name</th>
                 <th>Attendance %</th>
               </tr>
             </thead>
@@ -266,7 +269,7 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
                   row.percentage !== null && row.percentage < MINIMUM_PERCENT
                 const error = errors[row.student.id] ?? serverIssues[row.student.id]
                 const display =
-                  row.raw === '' ? 'Not recorded' : `${row.raw}%`
+                  row.raw === '' ? ABSENT : `${row.raw}%`
                 const valueClass =
                   row.raw === ''
                     ? 'doc-table__value doc-table__missing'
@@ -278,7 +281,7 @@ function AttendanceView({ embedded, attendance, courseStudents, courses, institu
                   <tr key={row.student.id}>
                     <td className="doc-table__num">{index + 1}</td>
                     <td className="doc-table__reg">{row.student.regNumber}</td>
-                    <td>{row.student.name}</td>
+                    <td className="doc-table__name">{row.student.name}</td>
                     <td className={valueClass}>
                       {editing && !embedded ? (
                         <>

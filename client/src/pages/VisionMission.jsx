@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
+// BEGIN REMOVABLE -- the vision sheet names the course's own department
+import { useParams } from 'react-router-dom'
+// END REMOVABLE -- the vision sheet names the course's own department
 import {
-  fetchDepartmentVisionMission,
+  fetchCourses,
+  fetchDepartmentVisionMissions,
   fetchInstitution,
   fetchInstitutionVisionMission,
   isApiMode,
@@ -18,10 +22,42 @@ import { canEditReference, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
 
 const LOADERS = {
-  departmentVisionMission: fetchDepartmentVisionMission,
+  // BEGIN REMOVABLE -- the vision sheet names the course's own department
+  courses: fetchCourses,
+  departmentVisionMissions: fetchDepartmentVisionMissions,
+  // END REMOVABLE -- the vision sheet names the course's own department
   institution: fetchInstitution,
   institutionVisionMission: fetchInstitutionVisionMission,
 }
+
+// BEGIN REMOVABLE -- the vision sheet names the course's own department
+/**
+ * The vision and missions of the department that OWNS this course.
+ *
+ * The sheet used to take the first department-scope row in the table,
+ * whatever department it belonged to. That was invisible while only one
+ * department had a row and wrong the moment a second one did. It is also
+ * why the printed sheet once read "Department of" with nothing after it:
+ * migration 014 deleted every department row and nothing replaced it until
+ * migration 025, so there was no first row to take and the name was ''.
+ *
+ * A course whose department has no row still names its department -- the
+ * heading comes from the COURSE, not from the vision_missions row -- and
+ * the statements come back empty rather than borrowed from another
+ * department, which is the honest answer and the one an HOD can act on.
+ */
+const NO_DEPARTMENT_VM = { vision: '', missions: [] }
+
+function forCourse(departmentVisionMissions, course) {
+  const department = course ? course.department : null
+  const row = departmentVisionMissions.find((r) => r.department === department)
+  return {
+    department: department ?? '',
+    vision: (row ?? NO_DEPARTMENT_VM).vision,
+    missions: (row ?? NO_DEPARTMENT_VM).missions,
+  }
+}
+// END REMOVABLE -- the vision sheet names the course's own department
 
 function MissionList({ missions }) {
   return (
@@ -231,10 +267,16 @@ export default function VisionMission({ embedded = false }) {
 
 function VisionMissionView({
   embedded,
-  departmentVisionMission,
+  courses,
+  departmentVisionMissions,
   institution,
   institutionVisionMission,
 }) {
+  // BEGIN REMOVABLE -- the vision sheet names the course's own department
+  const { id } = useParams()
+  const course = courses.find((c) => c.id === Number(id))
+  const departmentVisionMission = forCourse(departmentVisionMissions, course)
+  // END REMOVABLE -- the vision sheet names the course's own department
   return (
     <section className="doc-card">
       {!embedded && (
@@ -251,7 +293,14 @@ function VisionMissionView({
             part instead. */}
         {!embedded && <Letterhead />}
         {/* END REMOVABLE -- printed letterhead */}
-        <header className="doc-head">
+        {/* BEGIN REMOVABLE -- one heading on the vision sheet.
+            Embedded in the Full Course File this sheet sits under the
+            part's own bold heading ("2. Vision & Mission"), so its rule
+            and its VISION AND MISSION title are the SAME heading said
+            twice. Both are withdrawn there and both stay on the
+            standalone page, which has no part heading above it. */}
+        <header className={embedded ? 'doc-head doc-head--no-rule' : 'doc-head'}>
+          {/* END REMOVABLE -- one heading on the vision sheet */}
           <h1 className="doc-head__name letterhead-replaced">{institution.name}</h1>
           <p className="doc-head__line">
             {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
@@ -263,7 +312,9 @@ function VisionMissionView({
           </p>
         </header>
 
-        <h2 className="doc-subtitle">VISION AND MISSION</h2>
+        {/* BEGIN REMOVABLE -- one heading on the vision sheet */}
+        {!embedded && <h2 className="doc-subtitle">VISION AND MISSION</h2>}
+        {/* END REMOVABLE -- one heading on the vision sheet */}
 
         {/* The Full Course File embeds this sheet read-only, so the editors
             appear only on the standalone page. */}

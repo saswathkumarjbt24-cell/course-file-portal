@@ -37,12 +37,15 @@ import {
 import { useSession } from '../context/sessionStore'
 import './RiskReport.css'
 import './Users.css'
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // Module level, not rebuilt per render: it is useApiData's effect dependency.
 const LOADERS = { activity: fetchActivity }
 
 /** A value the database has not recorded. A blank cell reads as a fault. */
-function absent(text) {
+function absent(text = ABSENT) {
   return <span className="risk-table__muted">{text}</span>
 }
 
@@ -134,7 +137,7 @@ function ActivityView({ signIns, neverSignedIn }) {
                   <tr key={row.id}>
                     <td>{row.name}</td>
                     <td className="risk-table__muted">{row.email}</td>
-                    <td>{row.department ?? absent('Not recorded')}</td>
+                    <td>{row.department ?? absent()}</td>
                     <td>
                       <span
                         className={
@@ -153,7 +156,7 @@ function ActivityView({ signIns, neverSignedIn }) {
                     <td>{row.firstSeen}</td>
                     <td>{row.lastSeen}</td>
                     <td>
-                      {row.lastIp ?? absent('Not known')}
+                      {row.lastIp ?? absent()}
                     </td>
                   </tr>
                 ))}
@@ -164,8 +167,9 @@ function ActivityView({ signIns, neverSignedIn }) {
 
         <p className="risk-section__note" style={{ marginTop: 'var(--space-3)' }}>
           An address is recorded only when the request carried a forwarded
-          client address. Behind a proxy it often cannot be, and “Not known”
-          means exactly that — never that the sign-in came from the server.
+          client address. Behind a proxy it often cannot be, and a dash in that
+          column means exactly that — never that the sign-in came from the
+          server.
         </p>
       </section>
 
@@ -203,7 +207,7 @@ function ActivityView({ signIns, neverSignedIn }) {
                   <tr key={row.id}>
                     <td>{row.name}</td>
                     <td className="risk-table__muted">{row.email}</td>
-                    <td>{row.department ?? absent('Not recorded')}</td>
+                    <td>{row.department ?? absent()}</td>
                   </tr>
                 ))}
               </tbody>

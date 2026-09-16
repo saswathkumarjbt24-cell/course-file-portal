@@ -9,6 +9,9 @@ import {
 import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import { bandFor, isLowInternalMark, marksBelowThreshold } from '../utils/internalMarks'
 import './RiskReport.css'
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const LOADERS = {
   courseNatures: fetchCourseNatures,
@@ -203,7 +206,7 @@ function ReportsView({ courseNatures, courses, internalMarks, students }) {
                     <Link to={`/course/${row.course.id}`}>{row.course.code}</Link>
                   </td>
                   <td>{row.course.title}</td>
-                  <td className="risk-table__muted">{row.nature ? row.nature.name : 'Unknown'}</td>
+                  <td className="risk-table__muted">{row.nature ? row.nature.name : ABSENT}</td>
                   <td className="risk-table__value">{row.studentCount}</td>
                   <td className="risk-table__value">{row.lowCount}</td>
                   <td className="risk-table__value">{row.enoughCount}</td>
@@ -267,7 +270,7 @@ function ReportsView({ courseNatures, courses, internalMarks, students }) {
             <thead>
               <tr>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th className="risk-table__name">Name</th>
                 <th>Course</th>
                 <th className="risk-table__value">Internal mark</th>
                 <th className="risk-table__value">Threshold</th>
@@ -287,13 +290,13 @@ function ReportsView({ courseNatures, courses, internalMarks, students }) {
                   .sort((a, b) => a.shortfall - b.shortfall)
                   .map((r) => (
                     <tr key={`${r.studentId}-${r.courseId}`}>
-                      <td>{r.student ? r.student.regNumber : '—'}</td>
-                      <td>{r.student ? r.student.name : '—'}</td>
+                      <td>{r.student ? r.student.regNumber : ABSENT}</td>
+                      <td className="risk-table__name">{r.student ? r.student.name : ABSENT}</td>
                       <td>
                         {r.course ? (
                           <Link to={`/course/${r.course.id}`}>{r.course.code}</Link>
                         ) : (
-                          '—'
+                          ABSENT
                         )}
                       </td>
                       <td className="risk-table__value">{r.total}</td>

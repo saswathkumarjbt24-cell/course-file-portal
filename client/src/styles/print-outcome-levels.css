@@ -1,0 +1,56 @@
+/* BEGIN REMOVABLE -- headroom for the PO / PSO attainment table */
+
+/* ---------------------------------------------------------------
+   THE WIDEST TABLE IN THE COURSE FILE, AND THE ONE WITH NO MARGIN.
+
+   "PO / PSO attainment" is the articulation matrix plus a "Final
+   level" column: 17 columns against a 190.5mm printable page.
+
+   MEASURED AT 12pt, ON THE PAGE, BEFORE THIS FILE:
+     natural width (nothing wraps)   230.3mm
+     narrowest it can be              189.4mm
+     margin against 190.5mm             1.1mm
+   It fits only because "Overall PO / PSO level" wraps onto two
+   lines, and 1.1mm is not a margin -- a fourth PSO (+12.4mm) or a
+   slightly longer row label pushes it past the page, and Chrome
+   answers by widening the printed layout box and scaling the WHOLE
+   sheet down. That is what took the department's 12pt to 8pt in the
+   first place.
+
+   THE LEVER, AND WHY IT IS THIS ONE.
+   ../styles/print-matrix.css already gives every matrix table 2px
+   side padding, and this table already takes it -- measured: 2px on
+   every cell, header and body. So the padding lever named in the
+   brief is not untouched; it is half-pulled. What is left of it is
+   the second pixel, and this file takes it, for this table only:
+
+     side padding 2px -> 1px, for the PO / PSO attainment table.
+
+   MEASURED AFTER:
+     narrowest it can be              180.4mm
+     margin against 190.5mm            10.1mm
+
+   9.0mm bought back, nine times the headroom it had. VERTICAL
+   PADDING IS UNTOUCHED, so row height and line spacing do not move.
+   No font size is reduced, no column is removed, and no rule in
+   print-matrix.css is edited -- this is a separate class that only
+   this one table carries, so the CO x PO/PSO matrix beside it keeps
+   exactly the 2px it was given.
+
+   WHAT 10.1mm DOES NOT COVER. A fourth PSO needs 12.4mm. This buys
+   most of that and not all of it; the remaining 2.3mm cannot come
+   out of padding without the figures touching the rules, and is
+   reported rather than taken.
+   --------------------------------------------------------------- */
+
+@media print {
+  .rep-table--outcome-levels th,
+  .rep-table--outcome-levels td,
+  .doc-table--outcome-levels th,
+  .doc-table--outcome-levels td {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+  }
+}
+
+/* END REMOVABLE -- headroom for the PO / PSO attainment table */

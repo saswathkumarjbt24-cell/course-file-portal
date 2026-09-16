@@ -33,6 +33,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
 
@@ -70,7 +73,7 @@ function seedActions(closingActions, courseId) {
 
 function cell(value) {
   return value === null || value === undefined ? (
-    <span className="rep-table__missing">Not entered</span>
+    <span className="rep-table__missing">{ABSENT}</span>
   ) : (
     value.toFixed(2)
   )
@@ -266,10 +269,10 @@ function ClosingReportView({
               <strong>Course:</strong> {course.code} — {course.title}
             </span>
             <span>
-              <strong>Nature:</strong> {nature ? nature.name : 'Unknown'}
+              <strong>Nature:</strong> {nature ? nature.name : ABSENT}
             </span>
             <span>
-              <strong>Regulation:</strong> {course.regulationYear ?? '—'}
+              <strong>Regulation:</strong> {course.regulationYear ?? ABSENT}
             </span>
             <span>
               <strong>CO target:</strong> {targetPercent.toFixed(2)}%

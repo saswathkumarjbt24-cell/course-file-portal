@@ -17,7 +17,7 @@ import {
 } from '../data/api'
 import { coMarksToShow } from '../data/coMarks'
 // BEGIN REMOVABLE -- stored remedial register
-import { afterMarkCellValue, attendanceCellValue } from '../data/remedialCells'
+import { afterMarkCellValue, attendanceCellValue, NOT_RECORDED } from '../data/remedialCells'
 // END REMOVABLE -- stored remedial register
 import { DataError, DataLoading, SaveFeedback, useApiData } from '../data/useApiData'
 import { useSave } from '../data/useSave'
@@ -40,6 +40,9 @@ import {
   READ_ONLY_NOTE,
 } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const TABS = [
   { key: 'names', label: 'Name list' },
@@ -51,7 +54,11 @@ const TABS = [
   // END REMOVABLE -- remedial question paper
 ]
 
-const ATTENDANCE_OPTIONS = ['--', 'PR', 'AB']
+// BEGIN REMOVABLE -- the empty-field mark. The blank option MUST be the same
+// string attendanceCellValue returns for 'NA', or the select shows no option
+// as chosen for a class recorded as not required.
+const ATTENDANCE_OPTIONS = [NOT_RECORDED, 'PR', 'AB']
+// END REMOVABLE -- the empty-field mark
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -78,7 +85,7 @@ function cellKey(assessmentId, studentId, coNumber) {
 }
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return ABSENT
   const [year, month, day] = iso.split('-')
   return `${day}-${month}-${year}`
 }
@@ -637,7 +644,7 @@ function RemedialView({
                             <tr>
                               <th className="rem-table__num">S.No</th>
                               <th>Reg No</th>
-                              <th>Name</th>
+                              <th className="rem-table__name">Name</th>
                               {allocation.map((alloc) => (
                                 <th key={alloc.coNumber}>CO{alloc.coNumber}</th>
                               ))}
@@ -648,7 +655,7 @@ function RemedialView({
                               <tr key={row.student.id}>
                                 <td className="rem-table__num">{index + 1}</td>
                                 <td className="rem-table__reg">{row.student.regNumber}</td>
-                                <td>{row.student.name}</td>
+                                <td className="rem-table__name">{row.student.name}</td>
                                 {allocation.map((alloc) => {
                                   const flag = row.cos[alloc.coNumber].remedial
                                   return (
@@ -898,7 +905,7 @@ function RemedialView({
                             <tr>
                               <th className="rem-table__num">S.No</th>
                               <th>Reg No</th>
-                              <th>Name</th>
+                              <th className="rem-table__name">Name</th>
                               {scheduleClasses.map((cls) => (
                                 <th key={cls.coNumber}>
                                   CO{cls.coNumber}
@@ -913,7 +920,7 @@ function RemedialView({
                               <tr key={row.student.id}>
                                 <td className="rem-table__num">{index + 1}</td>
                                 <td className="rem-table__reg">{row.student.regNumber}</td>
-                                <td>{row.student.name}</td>
+                                <td className="rem-table__name">{row.student.name}</td>
                                 {scheduleClasses.map((cls) => {
                                   const key = cellKey(assessmentId, row.student.id, cls.coNumber)
                                   const value = attendanceValue(row, cls.coNumber)
@@ -1017,7 +1024,7 @@ function RemedialView({
                                 S.No
                               </th>
                               <th rowSpan={2}>Reg No</th>
-                              <th rowSpan={2}>Name</th>
+                              <th rowSpan={2} className="rem-table__name">Name</th>
                               {allocation.map((alloc) => (
                                 <th key={alloc.coNumber} colSpan={2}>
                                   CO{alloc.coNumber} (max {alloc.marksAllocated})
@@ -1036,7 +1043,7 @@ function RemedialView({
                               <tr key={row.student.id}>
                                 <td className="rem-table__num">{index + 1}</td>
                                 <td className="rem-table__reg">{row.student.regNumber}</td>
-                                <td>{row.student.name}</td>
+                                <td className="rem-table__name">{row.student.name}</td>
                                 {allocation.map((alloc) => {
                                   const co = row.cos[alloc.coNumber]
                                   const key = cellKey(assessmentId, row.student.id, alloc.coNumber)
@@ -1046,13 +1053,13 @@ function RemedialView({
                                         key={`o-${alloc.coNumber}`}
                                         className="rem-table__center rem-table__muted"
                                       >
-                                        --
+                                        {ABSENT}
                                       </td>,
                                       <td
                                         key={`a-${alloc.coNumber}`}
                                         className="rem-table__center rem-table__muted"
                                       >
-                                        --
+                                        {ABSENT}
                                       </td>,
                                     ]
                                   }
@@ -1425,12 +1432,12 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
                   <tbody>
                     <tr>
                       <th>Academic Year</th>
-                      <td>{meta?.academicYear ?? 'Not recorded'}</td>
+                      <td>{meta?.academicYear ?? ABSENT}</td>
                     </tr>
                     <tr>
                       <th>Year &amp; Semester</th>
                       <td>
-                        {meta?.yearOfStudy ?? 'Not recorded'} / {meta?.semester ?? 'Not recorded'}
+                        {meta?.yearOfStudy ?? ABSENT} / {meta?.semester ?? ABSENT}
                       </td>
                     </tr>
                     <tr>
@@ -1444,12 +1451,12 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
 
                 <div className="rem-doc__ref">
                   <span>
-                    Maximum Marks: {view.totalMarks === null ? 'Not stated' : view.totalMarks}
+                    Maximum Marks: {view.totalMarks === null ? ABSENT : view.totalMarks}
                   </span>
                   <span>
                     Time Duration:{' '}
                     {view.durationMinutes === null
-                      ? 'Not stated'
+                      ? ABSENT
                       : `${view.durationMinutes} Minutes`}
                   </span>
                 </div>
@@ -1474,7 +1481,7 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
                           <td className="rem-table__center">{q.qNo}</td>
                           <td>{q.text}</td>
                           <td className="rem-table__center">
-                            {q.marksAllotted === null ? '—' : q.marksAllotted}
+                            {q.marksAllotted === null ? ABSENT : q.marksAllotted}
                           </td>
                           <td className="rem-table__center">
                             CO{q.coNumber === null ? base.coNumber : q.coNumber}
@@ -1522,12 +1529,12 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
                   <tbody>
                     <tr>
                       <th>Academic Year</th>
-                      <td>{meta?.academicYear ?? 'Not recorded'}</td>
+                      <td>{meta?.academicYear ?? ABSENT}</td>
                     </tr>
                     <tr>
                       <th>Year &amp; Semester</th>
                       <td>
-                        {meta?.yearOfStudy ?? 'Not recorded'} / {meta?.semester ?? 'Not recorded'}
+                        {meta?.yearOfStudy ?? ABSENT} / {meta?.semester ?? ABSENT}
                       </td>
                     </tr>
                     <tr>
@@ -1565,7 +1572,7 @@ function QuestionPaperTab({ course, meta, kind, courseId, papers, canEdit, print
                           )}
                         </td>
                         <td className="rem-table__center">
-                          {q.marksAllotted === null ? '—' : q.marksAllotted}
+                          {q.marksAllotted === null ? ABSENT : q.marksAllotted}
                         </td>
                         <td className="rem-table__center">
                           CO{q.coNumber === null ? base.coNumber : q.coNumber}

@@ -19,6 +19,9 @@ import './MarkEntry.css'
 // BEGIN REMOVABLE -- printed letterhead
 import Letterhead from '../components/Letterhead'
 // END REMOVABLE -- printed letterhead
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const LOADERS = {
   assessments: fetchAssessments,
@@ -517,7 +520,7 @@ function MarkEntryView({
                 <tr>
                   <th className="mark-table__num">S.No</th>
                   <th>Reg Number</th>
-                  <th>Name</th>
+                  <th className="mark-table__name">Name</th>
                   <th className="mark-table__center">Absent</th>
                   <th className="mark-table__center">Total</th>
                   {coColumns.map((a) => (
@@ -549,7 +552,7 @@ function MarkEntryView({
                     >
                       <td className="mark-table__num">{index + 1}</td>
                       <td className="mark-table__reg">{student.regNumber}</td>
-                      <td>{student.name}</td>
+                      <td className="mark-table__name">{student.name}</td>
                       <td className="mark-table__center">
                         <input
                           type="checkbox"
@@ -569,7 +572,7 @@ function MarkEntryView({
                             className="mark-total--derived"
                             aria-label={`Total for ${student.name}`}
                           >
-                            {row.isAbsent ? '--' : (computedTotal ?? '—')}
+                            {row.isAbsent ? ABSENT : (computedTotal ?? ABSENT)}
                           </span>
                         ) : (
                           <input
@@ -634,10 +637,10 @@ function MarkEntryView({
                         }
 
                         const value = row.isAbsent
-                          ? '--'
+                          ? ABSENT
                           : derivedCo && derivedCo[a.coNumber] !== undefined
                             ? derivedCo[a.coNumber]
-                            : '—'
+                            : ABSENT
                         return (
                           <td
                             key={a.coNumber}

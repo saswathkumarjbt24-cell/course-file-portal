@@ -46,6 +46,9 @@ import { departmentToSend, listHas } from '../components/departments'
 import './RiskReport.css'
 import './Users.css'
 import './Courses.css'
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // Module level, not rebuilt per render: it is useApiData's effect dependency.
 const LOADERS = {
@@ -70,7 +73,7 @@ const EMPTY_DRAFT = {
 }
 
 /** A value the database has not recorded. A blank cell reads as a fault. */
-function absent(text = 'Not recorded') {
+function absent(text = ABSENT) {
   return <span className="risk-table__muted">{text}</span>
 }
 

@@ -815,6 +815,28 @@ export async function fetchDepartmentVisionMission() {
     : { department: '', vision: '', missions: [] }
 }
 
+// BEGIN REMOVABLE -- the vision sheet names the course's own department
+/**
+ * EVERY department's vision and missions, not just the first one stored.
+ *
+ * fetchDepartmentVisionMission above takes whichever department-scope row
+ * comes back first, which is only ever right while exactly one department
+ * has a row. The sheet knows which course it is printing, so it can pick
+ * the row for THAT course's department -- and say so when there is none,
+ * rather than printing "Department of" with nothing after it.
+ *
+ * Same endpoint, same response: this filters the list instead of taking
+ * its head, so no request changes and nothing new is asked of the server.
+ */
+export async function fetchDepartmentVisionMissions() {
+  if (!API_URL) return [mock.departmentVisionMission]
+  const rows = await fetchVisionMissions()
+  return rows
+    .filter((r) => r.scope === 'department')
+    .map((r) => ({ department: r.department, vision: r.vision, missions: r.missions }))
+}
+// END REMOVABLE -- the vision sheet names the course's own department
+
 // ---------------------------------------------------------------
 // Course-scoped data, flattened to the fixtures' global shape
 // ---------------------------------------------------------------

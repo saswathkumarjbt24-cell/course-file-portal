@@ -40,6 +40,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
 
@@ -60,7 +63,7 @@ const LOADERS = {
   studentCoMarks: fetchStudentCoMarks,
 }
 
-function Missing({ text = 'Not entered' }) {
+function Missing({ text = ABSENT }) {
   return <span className="rep-table__missing">{text}</span>
 }
 
@@ -101,7 +104,7 @@ function level(value) {
 }
 
 function dash(value) {
-  return value === null || value === undefined ? '-' : value.toFixed(2)
+  return value === null || value === undefined ? ABSENT : value.toFixed(2)
 }
 
 export default function FinalAttainment() {
@@ -375,7 +378,7 @@ function FinalAttainmentView({
                 <tr key={kind}>
                   <td className="rep-table__label">{kind}</td>
                   <td className="rep-table__weight">
-                    {weights[kind] === null ? '-' : weights[kind].toFixed(2)}
+                    {weights[kind] === null ? ABSENT : weights[kind].toFixed(2)}
                   </td>
                   {coNumbers.map((co) => (
                     <td key={co} className="rep-table__value">
@@ -387,7 +390,7 @@ function FinalAttainmentView({
 
               <tr className="rep-row--sub">
                 <td className="rep-table__label">CIE (weighted mean of entered components)</td>
-                <td className="rep-table__weight">—</td>
+                <td className="rep-table__weight">{ABSENT}</td>
                 {coNumbers.map((co) => (
                   <td key={co} className="rep-table__value">
                     {level(perCo[co].cie)}
@@ -397,7 +400,7 @@ function FinalAttainmentView({
 
               <tr className="rep-row--sub">
                 <td className="rep-table__label">SEE</td>
-                <td className="rep-table__weight">—</td>
+                <td className="rep-table__weight">{ABSENT}</td>
                 {coNumbers.map((co) => (
                   <td key={co} className="rep-table__value">
                     {level(perCo[co].see)}
@@ -410,7 +413,7 @@ function FinalAttainmentView({
                   CO attainment level ({(attainmentConstants.cieWeight * 100).toFixed(0)}% CIE +{' '}
                   {(attainmentConstants.seeWeight * 100).toFixed(0)}% SEE)
                 </td>
-                <td className="rep-table__weight">—</td>
+                <td className="rep-table__weight">{ABSENT}</td>
                 {coNumbers.map((co) => (
                   <td key={co} className="rep-table__value">
                     {level(perCo[co].direct)}
@@ -573,7 +576,7 @@ function FinalAttainmentView({
                   <td className="rep-table__label">CO{co}</td>
                   {outcomeColumns.map((col) => (
                     <td key={col.code} className="rep-table__value">
-                      {matrix[col.code]?.[co] ?? '-'}
+                      {matrix[col.code]?.[co] ?? ABSENT}
                     </td>
                   ))}
                 </tr>
@@ -593,7 +596,11 @@ function FinalAttainmentView({
         </p>
 
         <div className="rep-table-wrap">
-          <table className="rep-table rep-table--matrix">
+          {/* BEGIN REMOVABLE -- headroom for the PO / PSO attainment table.
+              --outcome-levels takes this table's side padding to 1px on
+              paper; the matrix beside it keeps its 2px. */}
+          <table className="rep-table rep-table--matrix rep-table--outcome-levels">
+            {/* END REMOVABLE -- headroom for the PO / PSO attainment table */}
             <thead>
               <tr>
                 <th className="rep-table__label">CO</th>
@@ -626,7 +633,7 @@ function FinalAttainmentView({
 
               <tr className="rep-row--total">
                 <td className="rep-table__label">Overall PO / PSO level</td>
-                <td className="rep-table__value">—</td>
+                <td className="rep-table__value">{ABSENT}</td>
                 {outcomeColumns.map((col) => (
                   <td key={col.code} className="rep-table__value">
                     {dash(overallOutcomeLevel(finalLevels, matrix[col.code] ?? {}))}

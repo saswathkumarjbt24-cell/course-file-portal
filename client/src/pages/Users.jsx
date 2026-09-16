@@ -50,6 +50,9 @@ import { departmentToSend, listHas } from '../components/departments'
 // The table style, which already exists. Not redefined here -- see Users.css.
 import './RiskReport.css'
 import './Users.css'
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // Module level, not rebuilt per render: it is useApiData's effect dependency.
 const LOADERS = { users: fetchAdminUsers, departments: fetchDepartments }
@@ -74,7 +77,7 @@ const EMPTY_DRAFT = {
  * lastLoginAt null means "has not signed in since login tracking was switched
  * on" -- migration 018 seeded nothing -- and NOT "has never used the portal".
  */
-function absent(text) {
+function absent(text = ABSENT) {
   return <span className="risk-table__muted">{text}</span>
 }
 
@@ -407,7 +410,7 @@ function UsersView({ users, departments, adminId }) {
                         />
                       ) : (
                         /* END REMOVABLE -- department picker */
-                        row.department ?? absent('Not recorded')
+                        row.department ?? absent()
                       )}
                     </td>
 
@@ -456,7 +459,7 @@ function UsersView({ users, departments, adminId }) {
                       )}
                     </td>
 
-                    <td>{row.lastLoginAt ?? absent('Not recorded')}</td>
+                    <td>{row.lastLoginAt ?? absent()}</td>
 
                     <td className="risk-table__value">{row.signInCount}</td>
 

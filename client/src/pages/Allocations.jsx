@@ -49,6 +49,9 @@ import './Courses.css'
 // BEGIN REMOVABLE -- allocation CSV import (screen half)
 import './Allocations.css'
 // END REMOVABLE -- allocation CSV import (screen half)
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // Module level, not rebuilt per render: it is useApiData's effect dependency.
 //
@@ -73,7 +76,7 @@ const EMPTY_DRAFT = {
   section: '',
 }
 
-function absent(text = 'Not recorded') {
+function absent(text = ABSENT) {
   return <span className="risk-table__muted">{text}</span>
 }
 
@@ -616,7 +619,7 @@ function ImportRowCells({ row }) {
         <span
           className={row.role === 'incharge' ? 'alloc-role alloc-role--incharge' : 'alloc-role'}
         >
-          {row.role ?? '—'}
+          {row.role ?? ABSENT}
         </span>
       </td>
     </>
@@ -745,8 +748,8 @@ function ImportPanel({
                         {row.role}
                       </span>
                     </td>
-                    <td>{row.academicYear ?? '—'}</td>
-                    <td>{row.semester ?? '—'}</td>
+                    <td>{row.academicYear ?? ABSENT}</td>
+                    <td>{row.semester ?? ABSENT}</td>
                   </tr>
                 ))}
               </tbody>
@@ -847,14 +850,12 @@ function ImportPanel({
                   {preview.unmatched.map((row) => (
                     <tr key={row.line}>
                       <td>{row.line}</td>
-                      <td>{row.fileCourseCode || <span className="risk-table__muted">blank</span>}</td>
+                      <td>{row.fileCourseCode || absent()}</td>
                       <td>{row.fileCourseTitle}</td>
                       <td>
-                        {row.fileFacultyName || row.fileFacultyEmail || (
-                          <span className="risk-table__muted">blank</span>
-                        )}
+                        {row.fileFacultyName || row.fileFacultyEmail || absent()}
                       </td>
-                      <td>{row.role || <span className="risk-table__muted">blank</span>}</td>
+                      <td>{row.role || absent()}</td>
                       <td>{row.reason}</td>
                     </tr>
                   ))}
@@ -898,8 +899,8 @@ function ImportPanel({
                           {row.role}
                         </span>
                       </td>
-                      <td>{row.academicYear ?? '—'}</td>
-                      <td>{row.semester ?? '—'}</td>
+                      <td>{row.academicYear ?? ABSENT}</td>
+                      <td>{row.semester ?? ABSENT}</td>
                     </tr>
                   ))}
                 </tbody>

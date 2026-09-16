@@ -1,0 +1,103 @@
+/* BEGIN REMOVABLE -- every table cell centres except the student Name */
+
+/* ---------------------------------------------------------------
+   ONE PLACE for the alignment of every table in the portal.
+
+   WHAT THE DEPARTMENT ASKED FOR, after reading a printed course file:
+   every cell centred -- S.No, register numbers, marks, percentages,
+   levels, Yes/No, dates, everything -- with the column headers centred
+   to match. The ONE exception is the student Name column, which stays
+   left-aligned: a centred column of 30-character names has a ragged
+   left edge and is slower to scan down for one student.
+
+   WHY ONE FILE AND NOT EIGHT.
+     Eight table families set their own `text-align` in eight page
+     stylesheets: .doc-table, .risk-table, .rep-table, .rem-table,
+     .rem-doc__table, .att-table, .mark-table and .cd-matrix. Those
+     files are imported BY the pages, so they sit later in the emitted
+     stylesheet than anything main.jsx imports. `!important` is what
+     lets one file replace eight without reordering the build -- the
+     same reasoning, and the same mechanism, as ../styles/print.css.
+
+   SCREEN AND PRINT ALIKE. Nothing here is inside @media, because the
+   department wants what they see on screen to be what comes out of the
+   printer. No font size, no padding, no column width and no border is
+   touched: alignment only.
+
+   A CELL'S CONTENT IS ALSO ITS INPUT. On the editable sheets a cell
+   holds a text box or a select rather than a value, so those are
+   centred too -- otherwise a column looks centred until you edit it.
+   --------------------------------------------------------------- */
+
+.doc-table th,
+.doc-table td,
+.risk-table th,
+.risk-table td,
+.rep-table th,
+.rep-table td,
+.rem-table th,
+.rem-table td,
+.rem-doc__table th,
+.rem-doc__table td,
+.att-table th,
+.att-table td,
+.mark-table th,
+.mark-table td,
+.cd-matrix th,
+.cd-matrix td {
+  text-align: center !important;
+}
+
+/* The value a cell is showing, whether it is text or a control. */
+.doc-table input,
+.doc-table select,
+.risk-table input,
+.risk-table select,
+.rep-table input,
+.rep-table select,
+.rem-table input,
+.rem-table select,
+.rem-doc__table input,
+.rem-doc__table select,
+.att-table input,
+.att-table select,
+.mark-table input,
+.mark-table select,
+.cd-matrix input,
+.cd-matrix select {
+  text-align: center !important;
+}
+
+/* Two pills that carry their own alignment inside a cell. */
+.risk-pct,
+.risk-bar-count {
+  text-align: center !important;
+}
+
+/* ---------------- The one exception ----------------
+   The student Name column, header and cells. Faculty and course
+   columns are NOT exempt: the department named the student Name
+   column and nothing else.
+
+   The element is written into each selector -- `td.doc-table__name`,
+   not `.doc-table__name` -- because the rule above it is `.doc-table
+   td`, which is MORE specific than a lone class and would win on
+   specificity no matter which of the two came last in the file. */
+.doc-table th.doc-table__name,
+.doc-table td.doc-table__name,
+.risk-table th.risk-table__name,
+.risk-table td.risk-table__name,
+.rep-table th.rep-table__name,
+.rep-table td.rep-table__name,
+.rem-table th.rem-table__name,
+.rem-table td.rem-table__name,
+.rem-doc__table th.rem-doc__name,
+.rem-doc__table td.rem-doc__name,
+.att-table th.att-table__name,
+.att-table td.att-table__name,
+.mark-table th.mark-table__name,
+.mark-table td.mark-table__name {
+  text-align: left !important;
+}
+
+/* END REMOVABLE -- every table cell centres except the student Name */

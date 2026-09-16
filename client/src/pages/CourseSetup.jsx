@@ -57,6 +57,9 @@ import { useSession } from '../context/sessionStore'
 import './RiskReport.css'
 import './Users.css'
 import './CourseSetup.css'
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // Module level, not rebuilt per render: it is useApiData's effect dependency.
 const LOADERS = { courses: fetchAdminCourses }
@@ -66,7 +69,7 @@ const EMPTY_STUDENT = { regNumber: '', name: '' }
 const EMPTY_ASSESSMENT = { kind: 'PT1', maxTotal: '', splitMode: 'manual', conductedOn: '' }
 
 /** A value the database has not recorded. A blank cell reads as a fault. */
-function absent(text = 'Not recorded') {
+function absent(text = ABSENT) {
   return <span className="risk-table__muted">{text}</span>
 }
 
@@ -409,7 +412,7 @@ function StudentsPanel({ course, students, reload }) {
             <thead>
               <tr>
                 <th>Roll number</th>
-                <th>Name</th>
+                <th className="risk-table__name">Name</th>
                 <th>Semester</th>
                 <th>Actions</th>
               </tr>
@@ -431,7 +434,7 @@ function StudentsPanel({ course, students, reload }) {
                         student.regNumber
                       )}
                     </td>
-                    <td>
+                    <td className="risk-table__name">
                       {isEditing ? (
                         <input
                           className="users-table-input"
@@ -555,7 +558,7 @@ function BulkTable({ title, rows, field }) {
             {rows.map((row) => (
               <tr key={row.line}>
                 <td>{row.line}</td>
-                <td>{row.regNumber === '' ? absent('blank') : row.regNumber}</td>
+                <td>{row.regNumber === '' ? absent() : row.regNumber}</td>
                 <td className={row.plan === 'failed' || row.plan === 'unknown' ? 'setup-bad' : undefined}>
                   {row[field]}
                 </td>
@@ -765,12 +768,12 @@ function AssessmentsPanel({ course, sheet, reload }) {
                     ) : a.conductedOn ? (
                       String(a.conductedOn).slice(0, 10)
                     ) : (
-                      absent('Not set')
+                      absent()
                     )}
                   </td>
                   <td className={a.allocationsComplete ? undefined : 'setup-bad'}>
                     {a.allocations.length === 0
-                      ? 'None set'
+                      ? ABSENT
                       : `${a.allocatedTotal} of ${a.maxTotal} across ${a.allocations.length} CO${a.allocations.length === 1 ? '' : 's'}`}
                   </td>
                   <td className="risk-table__value">{a.marks.attempts}</td>

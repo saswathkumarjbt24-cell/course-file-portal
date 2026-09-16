@@ -259,7 +259,7 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
               <tr>
                 <th className="doc-table__num">S.No</th>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th className="doc-table__name">Name</th>
                 {editing && !embedded && <th className="doc-row-actions">Remove</th>}
               </tr>
             </thead>
@@ -270,7 +270,7 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
                   <tr key={student.regNumber}>
                     <td className="doc-table__num">{index + 1}</td>
                     <td className="doc-table__reg">{student.regNumber}</td>
-                    <td>
+                    <td className="doc-table__name">
                       {student.name}
                       {/* The server refused to remove this one. Shown against
                           the row so it is obvious WHO is blocked and why. */}

@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import { fetchCourseMeta, fetchCourseNatures, fetchCourses } from '../data/api'
 import { DataError, DataLoading, useApiData } from '../data/useApiData'
 import './Dashboard.css'
+// BEGIN REMOVABLE -- the empty-field mark
+import { ABSENT } from '../components/emptyField'
+// END REMOVABLE -- the empty-field mark
 
 // ---------------------------------------------------------------
 // BEGIN REMOVABLE -- dashboard offering filter
@@ -100,7 +103,7 @@ export default function Dashboard() {
 function DashboardView({ courseNatures, courses, courseMeta }) {
   const natureName = (natureId) => {
     const nature = courseNatures.find((n) => n.id === natureId)
-    return nature ? nature.name : 'Unknown'
+    return nature ? nature.name : ABSENT
   }
 
   // BEGIN REMOVABLE -- dashboard offering filter

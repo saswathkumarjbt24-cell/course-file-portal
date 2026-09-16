@@ -30,6 +30,17 @@
   margin-bottom: var(--space-5);
 }
 
+/* BEGIN REMOVABLE -- one heading on the vision sheet.
+   The head band carries a rule to separate it from the sheet title below
+   it. Where the sheet has no title of its own -- embedded in the Full
+   Course File, under the part's heading -- the rule separates nothing and
+   reads as a second underline under the same heading. */
+.doc-head--no-rule {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+/* END REMOVABLE -- one heading on the vision sheet */
+
 .doc-head__name {
   font-size: var(--font-size-xl);
   letter-spacing: 0.02em;
