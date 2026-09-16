@@ -33,6 +33,9 @@ import Letterhead from '../components/Letterhead'
 import { useSession } from '../context/sessionStore'
 import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // END REMOVABLE -- edit permission scope
+// BEGIN REMOVABLE -- one heading per sheet
+import { sheetHeading } from '../components/sheetHeadings'
+// END REMOVABLE -- one heading per sheet
 // BEGIN REMOVABLE -- the empty-field mark
 import { ABSENT } from '../components/emptyField'
 // END REMOVABLE -- the empty-field mark
@@ -251,7 +254,9 @@ function ClosingReportView({
               keeps the typed heading below exactly as it was. */}
           <Letterhead />
           {/* END REMOVABLE -- printed letterhead */}
-          <header className="rep-doc__head">
+          {/* BEGIN REMOVABLE -- one heading per sheet */}
+          <header className="rep-doc__head rep-doc__head--no-rule">
+          {/* END REMOVABLE -- one heading per sheet */}
             <h1 className="rep-doc__institution letterhead-replaced">{INSTITUTION}</h1>
             <p className="rep-doc__dept">
               {/* BEGIN REMOVABLE -- letterhead on screen. The place is on the band;
@@ -262,7 +267,9 @@ function ClosingReportView({
             </p>
           </header>
 
-          <h2 className="rep-doc__subject">COURSE FILE CLOSING REPORT</h2>
+          {/* BEGIN REMOVABLE -- one heading per sheet */}
+          <h2 className="rep-doc__subject">{sheetHeading('closing')}</h2>
+          {/* END REMOVABLE -- one heading per sheet */}
 
           <div className="rep-doc__meta">
             <span>

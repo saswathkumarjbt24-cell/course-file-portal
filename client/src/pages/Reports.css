@@ -126,6 +126,17 @@
   letter-spacing: 0.02em;
 }
 
+/* BEGIN REMOVABLE -- one heading per sheet.
+   The same change Documents.css carries for the five .doc-head sheets: the
+   band's rule sat between the numbered title and the sheet's capitalised
+   heading and read as a second heading, so it goes and the band runs into
+   the one heading below it. */
+.rep-doc__head--no-rule {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+/* END REMOVABLE -- one heading per sheet */
+
 .rep-doc__dept {
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-sm);

@@ -68,6 +68,9 @@ import Letterhead from '../components/Letterhead'
 // BEGIN REMOVABLE -- the empty-field mark
 import { ABSENT } from '../components/emptyField'
 // END REMOVABLE -- the empty-field mark
+// BEGIN REMOVABLE -- one heading per sheet
+import { sheetHeading } from '../components/sheetHeadings'
+// END REMOVABLE -- one heading per sheet
 
 const NOT_CONDUCTED = 'Not conducted / no marks entered'
 const CIE_COMPONENTS = ['PT1', 'PT2', 'IP1', 'IP2']
@@ -1278,6 +1281,13 @@ function ClosingSection({ course, nature, targetPercent }) {
 
   return (
     <>
+      {/* BEGIN REMOVABLE -- one heading per sheet. This section and the
+          standalone ClosingReport.jsx are two renderings of sheet 18, so
+          both take the heading from the same constant rather than one of
+          them carrying the wording and the other a numbered part title. */}
+      <h2 className="doc-subtitle">{sheetHeading('closing')}</h2>
+      {/* END REMOVABLE -- one heading per sheet */}
+
       <p className="doc-statement">
         <strong>Course:</strong> {course.code} — {course.title} (
         {nature ? nature.name : 'unknown nature'}), CO target {targetPercent.toFixed(2)}%.
@@ -1460,7 +1470,10 @@ function FullCourseFileView() {
         <FinalSection course={course} nature={nature} targetPercent={target} />
       </Part>
 
-      <Part number={18} title="Closing report">
+      {/* BEGIN REMOVABLE -- one heading per sheet. The sheet below
+          prints its own numbered heading, so this part passes none. */}
+      <Part>
+      {/* END REMOVABLE -- one heading per sheet */}
         <ClosingSection course={course} nature={nature} targetPercent={target} />
       </Part>
     </>
