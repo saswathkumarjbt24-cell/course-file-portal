@@ -66,39 +66,36 @@
   }
 
   /* ---------------- 3. Room to sign ----------------
-     Two faults, one fix. The sheet root becomes a column box a page
-     tall; the signature takes whatever slack is left with an auto top
-     margin, so on a short sheet it drops to the foot of the page
-     instead of sitting under the last line. The 25mm is carried as
-     PADDING, not margin, so it survives in both cases: a full sheet
-     has no slack for the auto margin to absorb and still gets its
-     25mm of clear space above the line.
+     THE SIGNATURE FOLLOWS THE CONTENT. It is the next block after the
+     last line of the sheet, and that is the whole of the mechanism.
 
-     95vh, not 100vh: in paged media 1vh is 1% of the page box, and a
-     sheet whose card still carries a bottom margin in print would
-     spill onto a second page at a full 100vh. 95vh leaves the line
-     roughly 13mm clear of the foot and cannot overflow.
+     WHAT WAS HERE, AND WHY IT WENT.
+     The sheet root was made a column box 95vh tall and the signature
+     was given `margin-top: auto`, so the slack on a short sheet
+     dropped the line to the foot of the page. That works only while
+     the 95vh box is the ONLY thing on the page. It is not: inside the
+     Full Course File a <Part> prints the letterhead band ABOVE the
+     sheet, so the box began roughly 33mm down and its foot -- with
+     the signature pinned to it -- landed past the bottom of the
+     paper. The signature was pushed to a page of its own, which then
+     held nothing else, because the content above it had already
+     ended. Measured: the standalone cover sheet came to 1 page (its
+     band is inside the box) and the same sheet embedded came to 2.
 
-     One rule for all three class families and for the Full Course
-     File, rather than an edit in each of the ten files that render a
-     signature. :has() is what keeps it to the containers that
-     actually hold a signature; if a browser does not support it this
-     rule is dropped and the 25mm below still applies. */
-  .doc-sheet:has(> .doc-sign),
-  .doc-part:has(> .doc-sign),
-  .doc-part > div:has(> .doc-sign),
-  .rep-doc:has(> .rep-sign),
-  .rem-doc:has(> .rem-sign),
-  .rem-panel:has(> .rem-sign) {
-    display: flex;
-    flex-direction: column;
-    min-height: 95vh;
-  }
+     That is the fault the department reported as a blank signature
+     page, and it is the same fault the deleted
+     ./print-signature-foot.css caused by a different route -- so
+     dropping the mechanism is the fix for both, and nothing replaces
+     it.
 
+     THE 25mm STAYS. It is the department's room to sign, carried as
+     PADDING so it is clear space above the line rather than a gap
+     that a margin could collapse. break-inside is kept for the one
+     thing it is for: a signature must never be split across a page
+     boundary. */
   .doc-sign,
   .rep-sign,
   .rem-sign {
-    margin-top: auto !important;
     padding-top: 25mm;
     break-inside: avoid;
     page-break-inside: avoid;
