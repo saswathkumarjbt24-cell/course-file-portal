@@ -224,7 +224,12 @@ function CourseDetailView({
   ]
 
   return (
-    <>
+    // BEGIN REMOVABLE -- the wide sheets print landscape.
+    // This is the standalone copy of sheet 4, which holds the CO-PO/PSO
+    // articulation matrix -- landscape "wherever it appears". A page box has
+    // one orientation, so the course details above the matrix turn with it.
+    <div className="print-landscape">
+      {/* END REMOVABLE -- the wide sheets print landscape */}
       <nav className="cd-nav">
         <Link to="/">&larr; Dashboard</Link>
         <span className="cd-nav__sep">|</span>
@@ -461,6 +466,10 @@ function CourseDetailView({
         {/* A rejected save wrote nothing; the chosen values stay put. */}
         <SaveFeedback state={matrixSave} />
       </section>
-    </>
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape.
+          This </div> and the <div> at the top of the return are the whole of
+          the wrapper; delete both to revert. */}
+    </div>
+    // END REMOVABLE -- the wide sheets print landscape
   )
 }

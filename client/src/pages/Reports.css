@@ -401,3 +401,23 @@
     gap: var(--space-3);
   }
 }
+
+
+/* BEGIN REMOVABLE -- plain sheet headings */
+/* ---------------------------------------------------------------
+   The closing report's heading, held to the same rule as the six
+   .doc-subtitle sheets in ./Documents.css: plain bold text, no rule
+   under it. The section number left ../components/sheetHeadings.js.
+
+   .rep-card__title is NOT touched. "1. Direct assessment" and its three
+   siblings label the four TABLES inside one sheet, not the sheet, and
+   the department's workbook numbers them.
+
+   ADDITIVE: the declaration this overrides is still above, unedited.
+   --------------------------------------------------------------- */
+
+.rep-doc__subject {
+  letter-spacing: normal;
+  text-decoration: none;
+}
+/* END REMOVABLE -- plain sheet headings */

@@ -546,7 +546,11 @@ function FinalAttainmentView({
       </section>
 
       {/* ---------------- Table 3 ---------------- */}
-      <section className="rep-card">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape. Tables 3 and 4
+          are the wide two -- 16 and 17 columns. Tables 1 and 2 above are
+          narrow and stay portrait, so this sheet mixes the two. */}
+      <section className="rep-card print-landscape">
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <h2 className="rep-card__title">3. CO — PO / PSO articulation matrix</h2>
         <p className="rep-card__note">
           As entered on the Course Setup screen. Blank means no correlation.
@@ -587,7 +591,9 @@ function FinalAttainmentView({
       </section>
 
       {/* ---------------- Table 4 ---------------- */}
-      <section className="rep-card">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape */}
+      <section className="rep-card print-landscape">
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <h2 className="rep-card__title">4. PO / PSO attainment</h2>
         <p className="rep-card__note">
           Each CO contributes its final level scaled by its articulation strength out of 3. The

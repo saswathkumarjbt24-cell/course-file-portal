@@ -1,0 +1,51 @@
+/* BEGIN REMOVABLE -- the wide sheets print landscape */
+
+/* ---------------------------------------------------------------
+   THE WIDE SHEETS TURN THE PAPER, THE REST DO NOT.
+
+   WHICH SHEETS, and why each one is wide:
+     CO - PO / PSO articulation matrix   16 columns, wherever it appears
+     PO / PSO attainment                 17 columns (it adds "Final level")
+     SEE CO attainment                   3 index columns + one per CO
+     PT1 / PT2 / IP / OT mark sheets     3 index columns + total + one per CO
+
+   HOW IT IS DONE. Orientation is a property of the PAGE BOX, not of a
+   table, so it cannot be set on the table: it is set on the block that
+   forms the page -- a .doc-part, a .doc-subsheet, or the wrapper round a
+   standalone sheet -- through a NAMED page.
+
+     @page landscape-sheet { size: landscape }   names an orientation
+     .print-landscape { page: landscape-sheet }  claims it
+
+   `size: landscape` ON ITS OWN, with no paper name beside it, changes
+   only the orientation and leaves the paper the print dialog chose. THE
+   MARGINS ARE NOT DECLARED ANYWHERE IN THIS FILE, so they stay whatever
+   the dialog is set to -- this file cannot move the letterhead or reflow
+   a sheet that was not already wide.
+
+   `@page { size: portrait }` is stated so that the default page is
+   explicitly portrait rather than inheriting from whichever named page
+   Chrome saw last.
+
+   CHROME EMITS A PAGE BREAK WHERE THE NAMED PAGE CHANGES, which is why
+   every selector below is a block that already starts its own sheet. Put
+   on a table wrapper instead, this would break the sheet in half.
+
+   PRINT ONLY, so no screen layout changes.
+   --------------------------------------------------------------- */
+
+@media print {
+  @page {
+    size: portrait;
+  }
+
+  @page landscape-sheet {
+    size: landscape;
+  }
+
+  .print-landscape {
+    page: landscape-sheet;
+  }
+}
+
+/* END REMOVABLE -- the wide sheets print landscape */

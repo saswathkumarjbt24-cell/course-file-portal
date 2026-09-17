@@ -528,3 +528,48 @@
     gap: var(--space-3);
   }
 }
+
+
+/* BEGIN REMOVABLE -- plain sheet headings */
+/* ---------------------------------------------------------------
+   A SHEET HEADING IS PLAIN BOLD TEXT. No section number, no tracking,
+   no rule under it.
+
+   Three decorations went, on screen and on paper alike:
+     .doc-title       letter-spacing 0.18em, which set "COURSE FILE" as
+                      C O U R S E  F I L E
+     .doc-subtitle    text-decoration: underline
+     .doc-part__title the 2px rule beneath it, and its 1px print copy
+
+   The number itself is not CSS: it left ../../components/sheetHeadings.js
+   and the Part title in ./FullCourseFile.jsx. The SIDEBAR keeps its
+   numbering -- nothing here reaches ../components/Layout.css.
+
+   WEIGHT IS UNTOUCHED. Both are <h2>, which is bold already, so "bold,
+   no rule" needs no declaration. Size, colour, centring and margins are
+   untouched too; only the three decorations above are cancelled.
+
+   ADDITIVE, so reverting is deleting this block: the declarations it
+   overrides are still above, unedited.
+   --------------------------------------------------------------- */
+
+.doc-title,
+.doc-subtitle {
+  letter-spacing: normal;
+  text-decoration: none;
+}
+
+.doc-part__title {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+@media print {
+  /* The print block above says `border-bottom: 1px solid #000 !important`,
+     so cancelling it needs the same weight. Later in the same file, so
+     this wins on source order. */
+  .doc-part__title {
+    border-bottom: none !important;
+  }
+}
+/* END REMOVABLE -- plain sheet headings */

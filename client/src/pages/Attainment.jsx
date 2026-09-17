@@ -193,8 +193,20 @@ function AttainmentView({
     )
   }
 
+  // BEGIN REMOVABLE -- the wide sheets print landscape
+  // THIS IS SHEET 16 WHEN SEE IS SELECTED, and sheet 7 or 10 otherwise. Only
+  // the SEE sheet turns, because only the SEE sheet is on the department's
+  // landscape list. The class goes on a wrapper round the WHOLE sheet, not
+  // round the table: orientation belongs to the page box, and Chrome breaks a
+  // page wherever the named page changes -- on the table alone that break
+  // would land in the middle of the sheet.
+  const isSeeSheet = kind === 'SEE'
+  // END REMOVABLE -- the wide sheets print landscape
+
   return (
-    <>
+    // BEGIN REMOVABLE -- the wide sheets print landscape
+    <div className={isSeeSheet ? 'print-landscape' : undefined}>
+      {/* END REMOVABLE -- the wide sheets print landscape */}
       <Link to={`/course/${courseId}`} className="back-link">
         &larr; Back to course
       </Link>
@@ -306,9 +318,18 @@ function AttainmentView({
                         <th className="att-table__group" colSpan={allocation.length}>
                           Marks obtained / allocated
                         </th>
-                        <th className="att-table__group" colSpan={allocation.length}>
-                          Remedial?
-                        </th>
+                        {/* BEGIN REMOVABLE -- no remedial columns on the SEE
+                            sheet. The same removal the embedded copy of this
+                            sheet carries in ./FullCourseFile.jsx, and on the
+                            same condition: SEE only. PT1 and PT2 keep theirs,
+                            because the remedial sheets that follow them are
+                            what the columns announce. */}
+                        {!isSeeSheet && (
+                          <th className="att-table__group" colSpan={allocation.length}>
+                            Remedial?
+                          </th>
+                        )}
+                        {/* END REMOVABLE -- no remedial columns on the SEE sheet */}
                       </tr>
                       <tr>
                         {allocation.map((alloc) => (
@@ -316,11 +337,14 @@ function AttainmentView({
                             CO{alloc.coNumber}
                           </th>
                         ))}
-                        {allocation.map((alloc) => (
-                          <th key={`r-${alloc.coNumber}`} className="att-table__flag">
-                            CO{alloc.coNumber}
-                          </th>
-                        ))}
+                        {/* BEGIN REMOVABLE -- no remedial columns on the SEE sheet */}
+                        {!isSeeSheet &&
+                          allocation.map((alloc) => (
+                            <th key={`r-${alloc.coNumber}`} className="att-table__flag">
+                              CO{alloc.coNumber}
+                            </th>
+                          ))}
+                        {/* END REMOVABLE -- no remedial columns on the SEE sheet */}
                       </tr>
                     </thead>
                     <tbody>
@@ -336,7 +360,11 @@ function AttainmentView({
                           {row.excluded ? (
                             <td
                               className="att-table__excluded-cell"
-                              colSpan={allocation.length * 2}
+                              // BEGIN REMOVABLE -- no remedial columns on the
+                              // SEE sheet. One block of CO columns, not two,
+                              // once the remedial group is off.
+                              colSpan={allocation.length * (isSeeSheet ? 1 : 2)}
+                              // END REMOVABLE -- no remedial columns on the SEE sheet
                             >
                               {row.reason} — excluded from attainment
                             </td>
@@ -356,23 +384,28 @@ function AttainmentView({
                                   </td>
                                 )
                               })}
-                              {allocation.map((alloc) => {
-                                const obtained = row.coMarks ? row.coMarks[alloc.coNumber] : null
-                                const percent = coPercent(obtained, alloc.marksAllocated)
-                                const remedial = needsRemedial(percent, targetPercent)
-                                return (
-                                  <td
-                                    key={`r-${alloc.coNumber}`}
-                                    className={
-                                      remedial
-                                        ? 'att-table__flag att-table__flag--yes'
-                                        : 'att-table__flag att-table__flag--no'
-                                    }
-                                  >
-                                    {remedial ? 'Yes' : 'No'}
-                                  </td>
-                                )
-                              })}
+                              {/* BEGIN REMOVABLE -- no remedial columns on the SEE sheet */}
+                              {!isSeeSheet &&
+                                allocation.map((alloc) => {
+                                  const obtained = row.coMarks
+                                    ? row.coMarks[alloc.coNumber]
+                                    : null
+                                  const percent = coPercent(obtained, alloc.marksAllocated)
+                                  const remedial = needsRemedial(percent, targetPercent)
+                                  return (
+                                    <td
+                                      key={`r-${alloc.coNumber}`}
+                                      className={
+                                        remedial
+                                          ? 'att-table__flag att-table__flag--yes'
+                                          : 'att-table__flag att-table__flag--no'
+                                      }
+                                    >
+                                      {remedial ? 'Yes' : 'No'}
+                                    </td>
+                                  )
+                                })}
+                              {/* END REMOVABLE -- no remedial columns on the SEE sheet */}
                             </>
                           )}
                         </tr>
@@ -420,6 +453,10 @@ function AttainmentView({
           )}
         </>
       )}
-    </>
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape.
+          This </div> and the <div> at the top of the return are the whole of
+          the wrapper; delete both to revert. */}
+    </div>
+    // END REMOVABLE -- the wide sheets print landscape
   )
 }

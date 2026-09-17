@@ -18,12 +18,6 @@ import './styles/tables-centred.css'
 // rule inside it is under @media print and cannot reach the screen.
 import './styles/print.css'
 // END REMOVABLE -- printed document typography and signature space
-// BEGIN REMOVABLE -- signatures at the foot of the printed page
-// MUST come after print.css: it overrides the `margin-top: auto` in that file
-// with a forced break and a transform, which anchors a signature to the foot
-// of a page whatever the sheet's length. Print-only.
-import './styles/print-signature-foot.css'
-// END REMOVABLE -- signatures at the foot of the printed page
 // BEGIN REMOVABLE -- CO-PO/PSO matrix fits the page
 // Scoped to the articulation matrix only; keeps it inside the page width so
 // the sheet is not scaled down. Also print-only.
@@ -38,6 +32,16 @@ import './styles/print-tables.css'
 // AFTER print-matrix.css, which it narrows for one table only. Print-only.
 import './styles/print-outcome-levels.css'
 // END REMOVABLE -- headroom for the PO / PSO attainment table
+// BEGIN REMOVABLE -- one printed sheet per sub-section
+// AFTER print.css, whose signature rules it deliberately leaves alone: this
+// file only breaks a page before each lettered sub-section. Print-only.
+import './styles/print-subsheets.css'
+// END REMOVABLE -- one printed sheet per sub-section
+// BEGIN REMOVABLE -- the wide sheets print landscape
+// Declares the one named page the wide sheets claim. Sets no margin, so the
+// print dialog's own margins stand. Print-only.
+import './styles/print-landscape.css'
+// END REMOVABLE -- the wide sheets print landscape
 import App from './App.jsx'
 
 createRoot(document.getElementById('root')).render(

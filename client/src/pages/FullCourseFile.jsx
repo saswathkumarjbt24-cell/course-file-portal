@@ -174,9 +174,18 @@ function num(value, digits = 2) {
   return value === null || value === undefined ? ABSENT : value.toFixed(digits)
 }
 
-function Part({ number, title, children }) {
+// BEGIN REMOVABLE -- plain sheet headings. `number` is no longer read
+// here, so it is no longer destructured; the <Part> calls still pass it
+// and the comment beside the <h2> below says why.
+function Part({ title, landscape = false, children }) {
+// END REMOVABLE -- plain sheet headings
+  // BEGIN REMOVABLE -- the wide sheets print landscape. A part whose sheet
+  // is one of the wide ones claims the named landscape page; every other
+  // part keeps the default portrait one. The class carries no screen rule.
+  const className = landscape ? 'doc-part print-landscape' : 'doc-part'
+  // END REMOVABLE -- the wide sheets print landscape
   return (
-    <section className="doc-part">
+    <section className={className}>
       {/* BEGIN REMOVABLE -- printed letterhead. Every part starts a new
           printed page (.doc-part has break-before: page), so one band per
           part is one band per sheet -- what the department Excel does.
@@ -184,13 +193,16 @@ function Part({ number, title, children }) {
       <Letterhead />
       {/* END REMOVABLE -- printed letterhead */}
       {/* BEGIN REMOVABLE -- one heading per sheet. A part whose sheet
-          prints its own numbered heading passes no title, and this renders
-          nothing rather than saying the same thing again above it. */}
-      {title && (
-        <h2 className="doc-part__title">
-          {number}. {title}
-        </h2>
-      )}
+          prints its own heading passes no title, and this renders nothing
+          rather than saying the same thing again above it. */}
+      {/* BEGIN REMOVABLE -- plain sheet headings. `number` is kept on the
+          <Part> calls below because it records WHICH section of the
+          department's workbook each part is, and the parts are read in
+          that order. It is simply no longer printed in front of the
+          title. The sidebar's own numbering is in ../components/Layout.jsx
+          and is untouched. */}
+      {title && <h2 className="doc-part__title">{title}</h2>}
+      {/* END REMOVABLE -- plain sheet headings */}
       {/* END REMOVABLE -- one heading per sheet */}
       {children}
     </section>
@@ -212,6 +224,46 @@ function Signatures({ blocks = ['Course Faculty', 'HOD'] }) {
     </div>
   )
 }
+
+// BEGIN REMOVABLE -- one printed sheet per sub-section
+/* ---------------------------------------------------------------
+   ONE LETTERED SUB-SECTION, ON A SHEET OF ITS OWN.
+
+   The remedial section (8, 11) and the final attainment section (17) each
+   hold four lettered blocks that the department's workbook keeps as four
+   separate sheets. This is what makes each one a sheet: a fresh page, its
+   own letterhead band, and its own signature where its content ends.
+
+   `first` is the block the enclosing <Part> has ALREADY broken a page and
+   printed a band for. It takes neither again -- a second break would emit
+   an empty page, and a second band would print two.
+
+   `landscape` claims the named landscape page for the two blocks that are
+   wide (the articulation matrix and the PO / PSO attainment table).
+
+   THE SIGNATURE IS THE ORDINARY ONE. Nothing here anchors it to the foot
+   of the paper; ../styles/print.css gives the block below a column box a
+   page tall and the signature takes the slack, which is how every other
+   sheet behaves.
+   --------------------------------------------------------------- */
+function SubSheet({ first = false, landscape = false, children }) {
+  const classes = ['doc-subsheet']
+  if (first) classes.push('doc-subsheet--first')
+  // BEGIN REMOVABLE -- the wide sheets print landscape
+  if (landscape) classes.push('print-landscape')
+  // END REMOVABLE -- the wide sheets print landscape
+  return (
+    <div className={classes.join(' ')}>
+      {/* BEGIN REMOVABLE -- printed letterhead. One band per printed
+          sheet. The first sub-sheet shares the band its <Part> printed. */}
+      {!first && <Letterhead />}
+      {/* END REMOVABLE -- printed letterhead */}
+      {children}
+      <Signatures />
+    </div>
+  )
+}
+// END REMOVABLE -- one printed sheet per sub-section
 
 // ---------------------------------------------------------------
 // 4. Course details, CO statements, CO-PO/PSO matrix
@@ -410,7 +462,21 @@ function MarkSheetSection({ courseId, kind }) {
 // CO attainment (7, 10, 16)
 // ---------------------------------------------------------------
 
-function AttainmentSection({ courseId, kind, targetPercent }) {
+// BEGIN REMOVABLE -- no remedial columns on the SEE sheet
+// ---------------------------------------------------------------
+// `showRemedial` is FALSE FOR SHEET 16 ONLY. Sheets 7 and 10 (PT1, PT2)
+// keep the per-student CO1..CO5 remedial Yes/No columns, because the
+// remedial sheets that follow them are what those columns announce. The
+// SEE sheet has no remedial sheet after it, so on that sheet the five
+// columns said nothing and the department asked for them off.
+//
+// NOTHING IS CALCULATED DIFFERENTLY. needsRemedial() is still called for
+// every student and every CO below, and still feeds the "No. needing
+// remedial" column of the summary table, which stays on all three
+// sheets. This flag reaches the markup and nothing else.
+// ---------------------------------------------------------------
+function AttainmentSection({ courseId, kind, targetPercent, showRemedial = true }) {
+// END REMOVABLE -- no remedial columns on the SEE sheet
   const D = useFileData()
   const assessment = assessmentOf(D, courseId, kind)
   const allocation = allocationOf(D, assessment)
@@ -456,9 +522,12 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
               {allocation.map((a) => (
                 <th key={a.coNumber}>CO{a.coNumber}</th>
               ))}
-              {allocation.map((a) => (
-                <th key={`r-${a.coNumber}`}>CO{a.coNumber} remedial</th>
-              ))}
+              {/* BEGIN REMOVABLE -- no remedial columns on the SEE sheet */}
+              {showRemedial &&
+                allocation.map((a) => (
+                  <th key={`r-${a.coNumber}`}>CO{a.coNumber} remedial</th>
+                ))}
+              {/* END REMOVABLE -- no remedial columns on the SEE sheet */}
             </tr>
           </thead>
           <tbody>
@@ -468,7 +537,15 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
                 <td className="doc-table__reg">{row.student.regNumber}</td>
                 <td className="doc-table__name">{row.student.name}</td>
                 {row.excluded ? (
-                  <td className="doc-table__missing" colSpan={allocation.length * 2}>
+                  <td
+                    className="doc-table__missing"
+                    // BEGIN REMOVABLE -- no remedial columns on the SEE sheet.
+                    // The excluded-student cell spans the CO columns that are
+                    // actually there, which is one block, not two, once the
+                    // remedial columns are off.
+                    colSpan={allocation.length * (showRemedial ? 2 : 1)}
+                    // END REMOVABLE -- no remedial columns on the SEE sheet
+                  >
                     {row.reason} — excluded from attainment
                   </td>
                 ) : (
@@ -484,15 +561,18 @@ function AttainmentSection({ courseId, kind, targetPercent }) {
                         </td>
                       )
                     })}
-                    {allocation.map((a) => {
-                      const obtained = row.coMarks ? row.coMarks[a.coNumber] : null
-                      const percent = coPercent(obtained, a.marksAllocated)
-                      return (
-                        <td key={`r-${a.coNumber}`} className="doc-table__center">
-                          {needsRemedial(percent, targetPercent) ? 'Yes' : 'No'}
-                        </td>
-                      )
-                    })}
+                    {/* BEGIN REMOVABLE -- no remedial columns on the SEE sheet */}
+                    {showRemedial &&
+                      allocation.map((a) => {
+                        const obtained = row.coMarks ? row.coMarks[a.coNumber] : null
+                        const percent = coPercent(obtained, a.marksAllocated)
+                        return (
+                          <td key={`r-${a.coNumber}`} className="doc-table__center">
+                            {needsRemedial(percent, targetPercent) ? 'Yes' : 'No'}
+                          </td>
+                        )
+                      })}
+                    {/* END REMOVABLE -- no remedial columns on the SEE sheet */}
                   </>
                 )}
               </tr>
@@ -785,7 +865,11 @@ function RemedialSection({ course, kind, targetPercent }) {
 
   return (
     <>
-      <h3 className="doc-section__title">(a) Name list</h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section. (a) shares the
+          page and the band its <Part> has already opened, so it is `first`. */}
+      <SubSheet first>
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(a) Name list</h3>
       {list.length === 0 ? (
         <p className="doc-empty">NIL — every attended student reached the target.</p>
       ) : (
@@ -824,9 +908,12 @@ function RemedialSection({ course, kind, targetPercent }) {
         </>
       )}
 
-      <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
-        (b) Circular
-      </h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      </SubSheet>
+
+      <SubSheet>
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(b) Circular</h3>
       <p className="doc-statement">
         The students listed above have not attained the Course Outcome target of{' '}
         {targetPercent.toFixed(2)}% in {kind} of {course.code} — {course.title}. Remedial classes
@@ -862,13 +949,20 @@ function RemedialSection({ course, kind, targetPercent }) {
         </div>
       )}
 
-      {/* BEGIN REMOVABLE -- remedial question paper */}
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      </SubSheet>
+      {/* END REMOVABLE -- one printed sheet per sub-section */}
+
+      {/* BEGIN REMOVABLE -- remedial question paper. Still between (b) and
+          (c), still unlettered, and still outside the four sub-sheets: it is
+          one sheet per class that has a paper, not a fifth lettered block. */}
       <QuestionPapers course={course} kind={kind} />
       {/* END REMOVABLE -- remedial question paper */}
 
-      <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
-        (c) Attendance
-      </h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      <SubSheet>
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(c) Attendance</h3>
       {list.length === 0 || classes.length === 0 ? (
         <p className="doc-empty">NIL — no remedial classes required.</p>
       ) : (
@@ -912,9 +1006,12 @@ function RemedialSection({ course, kind, targetPercent }) {
         </div>
       )}
 
-      <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
-        (d) After-remedial assessment report
-      </h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      </SubSheet>
+
+      <SubSheet>
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(d) After-remedial assessment report</h3>
       {list.length === 0 ? (
         <p className="doc-empty">NIL — no re-assessment required.</p>
       ) : (
@@ -980,7 +1077,11 @@ function RemedialSection({ course, kind, targetPercent }) {
         </div>
       )}
 
-      <Signatures />
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section. The single
+          <Signatures /> that used to close the whole section is gone: each
+          of the four sub-sheets carries its own. */}
+      </SubSheet>
+      {/* END REMOVABLE -- one printed sheet per sub-section */}
     </>
   )
 }
@@ -1050,7 +1151,11 @@ function FinalSection({ course, nature, targetPercent }) {
 
   return (
     <>
-      <h3 className="doc-section__title">(a) Direct assessment</h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section. (a) and (b) are
+          narrow and stay portrait; (c) and (d) are the wide two. */}
+      <SubSheet first>
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(a) Direct assessment</h3>
       <div className="doc-table-wrap">
         <table className="doc-table">
           <thead>
@@ -1110,9 +1215,12 @@ function FinalSection({ course, nature, targetPercent }) {
         </table>
       </div>
 
-      <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
-        (b) Indirect assessment and final CO attainment
-      </h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      </SubSheet>
+
+      <SubSheet>
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(b) Indirect assessment and final CO attainment</h3>
       <div className="doc-table-wrap">
         <table className="doc-table">
           <thead>
@@ -1147,9 +1255,14 @@ function FinalSection({ course, nature, targetPercent }) {
         </table>
       </div>
 
-      <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
-        (c) CO — PO / PSO articulation matrix
-      </h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      </SubSheet>
+
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape. 16 columns. */}
+      <SubSheet landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(c) CO — PO / PSO articulation matrix</h3>
       <div className="doc-table-wrap">
         <table className="doc-table doc-table--matrix">
           <thead>
@@ -1177,9 +1290,15 @@ function FinalSection({ course, nature, targetPercent }) {
         </table>
       </div>
 
-      <h3 className="doc-section__title" style={{ marginTop: '1.5rem' }}>
-        (d) PO / PSO attainment
-      </h3>
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section */}
+      </SubSheet>
+
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape. 17 columns --
+          the articulation matrix plus "Final level". */}
+      <SubSheet landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
+        {/* END REMOVABLE -- one printed sheet per sub-section */}
+        <h3 className="doc-section__title">(d) PO / PSO attainment</h3>
       <div className="doc-table-wrap">
         {/* BEGIN REMOVABLE -- headroom for the PO / PSO attainment table.
             The same table as section 4 of the Final Attainment sheet, and
@@ -1228,7 +1347,11 @@ function FinalSection({ course, nature, targetPercent }) {
         </table>
       </div>
 
-      <Signatures />
+      {/* BEGIN REMOVABLE -- one printed sheet per sub-section. The single
+          <Signatures /> that used to close the whole section is gone: each
+          of the four sub-sheets carries its own. */}
+      </SubSheet>
+      {/* END REMOVABLE -- one printed sheet per sub-section */}
     </>
   )
 }
@@ -1403,7 +1526,12 @@ function FullCourseFileView() {
         <Outcomes embedded />
       </Part>
 
-      <Part number={4} title="Course details, CO statements, CO-PO/PSO matrix">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape. This sheet holds
+          the CO-PO/PSO articulation matrix, so the whole part turns: a page box
+          has one orientation, and the course details and CO statements above
+          the matrix are on that same page. */}
+      <Part number={4} title="Course details, CO statements, CO-PO/PSO matrix" landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <SetupSection course={course} nature={nature} />
       </Part>
 
@@ -1414,7 +1542,9 @@ function FullCourseFileView() {
         <NameList embedded />
       </Part>
 
-      <Part number={6} title="PT1 mark sheet">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape */}
+      <Part number={6} title="PT1 mark sheet" landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <MarkSheetSection courseId={courseId} kind="PT1" />
       </Part>
 
@@ -1426,7 +1556,9 @@ function FullCourseFileView() {
         <RemedialSection course={course} kind="PT1" targetPercent={target} />
       </Part>
 
-      <Part number={9} title="PT2 mark sheet">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape */}
+      <Part number={9} title="PT2 mark sheet" landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <MarkSheetSection courseId={courseId} kind="PT2" />
       </Part>
 
@@ -1438,13 +1570,17 @@ function FullCourseFileView() {
         <RemedialSection course={course} kind="PT2" targetPercent={target} />
       </Part>
 
-      <Part number={12} title="Innovative practice marks">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape */}
+      <Part number={12} title="Innovative practice marks" landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <MarkSheetSection courseId={courseId} kind="IP1" />
         <div style={{ height: '1.25rem' }} />
         <MarkSheetSection courseId={courseId} kind="IP2" />
       </Part>
 
-      <Part number={13} title="Optional test marks">
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape */}
+      <Part number={13} title="Optional test marks" landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
         <MarkSheetSection courseId={courseId} kind="OT" />
       </Part>
 
@@ -1462,8 +1598,18 @@ function FullCourseFileView() {
         <InternalMarks embedded />
       </Part>
 
-      <Part number={16} title="SEE CO attainment">
-        <AttainmentSection courseId={courseId} kind="SEE" targetPercent={target} />
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape */}
+      <Part number={16} title="SEE CO attainment" landscape>
+        {/* END REMOVABLE -- the wide sheets print landscape */}
+        {/* BEGIN REMOVABLE -- no remedial columns on the SEE sheet. Sheets 7
+            and 10 above pass no flag and keep theirs. */}
+        <AttainmentSection
+          courseId={courseId}
+          kind="SEE"
+          targetPercent={target}
+          showRemedial={false}
+        />
+        {/* END REMOVABLE -- no remedial columns on the SEE sheet */}
       </Part>
 
       <Part number={17} title="Final attainment">

@@ -21,10 +21,12 @@
 //   sheet and its embedded copy print the same heading without the two
 //   being typed out twice and drifting apart.
 //
-// THE NUMBERS ARE THE WORKBOOK'S, and they are not contiguous here:
-//   only the seven sheets that have a capitalised heading appear. Sheets
-//   4, 6-13, 16 and 17 have no heading of their own, never duplicated, and
-//   keep the numbered part title FullCourseFile.jsx gives them.
+// THE NUMBER IS NOT PRINTED. It is kept here because it is what orders
+//   the sheets, and the sidebar still numbers its links -- but the printed
+//   and on-screen heading is the wording alone: "ATTENDANCE", not
+//   "14. ATTENDANCE". Sheets 4, 6-13, 16 and 17 have no heading of their
+//   own and keep the part title FullCourseFile.jsx gives them, which is
+//   likewise unnumbered.
 //
 // SHEET 18 IS THE ODD ONE. It is not one component embedded twice: the
 //   standalone ClosingReport.jsx and the Full Course File's ClosingSection
@@ -48,10 +50,10 @@ const SHEETS = {
   closing: { number: 18, heading: 'COURSE FILE CLOSING REPORT' },
 }
 
-/** "14. ATTENDANCE" -- the one heading that sheet prints, embedded or not. */
+/** "ATTENDANCE" -- the one heading that sheet prints, embedded or not. */
 export function sheetHeading(key) {
   const sheet = SHEETS[key]
   if (!sheet) throw new Error(`sheetHeading: no sheet named "${key}"`)
-  return `${sheet.number}. ${sheet.heading}`
+  return sheet.heading
 }
 // END REMOVABLE -- one heading per sheet

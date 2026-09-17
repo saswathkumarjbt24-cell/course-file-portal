@@ -1,0 +1,49 @@
+/* BEGIN REMOVABLE -- one printed sheet per sub-section */
+
+/* ---------------------------------------------------------------
+   A LETTERED SUB-SECTION IS A SHEET OF ITS OWN.
+
+   The department's workbook keeps the remedial section as four sheets --
+   11.a name list, 11.b circular, 11.c attendance, 11.d after-remedial
+   report -- and the final attainment section as four more. Both printed
+   the four blocks end to end on one or two pages, so the filed copy did
+   not match the workbook it is filed against.
+
+   .doc-subsheet is the wrapper each of those blocks now sits in, and this
+   file is the whole of the page treatment:
+
+     break-before: page   the block starts a fresh sheet.
+     --first              the FIRST block does not, because its .doc-part
+                          has already broken for it. Without this the part
+                          would emit one empty page ahead of sheet (a) --
+                          exactly the fault the signature-at-the-foot file
+                          was reverted for.
+
+   THE SIGNATURE IS NOT STYLED HERE. Each sub-sheet renders its own
+   <Signatures />, and ./print.css already matches `.doc-part > div:has(>
+   .doc-sign)` -- so a sub-sheet is a column box a page tall and its
+   signature takes the slack, which is the behaviour every other sheet
+   has. Nothing forces a break before a signature and no page is added
+   for one.
+
+   THE LETTERHEAD IS NOT STYLED HERE EITHER. Each sub-sheet after the
+   first renders its own <Letterhead />, as every printed sheet does; the
+   first uses the band its .doc-part already printed.
+
+   PRINT ONLY. On screen the four blocks read as one continuous section,
+   exactly as they did.
+   --------------------------------------------------------------- */
+
+@media print {
+  .doc-subsheet {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .doc-subsheet--first {
+    break-before: auto;
+    page-break-before: auto;
+  }
+}
+
+/* END REMOVABLE -- one printed sheet per sub-section */

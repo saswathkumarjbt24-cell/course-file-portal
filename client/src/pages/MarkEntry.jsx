@@ -427,7 +427,14 @@ function MarkEntryView({
   }
 
   return (
-    <>
+    // BEGIN REMOVABLE -- the wide sheets print landscape.
+    // This is the standalone PT1 / PT2 / IP / OT mark sheet, which is on the
+    // department's landscape list. The class goes on a wrapper round the WHOLE
+    // sheet rather than round the table: orientation belongs to the page box,
+    // and Chrome breaks a page wherever the named page changes, so on the
+    // table alone that break would land in the middle of the sheet.
+    <div className="print-landscape">
+      {/* END REMOVABLE -- the wide sheets print landscape */}
       <Link to={`/course/${courseId}`} className="back-link">
         &larr; Back to course
       </Link>
@@ -699,6 +706,10 @@ function MarkEntryView({
           <SaveFeedback state={saveState} />
         </>
       )}
-    </>
+      {/* BEGIN REMOVABLE -- the wide sheets print landscape.
+          This </div> and the <div> at the top of the return are the whole of
+          the wrapper; delete both to revert. */}
+    </div>
+    // END REMOVABLE -- the wide sheets print landscape
   )
 }
