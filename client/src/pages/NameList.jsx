@@ -20,6 +20,10 @@ import { canEditCourseFile, READ_ONLY_NOTE } from '../components/permissions'
 // BEGIN REMOVABLE -- one heading per sheet
 import { sheetHeading } from '../components/sheetHeadings'
 // END REMOVABLE -- one heading per sheet
+// BEGIN REMOVABLE -- faculty roll management
+import ManageStudents from './ManageStudents'
+import { fetchCourseRoll } from '../data/api'
+// END REMOVABLE -- faculty roll management
 
 const LOADERS = {
   courseStudents: fetchCourseStudents,
@@ -44,9 +48,22 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
   // The enrolled roll of THIS course. Not the institution-wide student list:
   // this screen edits enrolment, and a name list showing everyone would make
   // "remove from the course" look like it did nothing.
+  // BEGIN REMOVABLE -- faculty roll management. After the Manage students
+  // panel writes, the roll is re-read for THIS course only and used in place
+  // of the loaded one. Tagged with the course id so it never leaks onto
+  // another course when the route's :id changes under the same component.
+  const [freshRoll, setFreshRoll] = useState(null)
+  async function reloadRoll() {
+    const rows = await fetchCourseRoll(courseId)
+    setFreshRoll({ courseId, rows })
+  }
+  // END REMOVABLE -- faculty roll management
   const roll = useMemo(
-    () => courseStudents.filter((s) => s.courseId === courseId),
-    [courseStudents, courseId],
+    () =>
+      freshRoll && freshRoll.courseId === courseId
+        ? freshRoll.rows
+        : courseStudents.filter((s) => s.courseId === courseId),
+    [courseStudents, courseId, freshRoll],
   )
 
   // BEGIN REMOVABLE -- edit permission scope
@@ -369,6 +386,16 @@ function NameListView({ embedded, courseStudents, courses, institution }) {
           </div>
         </div>
       </article>
+
+      {/* BEGIN REMOVABLE -- faculty roll management. Screen only: outside
+          the printed <article> and inside .doc-noprint. Keyed by course so
+          nothing typed for one course survives onto the next. */}
+      {!embedded && isApiMode() && (
+        <div className="doc-noprint">
+          <ManageStudents key={courseId} courseId={courseId} roll={roll} onChanged={reloadRoll} />
+        </div>
+      )}
+      {/* END REMOVABLE -- faculty roll management */}
 
       {!embedded && (
         <div className="doc-actions">

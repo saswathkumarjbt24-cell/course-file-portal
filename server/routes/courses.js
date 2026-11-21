@@ -2167,4 +2167,479 @@ router.put(
   })
 );
 
+// =====================================================================
+// BEGIN REMOVABLE BLOCK -- faculty roll management
+//
+//   GET    /api/courses/:id/students/available       - not on this course yet
+//   POST   /api/courses/:id/students/add             - enrol picked students
+//   POST   /api/courses/:id/students/import/preview  - what a file WOULD do
+//   POST   /api/courses/:id/students/import/apply    - do it, one transaction
+//   DELETE /api/courses/:id/students/:studentId      - remove one enrolment
+//
+// WHO. Anyone requireCourseAccess lets through -- it is mounted on the `/:id`
+// prefix at the top of this file, so it already gates all five: admin, the
+// hod of the course's department, and faculty allocated to the course in
+// EITHER role (handling or incharge). requireCourseFileEditor is NOT used
+// and NOT changed; the whole-roll PUT above keeps its admin+hod guard.
+//
+// WHY THESE ARE SAFE TO OPEN TO FACULTY WHEN THE PUT IS NOT.
+//   The PUT replaces the whole roll, so an omission is a removal. These add
+//   or remove ONE thing at a time, never rename a student, never delete a
+//   student row, and the removal refuses outright (409) when the student has
+//   any mark, attendance or remedial row on this course.
+//
+// THE BROWSER IS NOT TRUSTED. The client parses the file and sends rows as
+// JSON; every row is validated again here (non-empty, length limits), and
+// every write re-resolves against the database inside its transaction.
+//
+// ONE WRITER PER COURSE. Each write locks the course row (SELECT ... FOR
+// UPDATE) first, so two tabs adding the same student cannot both insert an
+// enrolment -- the enrolment unique key contains NULLable columns and so
+// cannot stop a duplicate on its own.
+// =====================================================================
+
+const rollCrypto = require("crypto");
+
+const ROLL_REG_MAX = 20;
+const ROLL_NAME_MAX = 120;
+const ROLL_ADD_MAX = 500;
+const ROLL_IMPORT_MAX = 1000;
+
+/** Trim and collapse inner whitespace. */
+function rollSquash(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** The course row, locked when `lock`. 404 when it does not exist. */
+async function rollCourse(conn, courseId, lock) {
+  const [rows] = await conn.execute(
+    `SELECT id, code, batch, programme FROM courses WHERE id = ?${lock ? " FOR UPDATE" : ""}`,
+    [courseId]
+  );
+  if (rows.length === 0) throw new HttpError(404, `No course with id ${courseId}`);
+  return rows[0];
+}
+
+/** Insert one enrolment unless any enrolment row already exists. */
+async function rollEnrol(conn, courseId, studentId) {
+  const [existing] = await conn.execute(
+    `SELECT id FROM student_enrolments WHERE course_id = ? AND student_id = ? LIMIT 1`,
+    [courseId, studentId]
+  );
+  if (existing.length > 0) return false;
+  await conn.execute(
+    `INSERT INTO student_enrolments (student_id, course_id, academic_year, semester)
+     VALUES (?, ?, NULL, NULL)`,
+    [studentId, courseId]
+  );
+  return true;
+}
+
+// ---------------------------------------------------------------------
+// GET /api/courses/:id/students/available?q=&batch=&programme=
+//
+// Students in the directory NOT enrolled on this course. Returns
+// { course: { batch, programme }, students, batches, programmes }; the
+// course's own batch is there so the screen can default its filter to it.
+// ---------------------------------------------------------------------
+router.get(
+  "/:id/students/available",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const course = await rollCourse(pool, courseId, false);
+
+    const text = (v) => (typeof v === "string" ? v.trim() : "");
+    const q = text(req.query.q);
+    const batch = text(req.query.batch);
+    const programme = text(req.query.programme);
+
+    const where = [
+      `NOT EXISTS (SELECT 1 FROM student_enrolments AS e
+                    WHERE e.student_id = s.id AND e.course_id = ?)`,
+    ];
+    const args = [courseId];
+    if (q !== "") {
+      const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      where.push("(s.reg_number LIKE ? OR s.name LIKE ?)");
+      args.push(like, like);
+    }
+    if (batch !== "") {
+      where.push("s.batch = ?");
+      args.push(batch);
+    }
+    if (programme !== "") {
+      where.push("s.programme = ?");
+      args.push(programme);
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT s.id, s.reg_number, s.name, s.batch, s.programme
+         FROM students AS s
+        WHERE ${where.join(" AND ")}
+        ORDER BY s.reg_number`,
+      args
+    );
+    const [batches] = await pool.execute(
+      `SELECT DISTINCT batch FROM students WHERE batch IS NOT NULL ORDER BY batch`
+    );
+    const [programmes] = await pool.execute(
+      `SELECT DISTINCT programme FROM students WHERE programme IS NOT NULL ORDER BY programme`
+    );
+
+    res.json({
+      course: { batch: course.batch, programme: course.programme },
+      students: rows.map((r) => ({
+        id: r.id,
+        regNumber: r.reg_number,
+        name: r.name,
+        batch: r.batch,
+        programme: r.programme,
+      })),
+      batches: batches.map((r) => r.batch),
+      programmes: programmes.map((r) => r.programme),
+    });
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/courses/:id/students/add
+//
+// Body: { studentIds: [1, 2, ...] }  at most 500, no duplicates needed.
+// An id already enrolled is ignored, not an error. An id that is not a
+// student is a 400 and NOTHING is enrolled.
+// ---------------------------------------------------------------------
+router.post(
+  "/:id/students/add",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const body = req.body;
+    if (!isPlainObject(body) || !Array.isArray(body.studentIds)) {
+      throw new HttpError(400, "Body must be { studentIds: [ ... ] }");
+    }
+    if (body.studentIds.length === 0) throw new HttpError(400, "studentIds is empty");
+    if (body.studentIds.length > ROLL_ADD_MAX) {
+      throw new HttpError(400, `At most ${ROLL_ADD_MAX} students in one request`);
+    }
+    const ids = [];
+    const issues = [];
+    body.studentIds.forEach((raw, index) => {
+      const id = Number.isInteger(raw) && raw > 0 ? raw : null;
+      if (id === null) issues.push({ index, message: "studentIds must be positive integers" });
+      else if (!ids.includes(id)) ids.push(id);
+    });
+    if (issues.length > 0) throw new ValidationError(issues);
+
+    const result = await withTransaction(async (conn) => {
+      await rollCourse(conn, courseId, true);
+      const [found] = await conn.query(`SELECT id FROM students WHERE id IN (?)`, [ids]);
+      const known = new Set(found.map((r) => r.id));
+      const missing = ids.filter((id) => !known.has(id));
+      if (missing.length > 0) {
+        throw new ValidationError(
+          missing.map((id) => ({ studentId: id, message: `No student with id ${id}. Nothing was enrolled.` }))
+        );
+      }
+      let added = 0;
+      for (const id of ids) if (await rollEnrol(conn, courseId, id)) added += 1;
+      return { added, alreadyEnrolled: ids.length - added };
+    });
+
+    res.json({ courseId, ...result });
+  })
+);
+
+/**
+ * Validate and classify import rows against the database as `conn` sees it.
+ *
+ *   enrol        in the directory, not on this course, name agrees
+ *   alreadyHere  already enrolled on this course
+ *   create       not in the directory; a new student will be made
+ *   nameDiffers  in the directory under a different name (shown both ways);
+ *                enrolled AS THE EXISTING STUDENT, name on file kept
+ *   skipped      with the reason
+ *
+ * Names are compared ignoring case and repeated spaces: "ABINAYA S" and
+ * "Abinaya  S" are the same name, "ABINAYA S" and "ABINAYA" are not.
+ */
+async function rollResolve(conn, courseId, rows, lock) {
+  const course = await rollCourse(conn, courseId, lock);
+  const skipped = [];
+  const valid = [];
+
+  rows.forEach((row, index) => {
+    const line = row && Number.isInteger(row.line) && row.line > 0 ? row.line : index + 1;
+    if (!isPlainObject(row)) {
+      skipped.push({ line, regNumber: "", reason: "row is not an object" });
+      return;
+    }
+    const regNumber = typeof row.regNumber === "string" || typeof row.regNumber === "number"
+      ? rollSquash(row.regNumber) : "";
+    const name = typeof row.name === "string" ? rollSquash(row.name) : "";
+    if (regNumber === "") return skipped.push({ line, regNumber, reason: "empty register number" });
+    if (name === "") return skipped.push({ line, regNumber, reason: "empty name" });
+    if (regNumber.length > ROLL_REG_MAX) {
+      return skipped.push({ line, regNumber, reason: `register number is longer than ${ROLL_REG_MAX} characters` });
+    }
+    if (name.length > ROLL_NAME_MAX) {
+      return skipped.push({ line, regNumber, reason: `name is longer than ${ROLL_NAME_MAX} characters` });
+    }
+    valid.push({ line, regNumber, name });
+  });
+
+  // The same register number twice in one file: identical repeats keep the
+  // first; repeats that disagree on the name are all skipped.
+  const groups = new Map();
+  for (const r of valid) {
+    const key = r.regNumber.toLowerCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const accepted = [];
+  for (const r of valid) {
+    const group = groups.get(r.regNumber.toLowerCase());
+    if (group.length === 1) { accepted.push(r); continue; }
+    const same = group.every((g) => g.name.toLowerCase() === group[0].name.toLowerCase());
+    if (!same) {
+      skipped.push({ line: r.line, regNumber: r.regNumber,
+        reason: `register number appears on rows ${group.map((g) => g.line).join(", ")} with different names` });
+    } else if (r === group[0]) {
+      accepted.push(r);
+    } else {
+      skipped.push({ line: r.line, regNumber: r.regNumber, reason: `repeats row ${group[0].line}` });
+    }
+  }
+  skipped.sort((a, b) => a.line - b.line);
+
+  const existing = new Map();
+  for (let i = 0; i < accepted.length; i += 500) {
+    const regs = accepted.slice(i, i + 500).map((r) => r.regNumber);
+    const [found] = await conn.query(
+      `SELECT s.id, s.reg_number, s.name,
+              EXISTS (SELECT 1 FROM student_enrolments AS e
+                       WHERE e.student_id = s.id AND e.course_id = ?) AS enrolled
+         FROM students AS s
+        WHERE s.reg_number IN (?)${lock ? " FOR UPDATE" : ""}`,
+      [courseId, regs]
+    );
+    for (const f of found) existing.set(f.reg_number.toLowerCase(), f);
+  }
+
+  const out = { enrol: [], alreadyHere: [], create: [], nameDiffers: [] };
+  for (const r of accepted) {
+    const ex = existing.get(r.regNumber.toLowerCase());
+    if (!ex) {
+      out.create.push({ line: r.line, regNumber: r.regNumber, name: r.name,
+        batch: course.batch, programme: course.programme });
+      continue;
+    }
+    const base = { line: r.line, studentId: ex.id, regNumber: ex.reg_number };
+    if (Number(ex.enrolled) === 1) {
+      out.alreadyHere.push({ ...base, name: ex.name });
+    } else if (rollSquash(ex.name).toLowerCase() !== r.name.toLowerCase()) {
+      out.nameDiffers.push({ ...base, nameOnFile: ex.name, nameInFile: r.name });
+    } else {
+      out.enrol.push({ ...base, name: ex.name });
+    }
+  }
+
+  const token = rollCrypto.createHash("sha256").update(JSON.stringify({
+    courseId,
+    course: [course.batch, course.programme],
+    enrol: out.enrol.map((r) => [r.studentId, r.name]),
+    alreadyHere: out.alreadyHere.map((r) => r.studentId),
+    create: out.create.map((r) => [r.regNumber, r.name]),
+    nameDiffers: out.nameDiffers.map((r) => [r.studentId, r.nameOnFile, r.nameInFile]),
+    skipped: skipped.map((r) => [r.line, r.reason]),
+  }), "utf8").digest("hex");
+
+  return {
+    courseId,
+    course: { batch: course.batch, programme: course.programme },
+    totals: {
+      enrol: out.enrol.length,
+      alreadyHere: out.alreadyHere.length,
+      create: out.create.length,
+      nameDiffers: out.nameDiffers.length,
+      skipped: skipped.length,
+    },
+    ...out,
+    skipped,
+    token,
+  };
+}
+
+/** 400 for a body that is not { rows: [...] } within the cap. */
+function rollRowsBody(body) {
+  if (!isPlainObject(body) || !Array.isArray(body.rows)) {
+    throw new HttpError(400, "Body must be { rows: [ { regNumber, name } ] }");
+  }
+  if (body.rows.length === 0) throw new HttpError(400, "rows is empty");
+  if (body.rows.length > ROLL_IMPORT_MAX) {
+    throw new HttpError(400, `At most ${ROLL_IMPORT_MAX} rows in one import`);
+  }
+}
+
+// ---------------------------------------------------------------------
+// POST /api/courses/:id/students/import/preview
+//
+// Body: { rows: [{ regNumber, name, line? }] }. WRITES NOTHING: no
+// transaction is opened, only SELECTs run.
+// ---------------------------------------------------------------------
+router.post(
+  "/:id/students/import/preview",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    rollRowsBody(req.body);
+    res.json(await rollResolve(pool, courseId, req.body.rows, false));
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/courses/:id/students/import/apply
+//
+// Body: { rows, token, confirmCreate?, confirmNameDiffers? }
+//
+// ONE TRANSACTION. Re-resolves inside it with the course and matched student
+// rows locked. Token differs -> 409 with a fresh preview, nothing written.
+// Any `create` row needs confirmCreate: true; any `nameDiffers` row needs
+// confirmNameDiffers: true -- both 400 otherwise, nothing written. New
+// students inherit the course's batch and programme as stored on the course.
+// ---------------------------------------------------------------------
+router.post(
+  "/:id/students/import/apply",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    rollRowsBody(req.body);
+    if (typeof req.body.token !== "string" || req.body.token.trim() === "") {
+      throw new HttpError(400, "token is required; it is the value the preview returned");
+    }
+    const expected = req.body.token.trim();
+
+    const outcome = await withTransaction(async (conn) => {
+      const fresh = await rollResolve(conn, courseId, req.body.rows, true);
+      if (fresh.token !== expected) return { drifted: true, preview: fresh };
+
+      if (fresh.create.length > 0 && req.body.confirmCreate !== true) {
+        throw new HttpError(400,
+          `${fresh.create.length} row(s) are not in the student directory and would be created as new students. ` +
+          "Check them for typos, then confirm. Nothing was written.");
+      }
+      if (fresh.nameDiffers.length > 0 && req.body.confirmNameDiffers !== true) {
+        throw new HttpError(400,
+          `${fresh.nameDiffers.length} row(s) match a register number on file under a different name. ` +
+          "Check them, then confirm. Nothing was written.");
+      }
+
+      let created = 0;
+      let enrolled = 0;
+      for (const row of fresh.create) {
+        let inserted;
+        try {
+          [inserted] = await conn.execute(
+            `INSERT INTO students (reg_number, name, batch, programme) VALUES (?, ?, ?, ?)`,
+            [row.regNumber, row.name, row.batch, row.programme]
+          );
+        } catch (err) {
+          throw new HttpError(500,
+            `Row ${row.line} (${row.regNumber}) could not be created (${err.code || "database error"}). Nothing was written.`);
+        }
+        created += 1;
+        if (await rollEnrol(conn, courseId, inserted.insertId)) enrolled += 1;
+      }
+      for (const row of [...fresh.enrol, ...fresh.nameDiffers]) {
+        if (await rollEnrol(conn, courseId, row.studentId)) enrolled += 1;
+      }
+      return { drifted: false, created, enrolled };
+    });
+
+    if (outcome.drifted) {
+      res.status(409).json({
+        message: "The roll or the directory changed since this preview, so nothing was written. Check the fresh preview and apply again.",
+        preview: outcome.preview,
+      });
+      return;
+    }
+    res.json({ courseId, created: outcome.created, enrolled: outcome.enrolled });
+  })
+);
+
+// ---------------------------------------------------------------------
+// DELETE /api/courses/:id/students/:studentId
+//
+// Removes the ENROLMENT only; the student row is never deleted. 409, naming
+// every kind of row that exists, if the student has ANY assessment mark, CO
+// mark, remedial result, internal mark, attendance or remedial attendance
+// row on THIS course. Nothing is deleted in that case.
+// ---------------------------------------------------------------------
+router.delete(
+  "/:id/students/:studentId",
+  asyncHandler(async (req, res) => {
+    const courseId = requireId(req);
+    const studentId = requireId(req, "studentId");
+
+    const result = await withTransaction(async (conn) => {
+      await rollCourse(conn, courseId, true);
+      const [who] = await conn.execute(`SELECT reg_number, name FROM students WHERE id = ?`, [studentId]);
+      const [enrolment] = await conn.execute(
+        `SELECT id FROM student_enrolments WHERE course_id = ? AND student_id = ? LIMIT 1`,
+        [courseId, studentId]
+      );
+      if (who.length === 0 || enrolment.length === 0) {
+        throw new HttpError(404, `Student ${studentId} is not enrolled on course ${courseId}`);
+      }
+
+      const [[held]] = await conn.execute(
+        `SELECT
+           (SELECT COUNT(*) FROM student_assessments AS sa
+              JOIN assessments AS a ON a.id = sa.assessment_id
+             WHERE a.course_id = ? AND sa.student_id = ?) AS assessment_marks,
+           (SELECT COUNT(*) FROM student_co_marks AS cm
+              JOIN student_assessments AS sa ON sa.id = cm.student_assessment_id
+              JOIN assessments AS a ON a.id = sa.assessment_id
+             WHERE a.course_id = ? AND sa.student_id = ?) AS co_marks,
+           (SELECT COUNT(*) FROM remedial_results AS rr
+              JOIN student_assessments AS sa ON sa.id = rr.student_assessment_id
+              JOIN assessments AS a ON a.id = sa.assessment_id
+             WHERE a.course_id = ? AND sa.student_id = ?) AS remedial_results,
+           (SELECT COUNT(*) FROM internal_marks
+             WHERE course_id = ? AND student_id = ?) AS internal_marks,
+           (SELECT COUNT(*) FROM attendance
+             WHERE course_id = ? AND student_id = ?) AS attendance,
+           (SELECT COUNT(*) FROM remedial_attendance AS ra
+              JOIN remedial_classes AS rc ON rc.id = ra.remedial_class_id
+              JOIN remedial_schedules AS rs ON rs.id = rc.schedule_id
+             WHERE rs.course_id = ? AND ra.student_id = ?) AS remedial_attendance`,
+        Array(6).fill([courseId, studentId]).flat()
+      );
+      const labels = {
+        assessment_marks: "assessment mark row(s)",
+        co_marks: "CO mark row(s)",
+        remedial_results: "remedial result row(s)",
+        internal_marks: "internal mark row(s)",
+        attendance: "attendance row(s)",
+        remedial_attendance: "remedial attendance row(s)",
+      };
+      const found = Object.keys(labels)
+        .filter((k) => Number(held[k]) > 0)
+        .map((k) => `${Number(held[k])} ${labels[k]}`);
+      if (found.length > 0) {
+        throw new HttpError(409,
+          `${who[0].reg_number} (${who[0].name}) cannot be removed: this course already has ` +
+          `${found.join(", ")} for them. Removing the enrolment would orphan that data, so nothing was removed.`);
+      }
+
+      const [deleted] = await conn.execute(
+        `DELETE FROM student_enrolments WHERE course_id = ? AND student_id = ?`,
+        [courseId, studentId]
+      );
+      return { removed: deleted.affectedRows, regNumber: who[0].reg_number };
+    });
+
+    res.json({ courseId, studentId, ...result });
+  })
+);
+
+// END REMOVABLE BLOCK -- faculty roll management
+// =====================================================================
+
 module.exports = router;

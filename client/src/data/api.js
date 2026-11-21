@@ -1398,3 +1398,70 @@ export async function updateDirectoryStudent(studentId, body) {
   return result
 }
 // END REMOVABLE -- Student Directory
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- faculty roll management
+//
+// The Manage students panel on the Name List. Open to anyone who can open the
+// course -- allocated faculty in either role, the department hod, admin. The
+// server's requireCourseAccess decides; a 403 comes back as its sentence.
+// Mock mode: empty lists, writes resolve { mock: true }.
+// ---------------------------------------------------------------
+
+/** This course's enrolled students, fresh from the server. */
+export async function fetchCourseRoll(courseId) {
+  if (!API_URL) return []
+  const rows = await get(`/api/courses/${courseId}/students`)
+  return rows.map((s) => ({
+    courseId,
+    id: s.id,
+    regNumber: s.regNumber,
+    name: s.name,
+    currentSem: s.currentSem,
+  }))
+}
+
+/** Directory students NOT on this course: { course, students, batches, programmes }. */
+export async function fetchAvailableStudents(courseId) {
+  if (!API_URL) return { course: { batch: null, programme: null }, students: [], batches: [], programmes: [] }
+  return get(`/api/courses/${courseId}/students/available`)
+}
+
+/** Enrol picked students. Resolves { added, alreadyEnrolled }. */
+export async function addCourseStudents(courseId, studentIds) {
+  if (!API_URL) return { mock: true }
+  const result = await post(`/api/courses/${courseId}/students/add`, { studentIds })
+  invalidate()
+  return result
+}
+
+/** What a file or paste WOULD do. Writes nothing. */
+export async function previewCourseStudentImport(courseId, rows) {
+  if (!API_URL) return { mock: true }
+  return post(`/api/courses/${courseId}/students/import/preview`, { rows })
+}
+
+/**
+ * Apply a previewed import. 409 = the data moved since the preview and
+ * nothing was written; 400 = a confirmation the preview needed was missing.
+ */
+export async function applyCourseStudentImport(courseId, rows, token, confirmCreate, confirmNameDiffers) {
+  if (!API_URL) return { mock: true }
+  const result = await post(`/api/courses/${courseId}/students/import/apply`, {
+    rows,
+    token,
+    confirmCreate: confirmCreate === true,
+    confirmNameDiffers: confirmNameDiffers === true,
+  })
+  invalidate()
+  return result
+}
+
+/** Remove one enrolment. 409 carries the server's reason (marks etc. exist). */
+export async function removeCourseStudent(courseId, studentId) {
+  if (!API_URL) return { mock: true }
+  const result = await del(`/api/courses/${courseId}/students/${studentId}`)
+  invalidate()
+  return result
+}
+// END REMOVABLE -- faculty roll management

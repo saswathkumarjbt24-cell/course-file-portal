@@ -11,9 +11,19 @@
 // ---------------------------------------------------------------
 
 import { useEffect, useState } from 'react'
+// BEGIN REMOVABLE -- stale error banner
+import { useParams } from 'react-router-dom'
+// END REMOVABLE -- stale error banner
 
 export function useApiData(loaders) {
   const [state, setState] = useState({ loading: true, error: null, data: null })
+  // BEGIN REMOVABLE -- stale error banner. React Router keeps the same page
+  // component mounted when only :id changes, so without this a refused
+  // course's error stayed on every course opened afterwards. Re-running on
+  // the id resets error to null; repeat requests are served from api.js's
+  // cache. Outside a /course/:id route this is undefined and never changes.
+  const { id: routeId } = useParams()
+  // END REMOVABLE -- stale error banner
 
   useEffect(() => {
     let cancelled = false
@@ -38,7 +48,7 @@ export function useApiData(loaders) {
     return () => {
       cancelled = true
     }
-  }, [loaders])
+  }, [loaders, routeId]) // was [loaders] -- stale error banner fix
 
   return state
 }
