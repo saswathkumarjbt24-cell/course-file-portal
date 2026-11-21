@@ -1337,3 +1337,64 @@ export async function saveSetupAllocations(assessmentId, rows) {
   return result
 }
 // END REMOVABLE -- admin Course Setup screen
+
+// ---------------------------------------------------------------
+// BEGIN REMOVABLE -- Student Directory
+//
+// ADMIN ONLY, all four. A faculty or hod token is refused with 403, which
+// failure() turns into the server's own sentence. Delete this block,
+// pages/StudentDirectory.jsx, data/studentPaste.js, server/studentPaste.js,
+// the route in App.jsx and the link in Layout.jsx to remove the feature.
+//
+// In MOCK mode the directory is empty and the writes resolve { mock: true }.
+// ---------------------------------------------------------------
+
+/**
+ * Every student, institution-wide. Resolves
+ * { students: [{ id, regNumber, name, currentSem, batch, programme,
+ *   courseCount }], batches: [...], programmes: [...], total }.
+ * The screen filters in the browser, so it asks for everything.
+ */
+export async function fetchAdminStudents() {
+  if (!API_URL) return { students: [], batches: [], programmes: [], total: 0 }
+  return get('/api/admin/students')
+}
+
+/**
+ * What a paste WOULD do. Writes nothing, so it does not invalidate. The
+ * server parses `text` itself; `filter` defaults to "BT" when blank.
+ */
+export async function previewStudentImport(text, filter) {
+  if (!API_URL) return { mock: true }
+  return post('/api/admin/students/import/preview', { text, filter })
+}
+
+/**
+ * Apply a previewed paste. `token` is the value the preview returned; a 409
+ * means the data moved since then and nothing was written. A 400 with name
+ * changes pending means `confirmNameChanges` was not sent.
+ */
+export async function applyStudentImport(text, filter, token, confirmNameChanges) {
+  if (!API_URL) return { mock: true }
+  const result = await post('/api/admin/students/import/apply', {
+    text,
+    filter,
+    token,
+    confirmNameChanges: confirmNameChanges === true,
+  })
+  invalidate()
+  return result
+}
+
+/**
+ * Correct one student's name, batch or programme. Never sends regNumber:
+ * the directory does not change register numbers.
+ */
+export async function updateDirectoryStudent(studentId, body) {
+  if (!API_URL) return { mock: true }
+  const { name, batch, programme } = body
+  const result = await put(`/api/admin/students/${studentId}`, { name, batch, programme })
+  invalidate()
+  return result
+}
+// END REMOVABLE -- Student Directory

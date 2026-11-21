@@ -1886,6 +1886,31 @@ router.put(
         args.push(name.value);
       }
     }
+    // BEGIN REMOVABLE -- Student Directory. batch and programme, both
+    // optional; '' or null clears the value. Programme is stored in the one
+    // Title Case spelling the bulk import uses (normaliseProgramme). The
+    // constants and the parser are declared in the Student Directory block
+    // at the foot of this file; they are read here only at request time.
+    if (body.batch !== undefined) {
+      const batch = optionalString(body.batch, DIRECTORY_BATCH_MAX);
+      if (!batch.ok) {
+        issues.push({ field: "batch", message: `batch must be text of at most ${DIRECTORY_BATCH_MAX} characters` });
+      } else {
+        sets.push("batch = ?");
+        args.push(batch.value);
+      }
+    }
+    if (body.programme !== undefined) {
+      const programme = optionalString(body.programme, DIRECTORY_PROGRAMME_MAX);
+      const normalised = programme.ok && programme.value !== null ? normaliseProgramme(programme.value) : null;
+      if (!programme.ok || (normalised !== null && normalised.length > DIRECTORY_PROGRAMME_MAX)) {
+        issues.push({ field: "programme", message: `programme must be text of at most ${DIRECTORY_PROGRAMME_MAX} characters` });
+      } else {
+        sets.push("programme = ?");
+        args.push(normalised);
+      }
+    }
+    // END REMOVABLE -- Student Directory
     if (issues.length > 0) throw new ValidationError(issues);
     if (sets.length === 0) throw new HttpError(400, "Send regNumber, name, or both");
 
@@ -1903,7 +1928,10 @@ router.put(
       }
 
       const [rows] = await conn.execute(
-        `SELECT id, reg_number, name, current_sem FROM students WHERE id = ?`,
+        // BEGIN REMOVABLE -- Student Directory: batch, programme added to
+        // the read-back. Was: SELECT id, reg_number, name, current_sem
+        `SELECT id, reg_number, name, current_sem, batch, programme FROM students WHERE id = ?`,
+        // END REMOVABLE -- Student Directory
         [studentId]
       );
       const [courses] = await conn.execute(
@@ -1915,6 +1943,10 @@ router.put(
         regNumber: rows[0].reg_number,
         name: rows[0].name,
         currentSem: rows[0].current_sem,
+        // BEGIN REMOVABLE -- Student Directory
+        batch: rows[0].batch,
+        programme: rows[0].programme,
+        // END REMOVABLE -- Student Directory
         coursesAffected: Number(courses[0].n),
       };
     });
@@ -3096,6 +3128,341 @@ router.post(
 );
 
 // END REMOVABLE BLOCK -- allocation CSV import (server half)
+// =====================================================================
+
+
+// =====================================================================
+// BEGIN REMOVABLE BLOCK -- Student Directory (server half)
+//
+//   GET  /api/admin/students                 - every student, filterable
+//   POST /api/admin/students/import/preview  - what a paste WOULD do
+//   POST /api/admin/students/import/apply    - do it, in one transaction
+//   (PUT /api/admin/students/:id lives with Course Setup above; this block
+//    only added batch and programme to it, inside REMOVABLE markers.)
+//
+// ADMIN ONLY. requireRole('admin') on every route, written out each time.
+// No token is a 401 from the gate in index.js before this file is reached.
+//
+// THE SERVER PARSES. The pasted text itself is sent, and parsed here by
+// server/studentPaste.js on preview and again on apply. Rows the browser
+// parsed are never trusted.
+//
+// NEVER DELETES. There is no DELETE in this block and student_enrolments is
+// never written. Apply only INSERTs new students and UPDATEs changed ones.
+//
+// AN EMPTY CELL NEVER ERASES. A blank batch or programme in the paste means
+// "not given"; it does not clear a value already on record.
+//
+// A NAME CHANGE IS NOT APPLIED SILENTLY. A register number already on file
+// with a different name is a typo or two different people. The preview lists
+// those rows on their own, and apply refuses with 400 unless the request
+// carries confirmNameChanges: true.
+// =====================================================================
+
+const directoryCrypto = require("crypto");
+const { parseStudentPaste, normaliseProgramme } = require("../studentPaste");
+
+// Column widths from migrations 003 and 027.
+const DIRECTORY_BATCH_MAX = 20;
+const DIRECTORY_PROGRAMME_MAX = 120;
+// A paste bigger than this is almost certainly the wrong thing pasted.
+const DIRECTORY_MAX_LINES = 5000;
+const DIRECTORY_FILTER_MAX = 20;
+// How many register numbers go into one IN (...) lookup.
+const DIRECTORY_CHUNK = 500;
+
+function directoryRow(r) {
+  return {
+    id: r.id,
+    regNumber: r.reg_number,
+    name: r.name,
+    currentSem: r.current_sem,
+    batch: r.batch,
+    programme: r.programme,
+    courseCount: Number(r.course_count),
+  };
+}
+
+// ---------------------------------------------------------------------
+// GET /api/admin/students?q=&batch=&programme=
+//
+//   q          substring of register number OR name (case-insensitive)
+//   batch      exact batch
+//   programme  exact programme
+//
+// Returns { students, batches, programmes, total }. `batches` and
+// `programmes` are every distinct value in the table, for the filter
+// pickers, regardless of the filter applied. `total` is the unfiltered count.
+// courseCount is distinct courses enrolled on; 0 means attached to nothing.
+// ---------------------------------------------------------------------
+router.get(
+  "/students",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const text = (v) => (typeof v === "string" ? v.trim() : "");
+    const q = text(req.query.q);
+    const batch = text(req.query.batch);
+    const programme = text(req.query.programme);
+
+    const where = [];
+    const args = [];
+    if (q !== "") {
+      const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      where.push("(s.reg_number LIKE ? OR s.name LIKE ?)");
+      args.push(like, like);
+    }
+    if (batch !== "") {
+      where.push("s.batch = ?");
+      args.push(batch);
+    }
+    if (programme !== "") {
+      where.push("s.programme = ?");
+      args.push(programme);
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT s.id, s.reg_number, s.name, s.current_sem, s.batch, s.programme,
+              COALESCE(ec.n, 0) AS course_count
+         FROM students AS s
+         LEFT JOIN (SELECT student_id, COUNT(DISTINCT course_id) AS n
+                      FROM student_enrolments
+                     GROUP BY student_id) AS ec ON ec.student_id = s.id
+        ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+        ORDER BY s.reg_number`,
+      args
+    );
+    const [batches] = await pool.execute(
+      `SELECT DISTINCT batch FROM students WHERE batch IS NOT NULL ORDER BY batch`
+    );
+    const [programmes] = await pool.execute(
+      `SELECT DISTINCT programme FROM students WHERE programme IS NOT NULL ORDER BY programme`
+    );
+    const [[total]] = await pool.execute(`SELECT COUNT(*) AS n FROM students`);
+
+    res.json({
+      students: rows.map(directoryRow),
+      batches: batches.map((r) => r.batch),
+      programmes: programmes.map((r) => r.programme),
+      total: Number(total.n),
+    });
+  })
+);
+
+/** 400 issues for a preview/apply body. */
+function directoryBodyIssues(body) {
+  const issues = [];
+  if (!isPlainObject(body)) {
+    return [{ field: "body", message: "Body must be a JSON object" }];
+  }
+  if (typeof body.text !== "string" || body.text.trim() === "") {
+    issues.push({ field: "text", message: "text is required: paste at least one row" });
+  } else if (body.text.split(/\r\n|\r|\n/).length > DIRECTORY_MAX_LINES) {
+    issues.push({ field: "text", message: `At most ${DIRECTORY_MAX_LINES} lines in one paste` });
+  }
+  if (body.filter !== undefined && body.filter !== null &&
+      (typeof body.filter !== "string" || body.filter.trim().length > DIRECTORY_FILTER_MAX)) {
+    issues.push({ field: "filter", message: `filter must be text of at most ${DIRECTORY_FILTER_MAX} characters` });
+  }
+  return issues;
+}
+
+/**
+ * Parse the paste and sort every accepted row into add / alreadyThere /
+ * update against the students table as `conn` sees it. With `lock`, the
+ * existing rows are read FOR UPDATE so nothing can change them between this
+ * read and apply's writes.
+ */
+async function directoryResolve(conn, text, filter, lock) {
+  const parsed = parseStudentPaste(text, filter);
+
+  const existing = new Map();
+  for (let i = 0; i < parsed.rows.length; i += DIRECTORY_CHUNK) {
+    const regs = parsed.rows.slice(i, i + DIRECTORY_CHUNK).map((r) => r.regNumber);
+    const [found] = await conn.query(
+      `SELECT id, reg_number, name, batch, programme
+         FROM students
+        WHERE reg_number IN (?)${lock ? " FOR UPDATE" : ""}`,
+      [regs]
+    );
+    // reg_number's collation is case-insensitive, so the match is too.
+    for (const r of found) existing.set(r.reg_number.toLowerCase(), r);
+  }
+
+  const add = [];
+  const alreadyThere = [];
+  const update = [];
+  const nameConflicts = [];
+
+  for (const row of parsed.rows) {
+    const ex = existing.get(row.regNumber.toLowerCase());
+    if (!ex) {
+      add.push({ line: row.line, regNumber: row.regNumber, name: row.name, batch: row.batch, programme: row.programme });
+      continue;
+    }
+    const changes = [];
+    if (row.name !== ex.name) changes.push({ field: "name", old: ex.name, new: row.name });
+    if (row.batch !== null && row.batch !== ex.batch) changes.push({ field: "batch", old: ex.batch, new: row.batch });
+    if (row.programme !== null && row.programme !== ex.programme) {
+      changes.push({ field: "programme", old: ex.programme, new: row.programme });
+    }
+    if (changes.length === 0) {
+      alreadyThere.push({ line: row.line, id: ex.id, regNumber: ex.reg_number, name: ex.name });
+      continue;
+    }
+    update.push({ line: row.line, id: ex.id, regNumber: ex.reg_number, changes });
+    const nameChange = changes.find((c) => c.field === "name");
+    if (nameChange) {
+      nameConflicts.push({ line: row.line, id: ex.id, regNumber: ex.reg_number, oldName: nameChange.old, newName: nameChange.new });
+    }
+  }
+
+  const token = directoryCrypto
+    .createHash("sha256")
+    .update(JSON.stringify({
+      filter: parsed.filter,
+      add: add.map((r) => [r.regNumber, r.name, r.batch, r.programme]),
+      alreadyThere: alreadyThere.map((r) => [r.id, r.regNumber, r.name]),
+      update: update.map((r) => [r.id, r.changes.map((c) => [c.field, c.old, c.new])]),
+      skipped: parsed.skipped.map((r) => [r.line, r.reason]),
+    }), "utf8")
+    .digest("hex");
+
+  return {
+    filter: parsed.filter,
+    separator: parsed.separator,
+    totals: {
+      add: add.length,
+      alreadyThere: alreadyThere.length,
+      update: update.length,
+      skipped: parsed.skipped.length,
+      nameConflicts: nameConflicts.length,
+    },
+    add,
+    alreadyThere,
+    update,
+    skipped: parsed.skipped,
+    nameConflicts,
+    programmes: parsed.programmes,
+    token,
+  };
+}
+
+// ---------------------------------------------------------------------
+// POST /api/admin/students/import/preview
+//
+// Body: { text, filter? }   filter defaults to "BT"; blank also means "BT".
+//
+// WRITES NOTHING. No transaction, no INSERT, no UPDATE -- one SELECT per
+// 500 register numbers. Returns the four groups, their totals, the name
+// conflicts on their own, the distinct programme values, and `token`.
+// ---------------------------------------------------------------------
+router.post(
+  "/students/import/preview",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const issues = directoryBodyIssues(req.body);
+    if (issues.length > 0) throw new ValidationError(issues);
+    res.json(await directoryResolve(pool, req.body.text, req.body.filter, false));
+  })
+);
+
+// ---------------------------------------------------------------------
+// POST /api/admin/students/import/apply
+//
+// Body: { text, filter?, token, confirmNameChanges? }
+//
+// ONE TRANSACTION. The text is re-parsed and re-resolved inside it, with the
+// matched rows locked. If the result is not exactly what the preview showed
+// (the token differs) nothing is written and the answer is 409 with a fresh
+// preview -- which is also what a second click of Apply gets.
+//
+//   200  { added, updated, addedRegNumbers, updatedRegNumbers }
+//   400  bad body; or name changes present without confirmNameChanges
+//   409  the data moved since the preview; body carries `preview`
+//   500  a row failed to write; NOTHING was written
+// ---------------------------------------------------------------------
+router.post(
+  "/students/import/apply",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const issues = directoryBodyIssues(req.body);
+    if (typeof req.body?.token !== "string" || req.body.token.trim() === "") {
+      issues.push({ field: "token", message: "token is required; it is the value the preview returned" });
+    }
+    if (issues.length > 0) throw new ValidationError(issues);
+    const expected = req.body.token.trim();
+    const confirmed = req.body.confirmNameChanges === true;
+
+    const outcome = await withTransaction(async (conn) => {
+      const fresh = await directoryResolve(conn, req.body.text, req.body.filter, true);
+      if (fresh.token !== expected) return { drifted: true, preview: fresh };
+
+      if (fresh.nameConflicts.length > 0 && !confirmed) {
+        throw new HttpError(
+          400,
+          `${fresh.nameConflicts.length} row(s) would change a student's name. ` +
+            "Check each one, then confirm the name changes. Nothing was written."
+        );
+      }
+
+      for (const row of fresh.add) {
+        try {
+          await conn.execute(
+            `INSERT INTO students (reg_number, name, batch, programme) VALUES (?, ?, ?, ?)`,
+            [row.regNumber, row.name, row.batch, row.programme]
+          );
+        } catch (err) {
+          throw new HttpError(
+            500,
+            `Line ${row.line} (${row.regNumber}) could not be added (${err.code || "database error"}). ` +
+              "Nothing was written."
+          );
+        }
+      }
+
+      for (const row of fresh.update) {
+        const sets = row.changes.map((c) => `${c.field} = ?`);
+        const args = row.changes.map((c) => c.new);
+        try {
+          await conn.execute(`UPDATE students SET ${sets.join(", ")} WHERE id = ?`, [...args, row.id]);
+        } catch (err) {
+          throw new HttpError(
+            500,
+            `Line ${row.line} (${row.regNumber}) could not be updated (${err.code || "database error"}). ` +
+              "Nothing was written."
+          );
+        }
+      }
+
+      return {
+        drifted: false,
+        added: fresh.add.length,
+        updated: fresh.update.length,
+        addedRegNumbers: fresh.add.map((r) => r.regNumber),
+        updatedRegNumbers: fresh.update.map((r) => r.regNumber),
+      };
+    });
+
+    if (outcome.drifted) {
+      res.status(409).json({
+        message:
+          "The students changed since this preview, so nothing was written. " +
+          "Check the fresh preview and apply again.",
+        preview: outcome.preview,
+      });
+      return;
+    }
+
+    res.json({
+      added: outcome.added,
+      updated: outcome.updated,
+      addedRegNumbers: outcome.addedRegNumbers,
+      updatedRegNumbers: outcome.updatedRegNumbers,
+    });
+  })
+);
+
+// END REMOVABLE BLOCK -- Student Directory (server half)
 // =====================================================================
 
 module.exports = router;
